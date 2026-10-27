@@ -41,7 +41,7 @@ Poi apri la cartella da Godot (Importa progetto → `project.godot`) e premi F5 
 
 Regole di progetto per restare multipiattaforma:
 
-- **Renderer**: Compatibility (OpenGL), il più compatibile per 2D su mobile e PC datati
+- **Renderer**: Compatibility (OpenGL), il più compatibile per 2D su mobile e PC datati; su Linux Mobile (Vulkan), vedi Build
 - **Input**: solo controller: tastiera, mouse e touch non sono supportati. L'Input Map (`move_*`, `interact`, `attack`, `heavy_attack`, `parry`, `dodge`, `jump`, `run`, `spell`, `shield`, `potion`, `mana_potion`, `battery_potion`, `inventory`, `inventory_sort`, `map`, `lock_on`, `focus`, `menu`, più `ui_accept` / `ui_cancel` per i menù) ha solo pulsanti, levette e grilletti del controller; all'avvio `Platform` toglie anche i tasti e i clic delle azioni `ui_*` predefinite di Godot e ferma tastiera, mouse e tocchi sullo schermo prima che arrivino ai menù (il puntatore è nascosto). I comandi non si possono rimappare: i nomi dei tasti mostrati (comandi, barra delle azioni, suggerimenti) li legge dall'Input Map `scripts/pad_labels.gd`
 - **UI**: ancoraggi e container, stretch "expand", orientamento landscape
 - **Piattaforma**: il codice chiede a `Platform` (`scripts/platform.gd`) cosa è disponibile (Steam, Deck) invece di controllare il sistema operativo
@@ -158,4 +158,4 @@ Il gioco è in italiano: i testi sono in `data/translations.csv` (colonna `it`, 
 Le build vengono prodotte da GitHub Actions (`.github/workflows/build.yml`).
 Windows e Linux sono un unico eseguibile con i dati incorporati (PCK incorporato), così l'app di itch.io ha un solo file da avviare (`CiccioMassacro.exe`, `CiccioMassacro.x86_64`).
 
-Portatili da gioco con Windows (`scripts/platform.gd`): se il modello contiene "Claw" o c'è uno schermo touch, il gioco parte a schermo intero. Su Windows il renderer Compatibility usa ANGLE (Direct3D 11, `rendering/gl_compatibility/driver.windows`), più affidabile dei driver OpenGL delle GPU integrate Intel come quella dell'MSI Claw 8. Per una build locale: Progetto → Esporta, usando i preset in `export_presets.cfg`.
+Portatili da gioco con Windows (`scripts/platform.gd`): se il modello contiene "Claw" o c'è uno schermo touch, il gioco parte a schermo intero. Su Windows il renderer Compatibility usa ANGLE (Direct3D 11, `rendering/gl_compatibility/driver.windows`), più affidabile dei driver OpenGL delle GPU integrate Intel come quella dell'MSI Claw 8. Su Linux il gioco parte col renderer Mobile (Vulkan, `rendering/renderer/rendering_method.linuxbsd`), che non passa da GLX/EGL: su PC dove GLX non offre un contesto OpenGL 3.3 (errore `Parameter "fbc" is null`) Godot passava a OpenGL ES via EGL e andava in segmentation fault. Se Vulkan manca, Godot ripiega da solo su OpenGL 3. Per il 2D del gioco i due renderer danno la stessa immagine. Per una build locale: Progetto → Esporta, usando i preset in `export_presets.cfg`.
