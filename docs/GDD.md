@@ -20,7 +20,7 @@ Documento vivo: da compilare e aggiornare. Le sezioni vuote sono da definire.
 
 ## 3. Protagonista e personaggi
 
-- **Protagonista**: Ciccio, un sopravvissuto rosa carne e rotondo, che si sporca di sangue a ogni uccisione (le macchie se ne vanno piano) con braccia e gambe sottili, armato di una motosega (corpo a corpo) e di un bazooka (missili a ricerca). Non parla e ride grasso quando abbatte un boss
+- **Protagonista**: Ciccio, un sopravvissuto rosa carne e rotondo, che si sporca di sangue a ogni uccisione e a ogni ferita (gli schizzi se ne vanno in fretta) con braccia e gambe sottili, armato di una motosega (corpo a corpo) e di un bazooka (missili a ricerca). Non parla e ride grasso quando abbatte un boss
 - **Nemici**: bande di predoni tondi come Ciccio, ognuno con taglia, colore della pelle e accessori (capelli, bandane, berretti, occhiali, maschere) casuali, con armi improvvisate (manganelli, mazze da baseball, tubi, mazze da demolizione) e armi da fuoco (pistole, fucili); il signore della guerra di ogni edificio
 - **Personaggi chiave**: personaggi incontrati nella città che introducono nuove quest (per ora solo i commercianti). Elenco _da definire_
 - **Fazioni**: _da definire_

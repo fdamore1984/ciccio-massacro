@@ -262,11 +262,10 @@ const HEAVY_CHARGE_MANA := 20.0
 ## La motosega in carica si scalda: alone arancione, scintille e fumo.
 const COLOR_CHARGE_GLOW := Color(1.0, 0.55, 0.15)
 
-## Torcia elettrica: luce attorno al personaggio, accesa e spenta tenendo
-## premuto L3 per TORCH_HOLD_TIME secondi; un tocco più breve è la corsa.
-const TORCH_COLOR := Color(0.92, 0.95, 1.0)
-const TORCH_ENERGY := 1.15
-const TORCH_SCALE := 1.9
+## Torcia elettrica: un fascio a cono nella direzione dello sguardo (vedi
+## Flashlight), acceso e spento tenendo premuto L3 per TORCH_HOLD_TIME
+## secondi; un tocco più breve è la corsa.
+const TORCH_COLOR := Flashlight.COLOR
 const TORCH_HOLD_TIME := 0.45
 
 ## Ogni pozione cura questi punti vita.
@@ -354,7 +353,10 @@ const HURT_KNOCKBACK := 420.0
 const HURT_INVULNERABLE_TIME := 0.8
 
 ## Gambe: il corpo sta sopra di LEG_LENGTH; i passi seguono la velocità.
-const LEG_LENGTH := 14.0
+## Corte e larghe: le gambe sono distanti LEG_SPACING dal centro e spesse LEG_WIDTH.
+const LEG_LENGTH := 11.0
+const LEG_SPACING := 9.0
+const LEG_WIDTH := 3.2
 const WALK_CYCLE := 0.08
 const STRIDE := 7.0
 ## Braccia e gambe sono semplici linee nere, corte e sottili; le braccia
@@ -373,14 +375,19 @@ const SAW_CHAIN_FAST := 140.0
 const BLEED_DROPS := 26
 
 const COLOR_BODY := Color(0.98, 0.74, 0.66)
-## Macchie di sangue: ogni nemico ucciso sporca il corpo di BLOOD_PER_KILL
-## (fino a 1), che poi si pulisce piano (BLOOD_CLEAN al secondo: da sporco
-## del tutto a pulito in circa 4 minuti). Il corpo si tinge di rosso e
-## compaiono via via fino a BLOOD_SPOTS chiazze.
+## Sangue sul corpo (vedi BodyBlood): ogni nemico ucciso sporca il corpo di
+## BLOOD_PER_KILL e ogni ferita di BLOOD_PER_WOUND (fino a 1), che poi si
+## pulisce (BLOOD_CLEAN al secondo: da sporco del tutto a pulito in 40
+## secondi). Il corpo si tinge di rosso e compaiono via via fino a
+## BLOOD_SPOTS schizzi.
 const BLOOD_PER_KILL := 0.15
-const BLOOD_CLEAN := 0.004
+const BLOOD_PER_WOUND := 0.12
+const BLOOD_CLEAN := 0.025
 const BLOOD_SPOTS := 9
-const COLOR_BLOOD_STAIN := Color(0.55, 0.02, 0.03)
+## Pozza di sangue che resta a terra quando muore (vedi GroundFx.pool).
+const DEATH_POOL := 64.0
+## Tono della voce di Ciccio (vedi Voice): grasso, più profondo della media.
+const VOICE_TONE := 0.82
 ## Burroni: cadendoci si precipita per FALL_TIME secondi, poi si riappare
 ## sul bordo (l'ultimo punto sicuro) perdendo vita (data/world.json). Si
 ## cade quando si scende sotto il bordo di FALL_DEPTH pixel.
@@ -515,9 +522,16 @@ var _lock_marker := LockMarker.new()
 ## Catena della motosega (pixel percorsi) e mani nell'ultimo disegno:
 ## impugnatura della motosega e l'altra mano (maniglia, torcia, scorta).
 var _saw_phase := 0.0
-## Quanto è sporco di sangue (0-1) e chiazze sul corpo (x, y, raggio).
-var blood_stain := 0.0
-var _blood_spots: Array[Vector3] = []
+## Quanto è sporco di sangue (0-1), con gli schizzi sul corpo, e le ferite
+## temporanee dei colpi ricevuti.
+var blood_stain: float:
+	get:
+		return _blood.amount
+	set(value):
+		_blood.amount = value
+var _blood := BodyBlood.new(0, BLOOD_SPOTS, BLOOD_CLEAN)
+var _wounds := Wounds.new()
+var _voice := Voice.new()
 var _grip := Vector2.ZERO
 var _off_hand := Vector2.ZERO
 ## Carica del colpo potente (0-1) e se il tasto è ancora tenuto premuto.
@@ -530,7 +544,7 @@ var _chain_charge := 0.0
 var _heavy_swing_played := false
 ## Tempo passato in carica (per l'animazione della motosega che si scalda).
 var _charge_time := 0.0
-var _torch := PointLight2D.new()
+var _torch := Flashlight.new()
 ## Potenziamento -> quante volte è stato scelto, nell'ordine di scelta.
 var upgrades_taken := {}
 ## Altezza del terreno sotto il personaggio (vedi World.elevation_at).
@@ -538,23 +552,17 @@ var ground_elevation := 0.0
 
 
 func _ready() -> void:
-	if _blood_spots.is_empty():
-		var rng := RandomNumberGenerator.new()
-		rng.seed = 7
-		for k in BLOOD_SPOTS:
-			var at := Vector2.from_angle(rng.randf() * TAU) * RADIUS * rng.randf_range(0.1, 0.7)
-			_blood_spots.append(Vector3(at.x, at.y, RADIUS * rng.randf_range(0.18, 0.38)))
 	# In modalità focus il giocatore resta a colori, con un'aura bianca.
 	add_to_group(LowHealthVignette.FOCUS_GROUP)
 	if not _lock_marker.is_inside_tree():
 		add_child(_lock_marker)
 	if not _torch.is_inside_tree():
-		_torch.texture = LightTexture.get_texture()
-		_torch.color = TORCH_COLOR
-		_torch.energy = TORCH_ENERGY
-		_torch.texture_scale = TORCH_SCALE
 		_torch.enabled = torch_on
+		_torch.aim(facing)
 		add_child(_torch)
+	if not _voice.is_inside_tree():
+		_voice.tone = VOICE_TONE
+		add_child(_voice)
 	if World.current:
 		ground_elevation = World.current.elevation_at(position)
 	_safe_position = position
@@ -773,11 +781,13 @@ func _physics_process(delta: float) -> void:
 	_update_height(delta)
 	_move(delta)
 	_walk_phase += _velocity.length() * delta * WALK_CYCLE
-	blood_stain = move_toward(blood_stain, 0.0, BLOOD_CLEAN * delta)
+	_blood.update(delta)
+	_wounds.update(delta)
 	_saw_phase += delta * (SAW_CHAIN_FAST if _state in [State.ATTACK, State.SLAM] else SAW_CHAIN_IDLE)
 	if torch_on:
-		# La luce è un'ellisse a terra centrata sotto il personaggio.
+		# Il fascio parte da terra, sotto il personaggio, verso lo sguardo.
 		_torch.position = Vector2(0, -ground_elevation + RADIUS * 0.6)
+		_torch.aim(facing)
 	_squash = move_toward(_squash, 0.0, SQUASH_RECOVERY * delta)
 	if _camera:
 		# Mentre si precipita nel burrone la telecamera resta al bordo.
@@ -1043,15 +1053,15 @@ func receive_hit(from: Vector2, damage: int, projectile := false) -> String:
 	_charging = false
 	_charge = 0.0
 	GroundFx.bleed(global_position, altitude() + LEG_LENGTH + RADIUS * 0.5, -to_attacker, BLEED_DROPS)
+	_wound(to_attacker)
 	if health == 0:
-		_change_state(State.DEAD)
-		Sfx.play("death", global_position)
-		died.emit()
+		_die()
 	else:
 		_change_state(State.HURT)
 		_velocity = -to_attacker * HURT_KNOCKBACK
 		_invulnerable_time = HURT_INVULNERABLE_TIME
 		Sfx.play("hurt", global_position)
+		_voice.pain()
 	return "hit"
 
 
@@ -1059,9 +1069,25 @@ func is_dead() -> bool:
 	return _state == State.DEAD
 
 
+## Una ferita (from: da dove arriva il colpo): lo squarcio sul corpo che
+## svanisce in fretta e un po' di sangue che resta addosso.
+func _wound(from: Vector2) -> void:
+	_wounds.add(from)
+	_blood.add(BLOOD_PER_WOUND)
+
+
+## Morte: l'urlo e la pozza di sangue che resta a terra.
+func _die() -> void:
+	_change_state(State.DEAD)
+	Sfx.play("death", global_position)
+	_voice.scream()
+	GroundFx.pool(global_position, DEATH_POOL)
+	died.emit()
+
+
 ## Un nemico ucciso: il corpo si sporca ancora un po' di sangue.
 func stain_with_blood() -> void:
-	blood_stain = minf(blood_stain + BLOOD_PER_KILL, 1.0)
+	_blood.add(BLOOD_PER_KILL)
 
 
 ## Risata di Ciccio, per esempio dopo aver sconfitto un boss.
@@ -1130,13 +1156,13 @@ func _climb_out_of_ravine() -> void:
 	health = maxi(health - int(data["ravine_damage"]), 0)
 	health_changed.emit(health, max_health)
 	GroundFx.bleed(global_position, ground_elevation + LEG_LENGTH + RADIUS * 0.5, Vector2.from_angle(randf() * TAU), BLEED_DROPS)
+	_wound(Vector2(randf_range(-1.0, 1.0), 1.0))
 	if health == 0:
-		_change_state(State.DEAD)
-		Sfx.play("death", global_position)
-		died.emit()
+		_die()
 	else:
 		_invulnerable_time = HURT_INVULNERABLE_TIME
 		Sfx.play("hurt", global_position)
+		_voice.pain()
 
 
 ## Spostamento istantaneo (entrando o uscendo da una caverna, caricando una
@@ -1960,6 +1986,7 @@ func set_torch(on: bool) -> void:
 		return
 	torch_on = on
 	_torch.enabled = on
+	_torch.aim(facing)
 	if _state != State.DEAD:
 		Sfx.play("torch", global_position, 1.0 if on else 0.7)
 
@@ -2087,7 +2114,7 @@ func _draw() -> void:
 			Shapes.disc(self, -_dodge_direction * k * 16.0 + Vector2(0, -LEG_LENGTH), RADIUS * (1.0 - 0.15 * k), Color(body, 0.35 / k))
 	if _state != State.SLIDE and not rolling:
 		var foot_y := RADIUS * 0.85 - (6.0 if is_airborne() else 0.0)
-		BodyParts.draw_legs(self, -LEG_LENGTH + RADIUS * 0.55, foot_y, 7.0, LIMB_WIDTH, _walk_phase,
+		BodyParts.draw_legs(self, -LEG_LENGTH + RADIUS * 0.55, foot_y, LEG_SPACING, LEG_WIDTH, _walk_phase,
 				_velocity.normalized(), STRIDE if walking else 0.0, Color(COLOR_LIMBS, body.a), false)
 	# Il corpo ondeggia camminando, si inclina nella direzione di corsa, si
 	# allunga salendo e si schiaccia atterrando.
@@ -2116,23 +2143,18 @@ func _draw() -> void:
 		var pulse := 0.5 + 0.5 * sin(_empowered_time * 10.0)
 		Shapes.disc(self, Vector2.ZERO, RADIUS + 8.0 + pulse * 4.0, Color(COLOR_EMPOWERED, 0.25))
 		draw_arc(Vector2.ZERO, RADIUS + 8.0 + pulse * 4.0, 0.0, TAU, 32, Color(COLOR_EMPOWERED, 0.8), 2.0)
-	if blood_stain > 0.0 and _state != State.DEAD:
-		body = Color(body.lerp(COLOR_BLOOD_STAIN, blood_stain * 0.4), body.a)
-	Shapes.disc(self, Vector2.ZERO, RADIUS, body)
-	_draw_blood_spots(body.a)
-	var tip := facing * (RADIUS + 12.0)
-	var side := facing.orthogonal() * 9.0
-	draw_primitive(PackedVector2Array([tip, facing * RADIUS * 0.6 + side, facing * RADIUS * 0.6 - side]), PackedColorArray([body.darkened(0.3)]), PackedVector2Array())
-
 	if _state != State.DEAD:
-		_grip = facing.orthogonal() * RADIUS * 0.8
-		_off_hand = -_grip
-		_draw_weapon()
-		if _state == State.DRINK:
-			_draw_flask()
-		if torch_on:
-			_draw_torch()
-		_draw_arms(body.a)
+		body = _blood.tint(body)
+	# Guardando verso nord il "naso", la motosega, le braccia, la torcia e
+	# le scorte sono dietro al corpo, che li copre (vedi BodyParts.gear_behind).
+	var behind := BodyParts.gear_behind(facing)
+	if behind:
+		_draw_gear(body)
+	Shapes.disc(self, Vector2.ZERO, RADIUS, body)
+	_blood.draw(self, RADIUS, body.a)
+	_wounds.draw(self, RADIUS, body.a)
+	if not behind:
+		_draw_gear(body)
 
 	# Scudo attivo: piastre di kevlar esagonali attorno al personaggio.
 	if shield_active and _state != State.DEAD:
@@ -2144,6 +2166,23 @@ func _draw() -> void:
 		for k in 6:
 			draw_line(plates[k] * 0.86, plates[k], Color(COLOR_BUBBLE, 0.5), 2.0)
 	draw_set_transform(Vector2.ZERO)
+
+
+## "Naso" che indica la direzione e, da vivo, la motosega, la scorta in
+## uso, la torcia elettrica e le braccia.
+func _draw_gear(body: Color) -> void:
+	var tip := facing * (RADIUS + 12.0)
+	var side := facing.orthogonal() * 9.0
+	draw_primitive(PackedVector2Array([tip, facing * RADIUS * 0.6 + side, facing * RADIUS * 0.6 - side]), PackedColorArray([body.darkened(0.3)]), PackedVector2Array())
+	if _state != State.DEAD:
+		_grip = facing.orthogonal() * RADIUS * 0.8
+		_off_hand = -_grip
+		_draw_weapon()
+		if _state == State.DRINK:
+			_draw_flask()
+		if torch_on:
+			_draw_torch()
+		_draw_arms(body.a)
 
 
 ## Usando una scorta l'altra mano la porta al corpo: il kit medico
@@ -2169,17 +2208,6 @@ func _draw_flask() -> void:
 			draw_line(at + Vector2(-7, -8), at + Vector2(7, 8), COLOR_FUEL_CAN.darkened(0.3), 2.0)
 			draw_line(at + Vector2(4, -8), at + Vector2(8, -13), Color(0.3, 0.3, 0.3), 3.0)
 	_off_hand = at
-
-
-## Chiazze di sangue sul corpo: più è sporco, più chiazze si vedono (le
-## ultime comparse sono le prime a sparire pulendosi).
-func _draw_blood_spots(alpha: float) -> void:
-	for k in _blood_spots.size():
-		var amount := clampf(blood_stain * BLOOD_SPOTS - k, 0.0, 1.0)
-		if amount <= 0.0:
-			break
-		var spot := _blood_spots[k]
-		Shapes.disc(self, Vector2(spot.x, spot.y), spot.z, Color(COLOR_BLOOD_STAIN, 0.85 * amount * alpha))
 
 
 ## Braccia: linee nere sottili dalle spalle alle mani (vedi _grip e

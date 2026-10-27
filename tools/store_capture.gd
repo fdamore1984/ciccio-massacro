@@ -173,6 +173,7 @@ func _capture_challenge(language: String) -> void:
 	_player.torch_on = true
 	_player._torch.enabled = true
 	_player._torch.position = Vector2(0, -_player.ground_elevation + Player.RADIUS * 0.6)
+	_player._torch.aim(_player.facing)
 	var missile := Missile.new()
 	missile.position = _player.position + Vector2(120, -70)
 	missile.direction = Vector2(1, -0.4).normalized()
@@ -376,6 +377,7 @@ func _capture_dungeon(language: String) -> void:
 	_player.torch_on = true
 	_player._torch.enabled = true
 	_player._torch.position = Vector2(0, -_player.ground_elevation + Player.RADIUS * 0.6)
+	_player._torch.aim(_player.facing)
 	var boss: Enemy = _game._boss
 	boss.position = arena
 	boss._change_state(Enemy.State.WINDUP)

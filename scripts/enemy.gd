@@ -113,6 +113,19 @@ const DEATH_FALL_TIME := 0.35
 ## Sangue perso a ogni colpo (gocce), di più con i colpi potenti.
 const BLEED_DROPS := 16
 const BLEED_DROPS_HEAVY := 32
+## Sangue sul corpo (vedi BodyBlood): ogni colpo ricevuto lo sporca di
+## BLOOD_PER_HIT (BLOOD_PER_HEAVY i colpi potenti), che si pulisce in fretta
+## (BLOOD_CLEAN al secondo: da sporco del tutto a pulito in 8 secondi).
+const BLOOD_PER_HIT := 0.3
+const BLOOD_PER_HEAVY := 0.5
+const BLOOD_CLEAN := 0.125
+const BLOOD_SPOTS := 7
+## Pozza di sangue che resta a terra alla morte, rispetto al raggio.
+const DEATH_POOL := 2.4
+## Tono della voce (vedi Voice): più grosso il nemico, più profonda la voce;
+## ognuno ha la sua, un po' diversa (VOICE_SPREAD).
+const VOICE_SPREAD := Vector2(0.9, 1.12)
+const BOSS_VOICE := 0.85
 ## Vampata alla bocca della canna dopo uno sparo (secondi).
 const MUZZLE_FLASH_TIME := 0.1
 ## I nemici evocati compaiono a questa distanza dall'evocatore.
@@ -126,8 +139,11 @@ const HOP_COOLDOWN := 0.6
 ## Il salto parte se in un passo si è percorsa meno di questa parte del movimento voluto.
 const HOP_BLOCKED_SHARE := 0.5
 
-## Gambe: altezza rispetto al raggio del corpo e passo.
-const LEG_FACTOR := 0.5
+## Gambe: altezza rispetto al raggio del corpo e passo; corte e larghe,
+## distanti LEG_SPACING (rispetto al raggio) dal centro e spesse LEG_WIDTH.
+const LEG_FACTOR := 0.4
+const LEG_SPACING := 0.38
+const LEG_WIDTH := 3.2
 const WALK_CYCLE := 0.08
 
 ## Prestazioni con tanti nemici: la spinta di separazione guarda solo i
@@ -253,6 +269,10 @@ var _minions: Array[Enemy] = []
 var _swing_sign := 1.0
 var _walk_phase := 0.0
 var _muzzle_flash := 0.0
+## Sangue sul corpo, ferite dei colpi ricevuti e voce.
+var _blood := BodyBlood.new(randi(), BLOOD_SPOTS, BLOOD_CLEAN)
+var _wounds := Wounds.new()
+var _voice := Voice.new()
 ## La zona di pericolo va disegnata sotto i personaggi, non sopra.
 var _telegraph := Node2D.new()
 ## Effetti rossi dell'attacco su nodi propri: dietro al corpo il bagliore
@@ -396,6 +416,8 @@ func _ready() -> void:
 	add_child(_danger_front)
 	for fx: CanvasItem in [_telegraph, _danger_back, _danger_front]:
 		fx.material = _unshaded_material()
+	_voice.tone = (BOSS_VOICE if is_boss() else randf_range(VOICE_SPREAD.x, VOICE_SPREAD.y)) / pow(float(_type["mass"]), 0.25)
+	add_child(_voice)
 	if World.current:
 		ground_elevation = World.current.elevation_at(position)
 		_telegraph.position.y = -ground_elevation
@@ -422,6 +444,8 @@ func _physics_process(delta: float) -> void:
 	_slam_cooldown = maxf(_slam_cooldown - delta, 0.0)
 	_magic_cooldown = maxf(_magic_cooldown - delta, 0.0)
 	_hop_cooldown = maxf(_hop_cooldown - delta, 0.0)
+	_blood.update(delta)
+	_wounds.update(delta)
 
 	var target_velocity := Vector2.ZERO
 	var to_player := player.global_position - global_position if player else Vector2.INF
@@ -680,15 +704,20 @@ func take_damage(amount: int, direction: Vector2, heavy := false) -> void:
 	_hit_flash = 0.12
 	_knockback = direction * KNOCKBACK * (HEAVY_KNOCKBACK_FACTOR if heavy else 1.0) / float(_type["mass"])
 	GroundFx.bleed(global_position, ground_elevation + radius * 0.8, direction, BLEED_DROPS_HEAVY if heavy else BLEED_DROPS)
+	_wounds.add(-direction)
+	_blood.add(BLOOD_PER_HEAVY if heavy else BLOOD_PER_HIT)
 	if health <= 0:
 		_fall_side = 1.0 if direction.x >= 0.0 else -1.0
 		_trail.clear()
-		GroundFx.pool(global_position, radius * 1.4)
+		GroundFx.pool(global_position, radius * DEATH_POOL)
 		_change_state(State.DEAD)
 		remove_from_group("enemies")
 		Sfx.play("enemy_death", global_position, 1.0 / sqrt(_type["mass"]))
+		_voice.scream()
 		died.emit(self)
-	elif _state == State.SUMMON:
+		return
+	_voice.pain()
+	if _state == State.SUMMON:
 		# Colpire un evocatore mentre evoca interrompe l'evocazione.
 		_finish_summon()
 	elif _state == State.WANDER:
@@ -1173,27 +1202,27 @@ func _draw() -> void:
 	# I salti (attacco speciale, gradini) sollevano tutto tranne l'ombra.
 	draw_set_transform(Vector2(0, -ground_elevation - lift))
 	var walking := _velocity.length() > 15.0 and _state != State.DEAD
-	BodyParts.draw_legs(self, -leg + radius * 0.55, radius * 0.85, radius * 0.3, 2.5,
+	BodyParts.draw_legs(self, -leg + radius * 0.55, radius * 0.85, radius * LEG_SPACING, LEG_WIDTH,
 			_walk_phase, _velocity.normalized(), radius * 0.3 if walking else 0.0, COLOR_LIMBS, false)
 	draw_set_transform(_body_offset())
 	_prepare_meshes()
+	if _hit_flash <= 0.0:
+		body = _blood.tint(body)
+	# Guardando verso nord "naso", faccia, radio, braccia e arma sono dietro
+	# al corpo, che li copre (vedi BodyParts.gear_behind); capelli, copricapo
+	# ed elmetto restano sempre in cima alla testa.
+	var behind := BodyParts.gear_behind(_facing)
+	if behind:
+		_draw_gear(body)
 	draw_mesh(_body_mesh, null, Transform2D.IDENTITY, body)
+	_blood.draw(self, radius, 1.0)
+	_wounds.draw(self, radius, 1.0)
 	draw_mesh(_outline_mesh, null, Transform2D.IDENTITY, body.darkened(0.35))
-	# "Naso" che indica la direzione, come il giocatore, e gli accessori.
-	var tip := _facing * (radius + 10.0)
-	var side := _facing.orthogonal() * radius * 0.35
-	draw_primitive(PackedVector2Array([tip, _facing * radius * 0.6 + side, _facing * radius * 0.6 - side]), PackedColorArray([body.darkened(0.3)]), PackedVector2Array())
-	_draw_look()
+	if not behind:
+		_draw_gear(body)
+	_draw_hair()
 	if is_boss():
 		_draw_crown()
-	if _state == State.SUMMON:
-		_draw_radio()
-	if is_casting():
-		_draw_gun("shotgun")
-	elif _is_ranged():
-		_draw_gun(_type.get("weapon", "pistol"))
-	else:
-		_draw_club()
 
 	if _state == State.STUNNED:
 		for i in 3:
@@ -1206,6 +1235,23 @@ func _draw() -> void:
 		var origin := Vector2(-width / 2.0, -radius * 1.2 - 14.0)
 		draw_rect(Rect2(origin, Vector2(width, 6)), Color(0, 0, 0, 0.5))
 		draw_rect(Rect2(origin, Vector2(width * health / max_health, 6)), COLOR_DANGER)
+
+
+## "Naso" che indica la direzione, come il giocatore, faccia (occhiali,
+## maschera...), radio dei rinforzi, braccia e arma.
+func _draw_gear(body: Color) -> void:
+	var tip := _facing * (radius + 10.0)
+	var side := _facing.orthogonal() * radius * 0.35
+	draw_primitive(PackedVector2Array([tip, _facing * radius * 0.6 + side, _facing * radius * 0.6 - side]), PackedColorArray([body.darkened(0.3)]), PackedVector2Array())
+	_draw_face()
+	if _state == State.SUMMON:
+		_draw_radio()
+	if is_casting():
+		_draw_gun("shotgun")
+	elif _is_ranged():
+		_draw_gun(_type.get("weapon", "pistol"))
+	else:
+		_draw_club()
 
 
 ## Posizione del corpo sopra le gambe: salto, ondeggiare del passo e
@@ -1367,10 +1413,9 @@ func _draw_arms(hand: Vector2, other_hand: Vector2) -> void:
 		draw_line(from, from + ((pair[1] as Vector2) - from).limit_length(radius * 1.3), COLOR_LIMBS, 2.5)
 
 
-## Accessori scelti a caso (vedi _apply_look): capelli in cima al corpo,
-## bandana, berretto o cuffia, e sul lato della faccia occhiali da sole,
-## maschera antigas, fazzoletto o benda sull'occhio.
-func _draw_look() -> void:
+## Accessori in cima alla testa, scelti a caso (vedi _apply_look): capelli
+## e bandana, berretto o cuffia.
+func _draw_hair() -> void:
 	var top := Vector2(0, -radius)
 	match _hair:
 		"mohawk":
@@ -1398,6 +1443,11 @@ func _draw_look() -> void:
 			draw_colored_polygon(PackedVector2Array([Vector2(-radius * 0.8, -radius * 0.55), Vector2(radius * 0.8, -radius * 0.55),
 					Vector2(radius * 0.5, -radius * 1.0), Vector2(-radius * 0.5, -radius * 1.0)]), _headwear_color)
 			Shapes.disc(self, top + Vector2(0, -radius * 0.05), radius * 0.15, _headwear_color.lightened(0.3))
+
+
+## Accessori sul lato della faccia, scelti a caso (vedi _apply_look):
+## occhiali da sole, maschera antigas, fazzoletto o benda sull'occhio.
+func _draw_face() -> void:
 	var eyes := _facing * radius * 0.5 + Vector2(0, -radius * 0.2)
 	var across := _facing.orthogonal()
 	match _face:
