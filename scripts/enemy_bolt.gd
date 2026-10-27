@@ -5,7 +5,8 @@ extends Node2D
 ## giocatore (si può schivare, saltare o parare come gli altri colpi). Se il giocatore fluttua a mezz'aria caricando lo slam aereo il
 ## colpo sale verso di lui e lo raggiunge (vedi Player.receive_hit).
 ## Non attraversa pareti, palazzi, muri e ostacoli solidi: lì si ferma con
-## una scintilla.
+## una scintilla. Colpisce anche gli altri nemici che incontra (fuoco amico,
+## vedi Enemy.hurt_enemy), mai chi l'ha sparato.
 
 const RADIUS := 9.0
 const FLIGHT_HEIGHT := 26.0
@@ -20,6 +21,10 @@ var altitude := 0.0
 var color := Color(1.0, 0.8, 0.35)
 ## Grandezza del proiettile (per collisioni e disegno).
 var radius := RADIUS
+## Il nemico che l'ha sparato (non viene colpito dal suo proiettile) e il
+## suo livello di minaccia (per i danni del fuoco amico, anche se intanto muore).
+var shooter: Enemy
+var threat_level := 1
 
 var _travelled := 0.0
 var _age := 0.0
@@ -55,6 +60,9 @@ func _physics_process(delta: float) -> void:
 				HitSpark.spawn(get_parent(), position, altitude + FLIGHT_HEIGHT + _rise, 30.0, Player.COLOR_GUARD_SPARK)
 			queue_free()
 			return
+	if _hit_enemy():
+		queue_free()
+		return
 	if World.current and World.current.blocks_projectile(position, altitude, FLIGHT_HEIGHT, radius):
 		HitSpark.spawn(get_parent(), position, altitude + FLIGHT_HEIGHT, 12.0, color)
 		queue_free()
@@ -62,6 +70,21 @@ func _physics_process(delta: float) -> void:
 	if _travelled >= max_distance:
 		queue_free()
 	queue_redraw()
+
+
+## Fuoco amico: il primo altro nemico toccato, alla stessa altezza, viene
+## ferito come da un colpo di chi ha sparato. Restituisce true se ha colpito.
+func _hit_enemy() -> bool:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as Enemy
+		if enemy == null or (is_instance_valid(shooter) and enemy == shooter) or enemy.is_dead() \
+				or absf(enemy.ground_elevation - altitude) > HIT_HEIGHT_REACH:
+			continue
+		if position.distance_to(enemy.position) < radius + enemy.radius:
+			Enemy.hurt_enemy(enemy, damage, threat_level, direction, false)
+			HitSpark.spawn(get_parent(), position, altitude + FLIGHT_HEIGHT, 12.0, color)
+			return true
+	return false
 
 
 ## Proiettile: un tracciante luminoso allungato nella direzione del volo,

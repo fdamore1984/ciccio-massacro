@@ -130,6 +130,9 @@ const BOSS_VOICE := 0.85
 const MUZZLE_FLASH_TIME := 0.1
 ## I nemici evocati compaiono a questa distanza dall'evocatore.
 const SUMMON_DISTANCE := 70.0
+## Fuoco amico (vedi hurt_enemy): i colpi dei nemici feriscono anche gli
+## altri nemici nella zona d'impatto, ma non oltre questa differenza d'altezza.
+const FRIENDLY_HEIGHT_REACH := 40.0
 ## Salti sui gradini e cadute: gravità, quanti livelli si superano con un
 ## salto, quanto più in alto del gradino si arriva e attesa tra due salti.
 const GRAVITY := 1500.0
@@ -173,6 +176,9 @@ const COLOR_DANGER := Color(1.0, 0.25, 0.15)
 ## Chiamata dei rinforzi: i fumogeni arancioni dove arriveranno.
 const COLOR_SUMMON := Color(1.0, 0.5, 0.2)
 const COLOR_DAMAGE := Color(1.0, 1.0, 1.0)
+## Tinta del nemico agganciato dal giocatore (vedi set_locked): i valori
+## sopra 1 lo illuminano di rosso invece di scurirlo.
+const COLOR_LOCKED := Color(1.7, 0.5, 0.45)
 ## Aspetto casuale: taglia (moltiplica il raggio del tipo), tonalità della
 ## pelle e colori di capelli e accessori.
 const SIZE_RANGE := Vector2(0.8, 1.25)
@@ -238,6 +244,8 @@ var _guard_cooldown := 0.0
 var _seen_attack := -1
 var _guard_flash := 0.0
 var _strike_resolved := false
+## Nemici già feriti dal fuoco amico in questo colpo (uno per colpo).
+var _friendly_struck: Array[Enemy] = []
 ## Salto con colpo a terra: punto di partenza e d'arrivo, attesa prima di
 ## riprovarlo e altezza attuale del salto.
 var _slam_from := Vector2.ZERO
@@ -468,22 +476,25 @@ func _physics_process(delta: float) -> void:
 				_change_state(State.WANDER)
 			elif _punishing(to_player, distance):
 				_attack_cooldown = 0.0
-				if distance <= _attack_trigger_range():
+				if distance > _attack_trigger_range():
+					target_velocity = to_player.normalized() * _speed * PUNISH_SPEED_FACTOR
+				elif _attack_slot_free():
 					_strikes = 0
 					_begin_windup(_type["windup"][0], _type["windup"][1], true)
 				else:
-					target_velocity = to_player.normalized() * _speed * PUNISH_SPEED_FACTOR
-			elif _exposed_shot(distance):
+					# Troppi attacchi in corso: si aspetta girando attorno.
+					target_velocity = _chase_direction(to_player) * _speed
+			elif _exposed_shot(distance) and _attack_slot_free():
 				_begin_exposed_shot()
 			elif _should_guard(distance):
 				_begin_guard()
-			elif _can_slam(distance):
+			elif _can_slam(distance) and _attack_slot_free():
 				_begin_slam()
-			elif _can_cast(distance):
+			elif _can_cast(distance) and _attack_slot_free():
 				_begin_cast()
 			elif _can_summon(distance):
 				_begin_summon()
-			elif _attack_cooldown == 0.0 and distance <= _attack_trigger_range() and _can_shoot_player():
+			elif _attack_cooldown == 0.0 and distance <= _attack_trigger_range() and _can_shoot_player() and _attack_slot_free():
 				_strikes = 0
 				_begin_windup(_type["windup"][0], _type["windup"][1], true)
 			else:
@@ -514,6 +525,7 @@ func _physics_process(delta: float) -> void:
 				_start_dash(to_player)
 			elif _state_time >= _windup_time:
 				_strike_resolved = false
+				_friendly_struck.clear()
 				Sfx.play("enemy_strike", global_position, 1.0 / sqrt(_type["mass"]))
 				_change_state(State.STRIKE)
 
@@ -522,6 +534,8 @@ func _physics_process(delta: float) -> void:
 			var shooting := _is_ranged() or _casting
 			_velocity = Vector2.ZERO if shooting else _attack_direction * float(_type["lunge_speed"])
 			target_velocity = _velocity
+			if not shooting:
+				_strike_enemies()
 			if not shooting and not _strike_resolved and player_active and _player_in_strike_zone():
 				_strike_resolved = true
 				var result := player.receive_hit(global_position, damage)
@@ -556,7 +570,7 @@ func _physics_process(delta: float) -> void:
 			_update_slam(player_active)
 
 		State.RECOVER:
-			if _state_time >= RECOVER_TIME * EXPOSED_RECOVER_SHARE and _exposed_shot(distance):
+			if _state_time >= RECOVER_TIME * EXPOSED_RECOVER_SHARE and _exposed_shot(distance) and _attack_slot_free():
 				_begin_exposed_shot()
 			elif _state_time >= RECOVER_TIME:
 				_attack_cooldown = randf_range(ATTACK_COOLDOWN.x, ATTACK_COOLDOWN.y)
@@ -863,6 +877,8 @@ func _shoot_bolt(direction: Vector2, ranged: Dictionary) -> void:
 	bolt.radius = float(ranged.get("bolt_radius", EnemyBolt.RADIUS))
 	bolt.color = World._color(ranged["color"]) if ranged.has("color") else _color.lightened(0.3)
 	bolt.position = position + direction * radius
+	bolt.shooter = self
+	bolt.threat_level = threat_level
 	get_parent().add_child(bolt)
 	_muzzle_flash = MUZZLE_FLASH_TIME
 	if not _casting:
@@ -976,7 +992,7 @@ func blocks(from: Vector2) -> bool:
 	if _state != State.GUARD or absf(_facing.angle_to(from - global_position)) > GUARD_ARC / 2.0:
 		return false
 	_guard_flash = 0.25
-	if randf() < COUNTER_CHANCE:
+	if randf() < COUNTER_CHANCE and _attack_slot_free():
 		_guard_cooldown = randf_range(GUARD_COOLDOWN.x, GUARD_COOLDOWN.y)
 		_strikes = 0
 		_attack_direction = (from - global_position).normalized()
@@ -1056,6 +1072,8 @@ func _land_slam(player_active: bool, slam: Dictionary) -> void:
 	var impact_radius := float(slam["radius"])
 	GroundFx.shockwave(global_position, ground_elevation, impact_radius)
 	Sfx.play("impact", global_position, 0.5 / sqrt(_type["mass"]))
+	for other in _enemies_near(impact_radius):
+		hurt_enemy(other, damage + int(slam["damage_bonus"]), threat_level, other.global_position - global_position, true)
 	if player_active and player.global_position.distance_to(global_position) <= impact_radius + Player.RADIUS:
 		# Anche il colpo a terra si può parare: con una parata perfetta
 		# (istantanea, appena prima dell'impatto) si resta storditi.
@@ -1100,6 +1118,71 @@ func _player_in_strike_zone() -> bool:
 	if offset.length() > radius + float(_type["strike_reach"]) + Player.RADIUS:
 		return false
 	return offset.length() <= radius + Player.RADIUS or absf(_attack_direction.angle_to(offset)) <= _strike_arc() / 2.0
+
+
+## Sta attaccando il giocatore (carica, colpo o salto con colpo a terra)?
+## Al più EnemyTypes.max_simultaneous_attacks nemici attaccano insieme: gli
+## altri girano attorno finché uno degli attacchi non finisce (vedi
+## _attack_slot_free).
+func is_attacking() -> bool:
+	return _state in [State.WINDUP, State.STRIKE, State.SLAM]
+
+
+## C'è posto per un nuovo attacco? Al più EnemyTypes.max_simultaneous_attacks
+## nemici attaccano insieme; il controllo avviene quando si decide, uno dopo
+## l'altro, così due nemici nello stesso passo non prendono lo stesso posto.
+func _attack_slot_free() -> bool:
+	var limit := EnemyTypes.max_simultaneous_attacks()
+	var busy := 0
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as Enemy
+		if enemy != null and enemy != self and enemy.is_attacking():
+			busy += 1
+			if busy >= limit:
+				return false
+	return true
+
+
+## Gli altri nemici vivi entro reach (più il loro raggio) e più o meno alla
+## stessa altezza.
+func _enemies_near(reach: float) -> Array[Enemy]:
+	var found: Array[Enemy] = []
+	var altitude := ground_elevation + _height + _air
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as Enemy
+		if enemy == null or enemy == self or enemy.is_dead():
+			continue
+		if absf(enemy.ground_elevation + enemy._height + enemy._air - altitude) > FRIENDLY_HEIGHT_REACH:
+			continue
+		if enemy.global_position.distance_to(global_position) <= reach + enemy.radius:
+			found.append(enemy)
+	return found
+
+
+## Fuoco amico del fendente: ferisce una volta per colpo gli altri nemici
+## nella zona colpita (stessa portata e stesso arco del colpo al giocatore).
+func _strike_enemies() -> void:
+	for other in _enemies_near(radius + float(_type["strike_reach"])):
+		if other in _friendly_struck:
+			continue
+		var offset := other.global_position - global_position
+		if offset.length() > radius + other.radius and absf(_attack_direction.angle_to(offset)) > _strike_arc() / 2.0:
+			continue
+		_friendly_struck.append(other)
+		hurt_enemy(other, damage, threat_level, offset, false)
+
+
+## Danno di un colpo nemico a un altro nemico (fuoco amico): points sono i
+## punti di danno del colpo, level il livello di minaccia di chi colpisce.
+static func hurt_enemy(other: Enemy, points: int, level: int, direction: Vector2, heavy: bool) -> void:
+	var amount := roundi(points * EnemyTypes.friendly_fire(level))
+	other.take_damage(amount, direction.normalized() if direction != Vector2.ZERO else Vector2.DOWN, heavy)
+	Sfx.play("hit", other.global_position, 0.8, -6.0)
+
+
+## Il giocatore l'ha agganciato (vedi Player.lock_target): si colora di rosso.
+func set_locked(locked: bool) -> void:
+	self_modulate = COLOR_LOCKED if locked else Color.WHITE
 
 
 ## Spinta per non sovrapporsi agli altri nemici.

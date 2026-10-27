@@ -156,11 +156,15 @@ const AIR_SLAM_BATTERY_DRAIN := 30.0
 const SLAM_HEIGHT_DAMAGE := 0.008
 const SLAM_HEIGHT_MAX_BONUS := 2.0
 const DASH_SLAM_DAMAGE_FACTOR := 2.4
-## Aggancio del bersaglio: nemici entro LOCK_RANGE, anche dietro muri e
-## ostacoli; oltre LOCK_BREAK_RANGE si sgancia. La telecamera si sposta
-## verso il bersaglio di questa parte della distanza, fino a LOCK_CAMERA_MAX.
-const LOCK_RANGE := 650.0
-const LOCK_BREAK_RANGE := 900.0
+## Aggancio automatico del bersaglio (nessun tasto): sempre il nemico vivo
+## più vicino entro LOCK_RANGE, anche dietro muri e ostacoli. Si passa a un
+## altro nemico quando è più vicino di almeno LOCK_SWITCH_MARGIN pixel, così
+## con due nemici quasi alla stessa distanza l'aggancio non salta avanti e
+## indietro. Il nemico agganciato si colora di rosso (Enemy.set_locked). La
+## telecamera si sposta verso il bersaglio di questa parte della distanza,
+## fino a LOCK_CAMERA_MAX.
+const LOCK_RANGE := 480.0
+const LOCK_SWITCH_MARGIN := 40.0
 const LOCK_CAMERA_SHARE := 0.3
 const LOCK_CAMERA_MAX := 170.0
 ## All'impatto la telecamera trema, sempre meno.
@@ -262,10 +266,9 @@ const HEAVY_CHARGE_MANA := 20.0
 ## La motosega in carica si scalda: alone arancione, scintille e fumo.
 const COLOR_CHARGE_GLOW := Color(1.0, 0.55, 0.15)
 
-## Torcia elettrica: un fascio a cono nella direzione dello sguardo (vedi
+## Torcia elettrica: un alone di luce attorno al personaggio (vedi
 ## Flashlight), acceso e spento tenendo premuto L3 per TORCH_HOLD_TIME
 ## secondi; un tocco più breve è la corsa.
-const TORCH_COLOR := Flashlight.COLOR
 const TORCH_HOLD_TIME := 0.45
 
 ## Ogni pozione cura questi punti vita.
@@ -395,7 +398,6 @@ const FALL_TIME := 0.8
 const FALL_DEPTH := 48.0
 const COLOR_HURT := Color(0.95, 0.35, 0.3)
 const COLOR_DEAD := Color(0.4, 0.4, 0.4)
-const COLOR_SHIELD := Color(0.45, 0.7, 1.0)
 const COLOR_SLASH := Color(1.0, 1.0, 0.85)
 const COLOR_HEAVY := Color(1.0, 0.5, 0.2)
 const COLOR_EMPOWERED := Color(1.0, 0.8, 0.25)
@@ -515,10 +517,8 @@ var _shake := 0.0
 ## Ultimo punto a terra fuori dai burroni e la sua altezza: si riappare lì.
 var _safe_position := Vector2.ZERO
 var _safe_altitude := 0.0
-## Nemico agganciato (null se nessuno) e il suo mirino. Se il bersaglio
-## sparisce (anche liberato dalla scena) l'aggancio si toglie.
+## Nemico agganciato (null se nessuno, vedi _update_lock).
 var lock_target: Enemy
-var _lock_marker := LockMarker.new()
 ## Catena della motosega (pixel percorsi) e mani nell'ultimo disegno:
 ## impugnatura della motosega e l'altra mano (maniglia, torcia, scorta).
 var _saw_phase := 0.0
@@ -554,11 +554,8 @@ var ground_elevation := 0.0
 func _ready() -> void:
 	# In modalità focus il giocatore resta a colori, con un'aura bianca.
 	add_to_group(LowHealthVignette.FOCUS_GROUP)
-	if not _lock_marker.is_inside_tree():
-		add_child(_lock_marker)
 	if not _torch.is_inside_tree():
 		_torch.enabled = torch_on
-		_torch.aim(facing)
 		add_child(_torch)
 	if not _voice.is_inside_tree():
 		_voice.tone = VOICE_TONE
@@ -610,10 +607,6 @@ func _physics_process(delta: float) -> void:
 		if UiNav.game_pressed("spell"):
 			_fire_missile(input)
 	if _state != State.DEAD:
-		# R3 aggancia il nemico più vicino; premendo di nuovo si aggancia
-		# quello che ora è più vicino (non si sgancia mai).
-		if UiNav.game_pressed("lock_on"):
-			_lock_on()
 		_update_lock()
 		_update_run_button(delta)
 
@@ -785,9 +778,8 @@ func _physics_process(delta: float) -> void:
 	_wounds.update(delta)
 	_saw_phase += delta * (SAW_CHAIN_FAST if _state in [State.ATTACK, State.SLAM] else SAW_CHAIN_IDLE)
 	if torch_on:
-		# Il fascio parte da terra, sotto il personaggio, verso lo sguardo.
+		# L'alone è a terra, sotto il personaggio.
 		_torch.position = Vector2(0, -ground_elevation + RADIUS * 0.6)
-		_torch.aim(facing)
 	_squash = move_toward(_squash, 0.0, SQUASH_RECOVERY * delta)
 	if _camera:
 		# Mentre si precipita nel burrone la telecamera resta al bordo.
@@ -1144,7 +1136,7 @@ func save_position() -> Vector2:
 
 func _fall_into_ravine() -> void:
 	_end_combo()
-	lock_target = null
+	_set_lock_target(null)
 	_change_state(State.FALL)
 	Sfx.play("jump", global_position, 0.5, -4.0)
 
@@ -1187,42 +1179,46 @@ func teleport(at: Vector2) -> void:
 		_camera.reset_smoothing()
 
 
-## Aggancia il nemico più vicino; se ce n'è già uno agganciato sgancia.
-## Non si passa da un nemico all'altro.
-## Aggancia il nemico più vicino; se non ce n'è nessuno a tiro resta
-## agganciato quello di prima.
-func _lock_on() -> void:
-	var nearest := _lock_nearest()
-	if nearest == null:
-		return
-	lock_target = nearest
-	_lock_marker.target = lock_target
-	Sfx.play_ui("ui_move")
-
-
 ## Il nemico vivo più vicino entro LOCK_RANGE (null se nessuno), anche
-## dietro muri e ostacoli: l'aggancio è sempre possibile.
+## dietro muri e ostacoli; quello già agganciato conta come più vicino di
+## LOCK_SWITCH_MARGIN.
 func _lock_nearest() -> Enemy:
 	var nearest: Enemy = null
-	var best := LOCK_RANGE * LOCK_RANGE
+	var best := LOCK_RANGE
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as Enemy
 		if enemy == null or enemy.is_dead():
 			continue
-		var distance := enemy.global_position.distance_squared_to(global_position)
+		var distance := enemy.global_position.distance_to(global_position)
+		if enemy == lock_target:
+			distance -= LOCK_SWITCH_MARGIN
 		if distance <= best:
 			best = distance
 			nearest = enemy
 	return nearest
 
 
-## Se il bersaglio muore (o sparisce) o si allontana troppo, l'aggancio si
-## toglie: non si passa da soli a un altro nemico.
+## A ogni passo si aggancia da soli il nemico più vicino (vedi LOCK_RANGE);
+## se non ce n'è nessuno a tiro l'aggancio si toglie. Da morti o mentre si
+## cade in una fessura non si aggancia niente.
 func _update_lock() -> void:
-	if not is_instance_valid(lock_target) or lock_target.is_dead() \
-			or lock_target.global_position.distance_to(global_position) > LOCK_BREAK_RANGE:
+	if _state == State.FALL:
+		_set_lock_target(null)
+		return
+	_set_lock_target(_lock_nearest())
+
+
+## Cambia bersaglio: il vecchio torna del suo colore, il nuovo si colora di rosso.
+func _set_lock_target(target: Enemy) -> void:
+	if not is_instance_valid(lock_target):
 		lock_target = null
-	_lock_marker.target = lock_target
+	if target == lock_target:
+		return
+	if lock_target:
+		lock_target.set_locked(false)
+	lock_target = target
+	if lock_target:
+		lock_target.set_locked(true)
 
 
 ## Con un bersaglio agganciato si guarda verso di lui. Restituisce true se
@@ -1986,7 +1982,6 @@ func set_torch(on: bool) -> void:
 		return
 	torch_on = on
 	_torch.enabled = on
-	_torch.aim(facing)
 	if _state != State.DEAD:
 		Sfx.play("torch", global_position, 1.0 if on else 0.7)
 
@@ -2248,7 +2243,6 @@ func _draw_weapon() -> void:
 		var across := -facing.orthogonal()
 		var center := facing * RADIUS * 0.95
 		if _state_time <= PERFECT_PARRY_WINDOW or _block_flash > 0.0:
-			Shapes.disc(self, center, 14.0, Color(COLOR_SHIELD, 0.45))
 			tint = Color(1.3, 1.3, 1.4)
 		_draw_saw(center - across * SAW_LENGTH * 0.45, across.angle(), SAW_LENGTH, SAW_WIDTH, tint)
 		return
@@ -2465,13 +2459,10 @@ func _draw_charge_heat(hand: Vector2, angle: float, length: float) -> void:
 		draw_line(tip - Vector2(0, flash), tip + Vector2(0, flash), Color(1, 1, 1, 0.9), 2.0)
 
 
-## Torcia elettrica nell'altra mano, con il fascio di luce in avanti.
+## Torcia elettrica nell'altra mano, senza fascio di luce.
 func _draw_torch() -> void:
 	var hand := -facing.orthogonal() * RADIUS * 0.9
 	var lens := hand + facing * 12.0
-	var across := facing.orthogonal()
-	draw_primitive(PackedVector2Array([lens + across * 3.0, lens + facing * 38.0 + across * 14.0, lens + facing * 38.0 - across * 14.0, lens - across * 3.0]),
-			PackedColorArray([Color(TORCH_COLOR, 0.16)]), PackedVector2Array())
 	draw_line(hand, lens, COLOR_FLASHLIGHT, 5.0)
 	Shapes.disc(self, lens, 3.5, Color(1.0, 1.0, 0.85))
 	_off_hand = hand + facing * 3.0

@@ -9,9 +9,9 @@ const MIX_RATE := 22050
 const POOL_SIZE := 16
 ## Oltre questa distanza i suoni posizionali non si sentono più.
 const MAX_DISTANCE := 1400.0
-## Voci (versi di dolore e urla di morte, vedi Voice): quante varianti di
-## ciascuna e i lettori riservati alle urla, che continuano anche dopo che
-## il nemico morto è sparito.
+## Voci (versi brevi a onda quadra quando si è colpiti e abbattuti, vedi
+## Voice): quante varianti di ciascuna e i lettori riservati ai versi di
+## morte, che continuano anche dopo che il nemico morto è sparito.
 const VOICES := {"pain": 4, "scream": 3}
 const VOICE_POOL_SIZE := 6
 
@@ -239,45 +239,20 @@ func _build_sounds() -> void:
 	_build_voices()
 
 
-## Voci di giocatore e nemici (vedi Voice), con la voce di un uomo adulto:
-## ognuno le sente con il suo tono. Formanti delle vocali in Hz.
+## Voci di giocatore e nemici (vedi Voice): versi brevi e secchi a onda
+## quadra, come nei vecchi giochi a 8 bit; ognuno li sente con il suo tono.
+## notes: le note in Hz, una dopo l'altra (ognuna lunga step secondi, senza
+## scivolare dall'una all'altra), duty la larghezza dell'impulso.
 func _build_voices() -> void:
-	var u := Vector3(520.0, 1050.0, 2450.0)
-	var a := Vector3(820.0, 1250.0, 2600.0)
-	var o := Vector3(480.0, 850.0, 2600.0)
-	var e := Vector3(650.0, 1700.0, 2550.0)
-	# Versi di dolore: brevi, il tono sale di colpo e ricade.
-	_streams["pain_0"] = _render_voice(0.32,
-			func(t: float) -> float: return lerpf(170.0, 215.0, minf(t / 0.05, 1.0)) - maxf(t - 0.05, 0.0) * 260.0,
-			func(_t: float) -> Vector3: return u,
-			func(t: float) -> float: return _env(t, 0.32, 0.015) * (1.0 - 0.4 * minf(t / 0.32, 1.0)), 0.35, 0.12)
-	_streams["pain_1"] = _render_voice(0.42,
-			func(t: float) -> float: return lerpf(190.0, 245.0, minf(t / 0.06, 1.0)) - maxf(t - 0.08, 0.0) * 230.0,
-			func(t: float) -> Vector3: return a.lerp(u, minf(t / 0.42, 1.0)),
-			func(t: float) -> float: return _env(t, 0.42, 0.02), 0.55, 0.18)
-	_streams["pain_2"] = _render_voice(0.28,
-			func(t: float) -> float: return lerpf(160.0, 115.0, t / 0.28),
-			func(_t: float) -> Vector3: return o,
-			func(t: float) -> float: return _env(t, 0.28, 0.01) * (1.0 if t > 0.03 else 0.6), 0.45, 0.25)
-	_streams["pain_3"] = _render_voice(0.36,
-			func(t: float) -> float: return 205.0 + 35.0 * sin(TAU * 3.0 * t) - t * 180.0,
-			func(t: float) -> Vector3: return e.lerp(a, minf(t / 0.15, 1.0)),
-			func(t: float) -> float: return _env(t, 0.36, 0.012), 0.6, 0.15)
-	# Urla di morte: lunghe e strazianti, la gola si strappa (roca, con un
-	# tremolio irregolare), il fiato si spezza e la voce crolla alla fine.
-	_streams["scream_0"] = _render_voice(1.35,
-			func(t: float) -> float: return lerpf(300.0, 430.0, minf(t / 0.18, 1.0)) * (1.0 - 0.55 * pow(maxf(t - 0.7, 0.0) / 0.65, 2.0)) * (1.0 + 0.05 * sin(TAU * 6.5 * t)),
-			func(t: float) -> Vector3: return a.lerp(o, clampf((t - 0.6) / 0.7, 0.0, 1.0)),
-			func(t: float) -> float: return _env(t, 1.35, 0.04) * (1.0 - 0.45 * maxf(t - 0.8, 0.0) * absf(sin(TAU * 8.0 * t))), 0.85, 0.2, 2.6)
-	# Un grido che si spezza a metà e ricade in un lamento.
-	_streams["scream_1"] = _render_voice(1.15,
-			func(t: float) -> float: return lerpf(390.0, 320.0, t / 0.55) * (1.0 + 0.06 * sin(TAU * 7.0 * t)) if t < 0.55 else lerpf(290.0, 140.0, (t - 0.55) / 0.6),
-			func(t: float) -> Vector3: return e.lerp(a, minf(t / 0.3, 1.0)) if t < 0.55 else a.lerp(u, (t - 0.55) / 0.6),
-			func(t: float) -> float: return _env(t, 1.15, 0.03) * (0.25 if absf(t - 0.56) < 0.035 else 1.0), 0.9, 0.22, 3.0)
-	_streams["scream_2"] = _render_voice(1.5,
-			func(t: float) -> float: return lerpf(260.0, 360.0, minf(t / 0.3, 1.0)) * (1.0 - 0.5 * maxf(t - 0.9, 0.0) / 0.6) * (1.0 + 0.07 * sin(TAU * 5.0 * t)),
-			func(t: float) -> Vector3: return o.lerp(a, minf(t / 0.25, 1.0)).lerp(u, clampf((t - 1.0) / 0.5, 0.0, 1.0)),
-			func(t: float) -> float: return _env(t, 1.5, 0.08) * (0.7 + 0.3 * absf(sin(TAU * 4.0 * t))), 0.8, 0.25, 2.2)
+	# Colpiti: due note che scendono di colpo.
+	_streams["pain_0"] = _render_chip([440.0, 330.0], 0.035, 0.5)
+	_streams["pain_1"] = _render_chip([523.0, 392.0], 0.035, 0.25)
+	_streams["pain_2"] = _render_chip([392.0, 262.0], 0.04, 0.5)
+	_streams["pain_3"] = _render_chip([494.0, 370.0, 330.0], 0.028, 0.25)
+	# Abbattuti: un arpeggio che precipita, appena più lungo ma sempre corto.
+	_streams["scream_0"] = _render_chip([587.0, 440.0, 330.0, 220.0], 0.04, 0.5)
+	_streams["scream_1"] = _render_chip([659.0, 494.0, 370.0, 247.0], 0.04, 0.25)
+	_streams["scream_2"] = _render_chip([523.0, 392.0, 262.0, 196.0], 0.045, 0.125)
 
 
 ## Genera un AudioStreamWAV mono a 16 bit campionando generator(t, durata).
@@ -305,52 +280,14 @@ func _render_filtered(duration: float, lowpass: Vector2, generator: Callable) ->
 	return stream
 
 
-## Voce sintetizzata: un'onda a impulsi alla frequenza della voce (pitch(t)
-## in Hz, con un tremolio irregolare) filtrata da tre risonanze, le formanti
-## della vocale (formants(t) in Hz), più il soffio del respiro (breath);
-## envelope(t) è il volume. rough (0-1) la rende roca, come una gola che si
-## strappa; drive > 1 la satura (urla).
-func _render_voice(duration: float, pitch: Callable, formants: Callable, envelope: Callable,
-		rough: float, breath: float, drive := 1.0) -> AudioStreamWAV:
-	var count := int(duration * MIX_RATE)
-	var samples := PackedFloat32Array()
-	samples.resize(count)
-	var bandwidths := Vector3(90.0, 110.0, 160.0) * (1.0 + rough)
-	var gains := Vector3(1.0, 0.65, 0.35)
-	var history := PackedFloat32Array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-	var phase := 0.0
-	var jitter := 0.0
-	var peak := 0.001
-	for i in count:
-		var t := float(i) / MIX_RATE
-		jitter = lerpf(jitter, randf_range(-1.0, 1.0), 0.03)
-		phase = fmod(phase + (pitch.call(t) as float) * (1.0 + jitter * 0.04 * (1.0 + 2.0 * rough)) / MIX_RATE, 1.0)
-		# Impulso della gola: sale piano e si chiude di colpo.
-		var source := (1.0 - 2.0 * phase) * (1.0 + rough * 0.5 * jitter) + _noise() * (breath + rough * 0.3 * absf(jitter))
-		var formant: Vector3 = formants.call(t)
-		var sample := 0.0
-		for k in 3:
-			var radius := exp(-PI * bandwidths[k] / MIX_RATE)
-			var y := (1.0 - radius) * source + 2.0 * radius * cos(TAU * formant[k] / MIX_RATE) * history[k * 2] - radius * radius * history[k * 2 + 1]
-			history[k * 2 + 1] = history[k * 2]
-			history[k * 2] = y
-			sample += y * gains[k]
-		sample *= envelope.call(t)
-		samples[i] = sample
-		peak = maxf(peak, absf(sample))
-	var data := PackedByteArray()
-	data.resize(count * 2)
-	for i in count:
-		var sample := samples[i] / peak
-		if drive > 1.0:
-			sample = tanh(sample * drive) / tanh(drive)
-		data.encode_s16(i * 2, int(clampf(sample * 0.85, -1.0, 1.0) * 32767.0))
-	var stream := AudioStreamWAV.new()
-	stream.format = AudioStreamWAV.FORMAT_16_BITS
-	stream.mix_rate = MIX_RATE
-	stream.stereo = false
-	stream.data = data
-	return stream
+## Verso a onda quadra: le note una dopo l'altra, a gradini, con un attacco
+## istantaneo e uno smorzamento rapido alla fine (niente code lunghe).
+func _render_chip(notes: Array, step: float, duty: float) -> AudioStreamWAV:
+	var duration := step * notes.size()
+	return _render(duration, func(t: float, d: float) -> float:
+		var note: float = notes[mini(int(t / step), notes.size() - 1)]
+		var pulse := 1.0 if fmod(note * t, 1.0) < duty else -1.0
+		return pulse * 0.32 * _env(t, d, 0.002))
 
 
 ## Inviluppo: attacco rapido e poi decadimento fino a zero alla fine.

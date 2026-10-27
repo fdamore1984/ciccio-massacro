@@ -60,8 +60,9 @@ func _capture_menu(language: String) -> void:
 	await _frames(2)
 
 
-## Colpo potente in fondo alla combo, un bruto che carica, un evocatore
-## che evoca, nemici attorno; scudo attivo.
+## Colpo potente in fondo alla combo sul nemico agganciato (in rosso), un
+## bruto e un pistolero che caricano (al più due attacchi insieme), un
+## colosso colpito dal missile; scudo attivo.
 func _capture_combat(language: String) -> void:
 	await _start_game(Vector2(0, 20), 1.15)
 	_player.level = 3
@@ -82,14 +83,10 @@ func _capture_combat(language: String) -> void:
 	_player.apply_upgrade("dodge")
 	_hud_stats()
 	var warrior := _enemy("warrior", Vector2(95, -25), Enemy.State.CHASE, 0.0)
-	warrior.health = 15
-	warrior._hit_flash = 0.1
+	warrior.health = 40
+	_player._set_lock_target(warrior)
 	_enemy("brute", Vector2(-170, 90), Enemy.State.WINDUP, 0.6)
-	var summoner := _enemy("summoner", Vector2(330, 150), Enemy.State.SUMMON, 0.8)
-	summoner._summon_positions = [Vector2(-70, 0), Vector2(70, 0)]
 	_enemy("caster", Vector2(-330, -140), Enemy.State.WINDUP, 0.6)
-	_enemy("lancer", Vector2(250, -190), Enemy.State.CHASE, 0.0)
-	_enemy("whirler", Vector2(-420, 200), Enemy.State.WINDUP, 0.7)
 	_enemy("golem", Vector2(470, -40), Enemy.State.CHASE, 0.0)
 	# Un missile che esplode addosso al golem.
 	var blast := Missile.new()
@@ -113,9 +110,8 @@ func _capture_parry(language: String) -> void:
 	_player._state_time = 0.05
 	_player._empowered_time = Player.EMPOWER_TIME
 	_hud_stats()
-	_enemy("brute", Vector2(95, 10), Enemy.State.STUNNED, 0.4)
+	_player._set_lock_target(_enemy("brute", Vector2(95, 10), Enemy.State.STUNNED, 0.4))
 	_enemy("warrior", Vector2(-160, -60), Enemy.State.WINDUP, 0.5)
-	_enemy("scout", Vector2(-260, 150), Enemy.State.CHASE, 0.0)
 	_enemy("summoner", Vector2(330, -170), Enemy.State.CHASE, 0.0)
 	await _save("%s_2_parry.png" % language)
 	_end_game()
@@ -162,18 +158,16 @@ func _capture_challenge(language: String) -> void:
 	_hud_stats()
 	world.set_totem_state(arena, "active")
 	var hud: Hud = _game.get_node("HUD")
-	hud.show_challenge(tr("CHALLENGE_STATUS") % [21, 5])
-	_enemy("warrior", _player.position + Vector2(-110, 20), Enemy.State.STRIKE, 0.15)
+	hud.show_challenge(tr("CHALLENGE_STATUS") % [21, 4])
+	_player._set_lock_target(_enemy("warrior", _player.position + Vector2(-110, 20), Enemy.State.STRIKE, 0.15))
 	_enemy("scout", _player.position + Vector2(170, -120), Enemy.State.CHASE, 0.0)
 	_enemy("brute", _player.position + Vector2(230, 90), Enemy.State.WINDUP, 0.9)
-	_enemy("scout", _player.position + Vector2(-300, -150), Enemy.State.CHASE, 0.0)
-	_enemy("warrior", _player.position + Vector2(-260, 190), Enemy.State.WINDUP, 0.4)
+	_enemy("warrior", _player.position + Vector2(-260, 190), Enemy.State.CHASE, 0.0)
 	# Di notte, con la torcia elettrica accesa e un missile in volo.
 	(_game.get_node("DayNight") as DayNight).time = 0.7
 	_player.torch_on = true
 	_player._torch.enabled = true
 	_player._torch.position = Vector2(0, -_player.ground_elevation + Player.RADIUS * 0.6)
-	_player._torch.aim(_player.facing)
 	var missile := Missile.new()
 	missile.position = _player.position + Vector2(120, -70)
 	missile.direction = Vector2(1, -0.4).normalized()
@@ -377,7 +371,6 @@ func _capture_dungeon(language: String) -> void:
 	_player.torch_on = true
 	_player._torch.enabled = true
 	_player._torch.position = Vector2(0, -_player.ground_elevation + Player.RADIUS * 0.6)
-	_player._torch.aim(_player.facing)
 	var boss: Enemy = _game._boss
 	boss.position = arena
 	boss._change_state(Enemy.State.WINDUP)
@@ -434,11 +427,10 @@ func _capture_cover(language: String) -> void:
 	_player.facing = Vector2(1, 0.15).normalized()
 	_player._state = Player.State.PARRY
 	_player._state_time = 0.05
-	_enemy("warrior", Vector2(140, 25), Enemy.State.WINDUP, 0.75)
+	_player._set_lock_target(_enemy("warrior", Vector2(140, 25), Enemy.State.WINDUP, 0.75))
 	_enemy("brute", Vector2(-160, 70), Enemy.State.STUNNED, 0.3).health = 40
 	_enemy("scout", Vector2(-300, -120), Enemy.State.CHASE, 0.0)
 	_enemy("summoner", Vector2(300, -110), Enemy.State.CHASE, 0.0)
-	_enemy("scout", Vector2(250, 175), Enemy.State.CHASE, 0.0)
 
 	var layer := CanvasLayer.new()
 	_game.add_child(layer)
