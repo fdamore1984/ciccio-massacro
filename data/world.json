@@ -79,7 +79,7 @@
 		"stock": [4, 6],
 		"sell_ratio": 0.5,
 		"reopen_distance": 150,
-		"potions": ["potion_health", "potion_mana", "potion_battery"],
+		"potions": ["potion_health", "potion_mana", "potion_battery", "h_bomb"],
 		"colors": [[0.7, 0.4, 0.2], [0.45, 0.47, 0.4]],
 		"wood": [0.45, 0.36, 0.26],
 		"jacket": [0.42, 0.38, 0.25],
@@ -106,7 +106,8 @@
 		"boss": "guardian",
 		"boss_arena_margin": 1.5,
 		"boss_reward_gold": [60, 15],
-		"boss_reward_items": 2
+		"boss_reward_items": 2,
+		"boss_reward_h_bombs": 1
 	},
 	"obstacles": {
 		"tree": {
