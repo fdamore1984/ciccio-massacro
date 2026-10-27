@@ -2,9 +2,11 @@ class_name Obstacle
 extends Node2D
 ## Ostacolo del mondo, disegnato con forme geometriche. I tipi hanno ancora
 ## i nomi di prima (dati e salvataggi), ma l'aspetto è quello della città
-## distrutta: "tree" è una rovina (muro crollato, lampione piegato o auto
-## bruciata), "rock" un blocco di macerie, "bush" un cumulo di rottami che
-## rallenta, "chest" una cassa militare, "totem" la sirena al centro di
+## distrutta: "tree" è un albero secco (sui viali e nei parchi), "lamp" un
+## lampione piegato, "shelter" una pensilina dell'autobus sfasciata,
+## "metro" l'ingresso della metropolitana (scale che scendono nel buio, la
+## ringhiera e il cartello con la M), "rock" un blocco di macerie, "bush"
+## un cumulo di rottami che rallenta, "chest" una cassa militare, "totem" la sirena al centro di
 ## un'arena, "merchant" il banco di un commerciante, "cave" la porta di un
 ## edificio abbandonato, "stairs" le scale verso il piano dopo ed "exit"
 ## l'uscita all'aperto. La posizione è la base a terra, così
@@ -12,12 +14,15 @@ extends Node2D
 ## disegnato più in alto quanto il blocco di terreno su cui si trova. Gli effetti (blocco,
 ## rallentamento) sono gestiti da World.
 
-## La parte alta delle rovine diventa trasparente quando il giocatore ci passa dietro.
+## La parte alta di alberi, lampioni e pensiline diventa trasparente quando
+## il giocatore ci passa dietro.
 const CANOPY_FADE_ALPHA := 0.4
 ## Elementi con cui si interagisce: in modalità focus restano a colori con
 ## un'aura bianca attorno (vedi LowHealthVignette).
 const INTERACTIVE := ["chest", "cave", "stairs", "exit", "merchant", "totem"]
 const COLOR_AURA := Color(1, 1, 1, 0.55)
+## Ostacoli alti, che sfumano quando il giocatore ci passa dietro.
+const TALL := ["tree", "lamp", "shelter"]
 ## Urto del giocatore (vedi flash): luminosità in più e durata.
 const FLASH_BOOST := 0.7
 const FLASH_TIME := 0.3
@@ -48,7 +53,7 @@ func setup(data: Dictionary, type: Dictionary) -> void:
 	# Disegnato una volta sola; solo gli alberi controllano il giocatore e
 	# il totem si anima.
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
-	set_process(type_id == "tree" or type_id in INTERACTIVE)
+	set_process(type_id in TALL or type_id in INTERACTIVE)
 	if type_id in INTERACTIVE:
 		add_to_group(LowHealthVignette.FOCUS_GROUP)
 
@@ -147,6 +152,12 @@ func _draw() -> void:
 	match type_id:
 		"tree":
 			_draw_tree(rng)
+		"lamp":
+			_draw_lamp(rng)
+		"shelter":
+			_draw_shelter(rng)
+		"metro":
+			_draw_metro()
 		"rock":
 			_draw_rock(rng)
 		"bush":
@@ -171,58 +182,91 @@ func _draw_shadow(width: float) -> void:
 	draw_set_transform(Vector2(0, -_lift))
 
 
-## Rovina: un pezzo di muro di mattoni crollato con le finestre vuote, un
-## lampione piegato o un'auto bruciata. La parte alta sfuma quando il
-## giocatore ci passa dietro (_canopy_alpha).
+## Albero secco: tronco storto e rami spogli, qualcuno spezzato. La
+## chioma (i rami) sfuma quando il giocatore ci passa dietro.
 func _draw_tree(rng: RandomNumberGenerator) -> void:
-	_draw_shadow(radius * 0.9)
-	var metal := _type_color("metal")
-	var roll := rng.randf()
-	if roll < 0.3:
-		# Lampione piegato con la lampada rotta.
-		var top := Vector2(radius * 0.15, -radius * 2.6)
-		var bend := top + Vector2(radius * 0.7, radius * 0.25)
-		var pole := Color(metal, _canopy_alpha)
-		draw_rect(Rect2(-radius * 0.25, -radius * 0.25, radius * 0.5, radius * 0.25), metal.darkened(0.3))
-		draw_line(Vector2.ZERO, top, pole, 5.0)
-		draw_line(top, bend, pole, 4.0)
-		draw_colored_polygon(PackedVector2Array([bend + Vector2(-6, 0), bend + Vector2(6, 0), bend + Vector2(3, 6), bend + Vector2(-3, 6)]), Color(metal.darkened(0.3), _canopy_alpha))
-		return
-	if roll < 0.55:
-		# Auto bruciata: carrozzeria annerita, vetri rotti, ruote a terra.
-		var colors: Array = _type["car_colors"]
-		var tone: Array = colors[rng.randi() % colors.size()]
-		var paint := Color(tone[0], tone[1], tone[2]).darkened(0.35)
-		var width := radius * 1.3
-		draw_rect(Rect2(-width, -radius * 0.75, width * 2.0, radius * 0.55), paint)
-		draw_colored_polygon(PackedVector2Array([Vector2(-width * 0.6, -radius * 0.75), Vector2(width * 0.5, -radius * 0.75),
-				Vector2(width * 0.3, -radius * 1.25), Vector2(-width * 0.4, -radius * 1.25)]), paint.darkened(0.25))
-		draw_colored_polygon(PackedVector2Array([Vector2(-width * 0.45, -radius * 0.8), Vector2(width * 0.35, -radius * 0.8),
-				Vector2(width * 0.22, -radius * 1.15), Vector2(-width * 0.3, -radius * 1.15)]), Color(0.08, 0.08, 0.09))
-		for x: float in [-width * 0.6, width * 0.6]:
-			draw_circle(Vector2(x, -radius * 0.2), radius * 0.28, Color(0.08, 0.08, 0.08))
-		draw_circle(Vector2(width * 0.2, -radius * 0.55), 3.0, Color(0.6, 0.3, 0.15))
-		return
-	# Muro di mattoni crollato: bordo superiore spezzato e finestre vuote.
-	var wall := _color(rng.randi())
-	wall.a = _canopy_alpha
-	var width := radius * 0.95
-	var height := radius * rng.randf_range(2.2, 3.0)
-	var outline := PackedVector2Array([Vector2(-width, 0), Vector2(width, 0)])
-	for k in range(6, -1, -1):
-		var x := -width + width * 2.0 * k / 6.0
-		outline.append(Vector2(x, -height * rng.randf_range(0.55, 1.0)))
-	draw_colored_polygon(outline, wall)
-	draw_rect(Rect2(width * 0.55, -height * 0.5, width * 0.45, height * 0.5), Color(wall.darkened(0.25), _canopy_alpha))
-	var bricks := PackedVector2Array()
-	var y := -10.0
-	while y > -height * 0.5:
-		bricks.append_array([Vector2(-width, y), Vector2(width, y)])
-		y -= 10.0
-	draw_multiline(bricks, Color(wall.darkened(0.3), 0.6 * _canopy_alpha), 1.0)
-	for x: float in [-width * 0.55, width * 0.15]:
-		draw_rect(Rect2(x, -height * 0.48, width * 0.35, height * 0.2), Color(0.06, 0.06, 0.07, _canopy_alpha))
-	draw_line(Vector2(width * 0.3, -height * 0.55), Vector2(width * 0.5, -height * 0.85), Color(metal, _canopy_alpha), 2.0)
+	_draw_shadow(radius * 0.7)
+	var bark := _color(rng.randi())
+	var trunk := Color(bark, 1.0)
+	var top := Vector2(rng.randf_range(-0.25, 0.25) * radius, -radius * rng.randf_range(2.2, 2.8))
+	var bend := Vector2(top.x * 0.4 + rng.randf_range(-4.0, 4.0), top.y * 0.5)
+	draw_polyline(PackedVector2Array([Vector2.ZERO, bend, top]), trunk, maxf(radius * 0.22, 4.0))
+	var branches := PackedVector2Array()
+	var twigs := PackedVector2Array()
+	for k in rng.randi_range(4, 6):
+		var t := rng.randf_range(0.45, 1.0)
+		var from := bend.lerp(top, (t - 0.45) / 0.55) if t > 0.45 else bend
+		var angle := -PI / 2.0 + rng.randf_range(-1.2, 1.2)
+		var length := radius * rng.randf_range(0.6, 1.1)
+		var to := from + Vector2.from_angle(angle) * length
+		branches.append_array([from, to])
+		for j in 2:
+			twigs.append_array([to, to + Vector2.from_angle(angle + rng.randf_range(-0.8, 0.8)) * length * 0.4])
+	draw_multiline(branches, Color(bark, _canopy_alpha), 3.0)
+	draw_multiline(twigs, Color(bark.lightened(0.1), _canopy_alpha), 1.5)
+
+
+## Lampione piegato con la lampada rotta.
+func _draw_lamp(_rng: RandomNumberGenerator) -> void:
+	_draw_shadow(radius * 0.6)
+	var metal := _color(0)
+	var top := Vector2(radius * 0.15, -radius * 4.2)
+	var bend := top + Vector2(radius * 1.1, radius * 0.4)
+	var pole := Color(metal, _canopy_alpha)
+	draw_rect(Rect2(-radius * 0.35, -radius * 0.35, radius * 0.7, radius * 0.35), metal.darkened(0.3))
+	draw_line(Vector2.ZERO, top, pole, 5.0)
+	draw_line(top, bend, pole, 4.0)
+	draw_colored_polygon(PackedVector2Array([bend + Vector2(-6, 0), bend + Vector2(6, 0), bend + Vector2(3, 6), bend + Vector2(-3, 6)]), Color(metal.darkened(0.3), _canopy_alpha))
+
+
+## Pensilina dell'autobus sfasciata: due pali, il tetto storto, il vetro
+## crepato e la panchina.
+func _draw_shelter(rng: RandomNumberGenerator) -> void:
+	_draw_shadow(radius * 1.1)
+	var metal := _color(0)
+	var glass := _color(1)
+	var width := radius * 1.1
+	var height := radius * 2.2
+	var tilt := rng.randf_range(-8.0, 8.0)
+	draw_colored_polygon(PackedVector2Array([Vector2(-width * 0.9, -4), Vector2(width * 0.9, -4), Vector2(width * 0.9, -height * 0.85 + tilt * 0.5), Vector2(-width * 0.9, -height * 0.85 - tilt * 0.5)]),
+			Color(glass, 0.25 * _canopy_alpha))
+	draw_line(Vector2(-width * 0.2, -height * 0.7), Vector2(width * 0.3, -height * 0.3), Color(1, 1, 1, 0.35 * _canopy_alpha), 1.5)
+	draw_rect(Rect2(-width * 0.7, -radius * 0.55, width * 1.4, 5.0), metal.darkened(0.2))
+	for x: float in [-width, width]:
+		draw_line(Vector2(x, 0), Vector2(x, -height + (tilt if x > 0 else -tilt) * 0.5), Color(metal, _canopy_alpha), 4.0)
+	draw_line(Vector2(-width - 6.0, -height - tilt * 0.5), Vector2(width + 6.0, -height + tilt * 0.5), Color(metal.darkened(0.15), _canopy_alpha), 6.0)
+
+
+## Ingresso della metropolitana: un'apertura nel marciapiede con le scale
+## che scendono nel buio, la ringhiera arrugginita attorno e il palo col
+## cartello rosso con la M.
+func _draw_metro() -> void:
+	var dark := _color(0)
+	var rail := _color(1)
+	var sign_color := _type_color("sign")
+	var half := Vector2(radius * 0.75, radius * 0.4)
+	var hole := PackedVector2Array([Vector2(-half.x, 0), Vector2(0, -half.y), Vector2(half.x, 0), Vector2(0, half.y)])
+	draw_colored_polygon(hole, dark)
+	# Gradini che scendono verso il fondo.
+	var steps := PackedVector2Array()
+	for k in 4:
+		var t := (k + 1) / 5.0
+		steps.append_array([hole[0].lerp(hole[1], t) + Vector2(0, 2.0 + k), hole[3].lerp(hole[2], t) + Vector2(0, 2.0 + k)])
+	draw_multiline(steps, Color(rail, 0.45), 2.0)
+	# Ringhiera su tre lati.
+	var posts := [hole[0], hole[1], hole[2], hole[3]]
+	for k in 3:
+		var from: Vector2 = posts[k]
+		var to: Vector2 = posts[k + 1]
+		draw_line(from - Vector2(0, 14), to - Vector2(0, 14), rail, 3.0)
+		draw_line(from, from - Vector2(0, 14), rail, 2.0)
+	draw_line(hole[3], hole[3] - Vector2(0, 14), rail, 2.0)
+	# Palo col cartello.
+	var pole := hole[2] + Vector2(6, 0)
+	draw_line(pole, pole - Vector2(0, radius * 1.6), rail.darkened(0.2), 3.0)
+	var board := pole - Vector2(0, radius * 1.6 + 8.0)
+	draw_rect(Rect2(board - Vector2(9, 9), Vector2(18, 18)), sign_color)
+	draw_polyline(PackedVector2Array([board + Vector2(-5, 5), board + Vector2(-5, -5), board + Vector2(0, 1), board + Vector2(5, -5), board + Vector2(5, 5)]), Color(0.95, 0.95, 0.9), 2.0)
 
 
 ## Blocco di macerie di cemento con la faccia superiore più chiara e i

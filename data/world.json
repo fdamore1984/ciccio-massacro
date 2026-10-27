@@ -3,10 +3,6 @@
 		"levels": 1,
 		"level_height": 32,
 		"ramp_chance": 0,
-		"city_block": 12,
-		"city_road": 2,
-		"building_chance": 0.55,
-		"building_levels": [3, 8],
 		"start_flat_radius": 420,
 		"start_clear_radius": 260,
 		"start_chest": [210, 30],
@@ -14,7 +10,6 @@
 		"road_color": [0.17, 0.17, 0.18],
 		"face_colors": [[0.5, 0.33, 0.27], [0.37, 0.24, 0.2]],
 		"curb_color": [0.58, 0.57, 0.53],
-		"ruins_frequency": 0.0022,
 		"pregen_radius": 12,
 		"pregen_edge": 4,
 		"barrier_frequency": 0.00016,
@@ -23,8 +18,6 @@
 		"barrier_gap": 0.4,
 		"barrier_kind_frequency": 0.00022,
 		"barrier_start_clear": 1600,
-		"tower_colors": [[0.3, 0.31, 0.33], [0.35, 0.36, 0.38], [0.4, 0.41, 0.43], [0.24, 0.24, 0.26]],
-		"tower_face_colors": [[0.47, 0.48, 0.5], [0.34, 0.35, 0.38]],
 		"window_colors": [[0.1, 0.12, 0.14], [0.16, 0.2, 0.24], [0.85, 0.7, 0.35]],
 		"ravine_depth": 6,
 		"fissure_color": [0.05, 0.035, 0.03],
@@ -89,9 +82,14 @@
 	"dungeon": {
 		"size": [34, 4],
 		"levels": [2, 5],
-		"room_size": 7,
-		"merge_chance": 0.25,
+		"room_size": [3, 11],
+		"stop_chance": 0.35,
+		"corridor_chance": 0.25,
+		"merge_chance": 0.2,
+		"merge_max": 8,
 		"extra_doors": 0.3,
+		"pillar_room": 7,
+		"pillar_chance": 0.6,
 		"arena_radius": 7,
 		"wall_level": 2,
 		"enemies_per_room": [0, 2],
@@ -109,38 +107,93 @@
 		"boss_reward_items": 2,
 		"boss_reward_h_bombs": 1
 	},
+	"city": {
+		"segment": 96,
+		"block": [9, 18],
+		"roads": [[1, 0.2], [2, 0.5], [3, 0.3]],
+		"closed_road_chance": 0.18,
+		"lot_min": 3,
+		"lot_max": 7,
+		"alley_chance": 0.35,
+		"collapse_chance": 0.55,
+		"broken_top_chance": 0.18,
+		"missing_cell_chance": 0.07,
+		"lots": {
+			"house": {"weight": 4, "height": [1, 2], "inset": 1, "styles": ["house", "plaster"], "max_size": 7},
+			"shop": {"weight": 3, "height": [1, 2], "styles": ["shop"]},
+			"office": {"weight": 2.5, "height": [2, 5], "styles": ["office", "plaster"], "min_size": 4},
+			"apartment": {"weight": 2, "height": [3, 5], "styles": ["apartment", "plaster"], "min_size": 4},
+			"tower": {"weight": 1, "height": [5, 8], "styles": ["tower", "office"], "min_size": 5},
+			"park": {"weight": 1.3},
+			"parking": {"weight": 1},
+			"metro": {"weight": 0.5, "min_size": 4},
+			"rubble": {"weight": 1, "heaps": 0.45}
+		},
+		"styles": {
+			"house": {"top": [0.42, 0.22, 0.18], "faces": [[0.64, 0.42, 0.33], [0.5, 0.32, 0.26]], "windows": {"columns": 2, "row": 22, "size": 9, "missing": 0.15}},
+			"plaster": {"top": [0.45, 0.43, 0.4], "faces": [[0.74, 0.68, 0.56], [0.6, 0.55, 0.45]], "windows": {"columns": 2, "row": 20, "size": 10, "missing": 0.12}},
+			"shop": {"top": [0.38, 0.38, 0.38], "faces": [[0.58, 0.56, 0.52], [0.46, 0.44, 0.41]], "windows": {"columns": 3, "row": 18, "size": 8, "missing": 0.2}, "shopfront": true,
+				"awnings": [[0.7, 0.2, 0.15], [0.2, 0.4, 0.6], [0.75, 0.6, 0.15], [0.25, 0.5, 0.3]]},
+			"office": {"top": [0.3, 0.32, 0.35], "faces": [[0.45, 0.5, 0.55], [0.35, 0.39, 0.44]], "windows": {"columns": 4, "row": 16, "size": 11, "missing": 0.05, "glass": [0.24, 0.32, 0.38]}},
+			"apartment": {"top": [0.4, 0.36, 0.32], "faces": [[0.66, 0.58, 0.47], [0.53, 0.46, 0.37]], "windows": {"columns": 3, "row": 18, "size": 10, "missing": 0.1, "balconies": true}},
+			"tower": {"top": [0.35, 0.36, 0.38], "faces": [[0.47, 0.48, 0.5], [0.34, 0.35, 0.38]], "windows": {"columns": 3, "row": 18, "size": 10, "missing": 0.12}},
+			"rubble": {"top": [0.48, 0.46, 0.42], "faces": [[0.42, 0.4, 0.37], [0.33, 0.31, 0.29]]}
+		},
+		"ground": {
+			"sidewalk": [0.5, 0.49, 0.46], "yard": [0.37, 0.36, 0.31], "park": [0.35, 0.34, 0.22], "parking": [0.23, 0.23, 0.24],
+			"plaza": [0.46, 0.44, 0.41], "rubble": [0.42, 0.4, 0.37], "median": [0.33, 0.32, 0.24], "metro": [0.46, 0.44, 0.41]
+		},
+		"obstacles": {
+			"sidewalk": {"lamp": 0.045, "shelter": 0.006, "bush": 0.01, "rock": 0.008, "chest": 0.002},
+			"median": {"tree": 0.55},
+			"yard": {"tree": 0.08, "bush": 0.07, "rock": 0.04, "chest": 0.01},
+			"park": {"tree": 0.3, "bush": 0.06, "rock": 0.02, "chest": 0.008},
+			"parking": {"lamp": 0.03, "rock": 0.03, "bush": 0.05, "chest": 0.006},
+			"plaza": {"lamp": 0.04, "rock": 0.02, "chest": 0.006},
+			"rubble": {"rock": 0.3, "bush": 0.12, "chest": 0.01},
+			"metro": {"metro": 1.0}
+		},
+		"cave_min_levels": 3
+	},
 	"obstacles": {
 		"tree": {
-			"chance": 0.02, "ruins_bonus": 0.25,
-			"radius": [26, 40], "collision": 0.4, "solid": true,
-			"colors": [[0.55, 0.3, 0.24], [0.5, 0.49, 0.46], [0.42, 0.44, 0.4]], "metal": [0.32, 0.33, 0.35],
-			"car_colors": [[0.45, 0.2, 0.15], [0.25, 0.32, 0.4], [0.4, 0.38, 0.32]]
+			"radius": [24, 34], "collision": 0.3, "solid": true,
+			"colors": [[0.24, 0.18, 0.14], [0.3, 0.24, 0.18], [0.2, 0.17, 0.15]]
+		},
+		"lamp": {
+			"radius": [14, 18], "collision": 0.5, "solid": true,
+			"colors": [[0.32, 0.33, 0.35]]
+		},
+		"shelter": {
+			"radius": [30, 30], "collision": 0.75, "solid": true,
+			"colors": [[0.36, 0.38, 0.4], [0.55, 0.65, 0.7]]
+		},
+		"metro": {
+			"radius": [44, 44], "collision": 0.8, "solid": true,
+			"colors": [[0.05, 0.05, 0.06], [0.3, 0.32, 0.3]], "sign": [0.75, 0.15, 0.12]
 		},
 		"rock": {
-			"chance": 0.012, "level_bonus": 0.004, "edge_bonus": 0.04,
 			"radius": [14, 30], "collision": 0.9, "solid": true,
 			"colors": [[0.55, 0.54, 0.5], [0.47, 0.46, 0.43], [0.6, 0.57, 0.5]], "rebar": [0.45, 0.3, 0.22]
 		},
 		"bush": {
-			"chance": 0.02, "ruins_bonus": 0.02,
 			"radius": [16, 26], "collision": 0.8, "solid": false, "slow": 0.75,
 			"colors": [[0.36, 0.32, 0.27], [0.3, 0.3, 0.3]], "rust": [0.6, 0.32, 0.18]
 		},
 		"chest": {
-			"chance": 0.006, "level_bonus": 0.002,
 			"radius": [18, 18], "collision": 1.0, "solid": true,
 			"colors": [[0.33, 0.38, 0.22]], "metal": [0.6, 0.6, 0.55]
 		},
 		"cave": {
-			"chance": 0, "radius": [40, 40], "collision": 0.8, "solid": false,
+			"radius": [40, 40], "collision": 0.8, "solid": false,
 			"colors": [[0.06, 0.05, 0.06], [0.5, 0.48, 0.45]], "cleared": [0.55, 0.42, 0.28]
 		},
 		"stairs": {
-			"chance": 0, "radius": [30, 30], "collision": 0.8, "solid": false,
+			"radius": [30, 30], "collision": 0.8, "solid": false,
 			"colors": [[0.05, 0.04, 0.05], [0.5, 0.48, 0.45]], "glow": [0.5, 0.9, 1.0]
 		},
 		"exit": {
-			"chance": 0, "radius": [30, 30], "collision": 0.8, "solid": false,
+			"radius": [30, 30], "collision": 0.8, "solid": false,
 			"colors": [[0.95, 0.9, 0.7], [0.5, 0.48, 0.45]], "glow": [1.0, 0.9, 0.5]
 		}
 	},

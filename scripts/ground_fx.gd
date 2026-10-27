@@ -42,6 +42,11 @@ const GROUND_SQUASH := 0.5
 ## Bagliore rosso del punto d'impatto di un attacco a terra (vedi danger_glow).
 const COLOR_DANGER_GLOW := Color(1.0, 0.18, 0.08)
 const COLOR_DANGER_CORE := Color(1.0, 0.55, 0.25)
+## X al centro della zona d'impatto: rosso acceso, metà lato in parti del
+## raggio e lampeggi al secondo (dall'inizio alla fine della carica).
+const COLOR_DANGER_CROSS := Color(1.0, 0.1, 0.05)
+const DANGER_CROSS := 0.28
+const DANGER_BLINK := Vector2(3.0, 9.0)
 
 static var current: GroundFx
 
@@ -119,15 +124,24 @@ static func shockwave(at: Vector2, elevation: float, radius: float) -> void:
 
 
 ## Zona d'impatto di un attacco a terra che sta per arrivare (salto dei
-## nemici): un bagliore rosso sfumato largo quanto la zona colpita (radius),
-## che si accende man mano che il colpo si avvicina (progress da 0 a 1),
-## con un cuore più caldo al centro. Niente cerchi disegnati a terra.
+## nemici): un bagliore rosso ovale, steso a terra nella prospettiva
+## isometrica (largo il doppio che alto), largo quanto la zona colpita
+## (radius), che si accende man mano che il colpo si avvicina (progress da
+## 0 a 1), con un cuore più caldo e al centro una X rossa intermittente,
+## anche lei stesa a terra, che lampeggia sempre più veloce.
 static func danger_glow(canvas: CanvasItem, at: Vector2, radius: float, progress: float) -> void:
 	var t := clampf(progress, 0.0, 1.0)
 	# Il bordo del bagliore sfuma oltre la zona colpita: lo si allarga un po'
 	# perché al limite della zona si veda ancora il rosso.
-	Shapes.glow(canvas, at, radius * 1.3, Color(COLOR_DANGER_GLOW, 0.3 + 0.45 * t))
-	Shapes.glow(canvas, at, radius * (0.35 + 0.35 * t), Color(COLOR_DANGER_CORE, 0.15 + 0.45 * t))
+	Shapes.glow(canvas, at, radius * 1.3, Color(COLOR_DANGER_GLOW, 0.3 + 0.45 * t), GROUND_SQUASH)
+	Shapes.glow(canvas, at, radius * (0.35 + 0.35 * t), Color(COLOR_DANGER_CORE, 0.15 + 0.45 * t), GROUND_SQUASH)
+	var blink := sin(Time.get_ticks_msec() / 1000.0 * lerpf(DANGER_BLINK.x, DANGER_BLINK.y, t) * TAU)
+	if blink > 0.0:
+		var arm := radius * DANGER_CROSS
+		var lines := PackedVector2Array([at + Vector2(-arm, -arm * GROUND_SQUASH), at + Vector2(arm, arm * GROUND_SQUASH),
+				at + Vector2(-arm, arm * GROUND_SQUASH), at + Vector2(arm, -arm * GROUND_SQUASH)])
+		canvas.draw_multiline(lines, Color(0.25, 0.0, 0.0, 0.6), 9.0)
+		canvas.draw_multiline(lines, COLOR_DANGER_CROSS, 5.0)
 
 
 ## Toglie tutto (passando tra superficie e sotterraneo).
