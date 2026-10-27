@@ -1,0 +1,282 @@
+keys,en
+MENU_START,New game
+MENU_QUIT,Quit
+MENU_VERSION,Version %s
+HUD_HEALTH,Health  %d / %d
+HUD_KILLS,Enemies defeated  %d
+HUD_DEFEAT,Defeated!
+TOUCH_ATTACK,Attack
+TOUCH_PARRY,Parry
+TOUCH_DODGE,Dodge
+TOUCH_MENU,Menu
+HUD_LEVEL,Level %d
+HUD_XP,XP %d / %d
+LEVELUP_TITLE,Level %d!
+LEVELUP_DAMAGE,Base damage: %d → %d
+LEVELUP_CHOOSE,Choose an upgrade
+UPGRADE_COMBO,Combo hits +1
+UPGRADE_DODGE,Chained dodges +1
+UPGRADE_HEALTH,Health +1
+HUD_POTIONS,Potions  %d / %d
+HUD_SHIELD_READY,Shield: ready
+HUD_SHIELD_ACTIVE,Shield: active
+HUD_SHIELD_COOLDOWN,Shield: %d s
+UPGRADE_HEAVY,Chained power strikes +1
+UPGRADE_SHIELD,Shield recharge -5%
+TOUCH_HEAVY,Power
+TOUCH_POTION,Potion
+TOUCH_SHIELD,Shield
+HUD_STATS,Combo %d · Power strikes %d · Dodges %d · Jumps %d · Run %d%%
+UPGRADE_JUMP,Chained jumps +1
+UPGRADE_RUN,Run speed +5%
+TOUCH_JUMP,Jump
+TOUCH_RUN,Run
+TOUCH_FOCUS,Focus
+DECK_HINT,"Steam Deck: to use the built-in controls as a controller hold the Menu (Start) button for 1 second, or launch the game from Steam"
+UPGRADE_VALUE,%d → %d
+UPGRADE_VALUE_SECONDS,%.1f s → %.1f s
+UPGRADE_VALUE_PERCENT,%d%% → %d%%
+POWERUP_UPGRADE,×%d
+POWERUP_EMPOWERED,%d s
+CHALLENGE_HINT,Interact with the totem to start a survival challenge
+CHALLENGE_STATUS,Survive! %d s · Enemies: %d
+CHALLENGE_WON,Challenge complete! +%d XP and a potion
+HUD_MANA,Mana %d/%d · Mana potions %d/%d
+HUD_GOLD,Gold %d
+UPGRADE_MANA,Max mana +20
+UPGRADE_SPELL,Spell power +20%
+UPGRADE_STAMINA,Stamina +10%
+UPGRADE_POTION_SLOTS,Potions carried +1 (each kind)
+UPGRADE_POTION_HEAL,Health potion heals +1
+UPGRADE_MANA_RESTORE,Mana potion restores +5%
+UPGRADE_CHOICE,One more upgrade to choose
+INVENTORY_TITLE,Inventory
+INVENTORY_EQUIPPED,"Equipment: weapon, armor, boots, amulet, ring"
+INVENTORY_EMPTY,Nothing yet: open chests to find items
+INVENTORY_HINT,A / Enter: use · %s: sort · B / Esc / %s: close
+INVENTORY_GOLD,Gold: %d
+INVENTORY_SORT,Sort: %s · %s
+INVENTORY_COMPARE,Compared to your %s: %s
+INVENTORY_COMPARE_NONE,You have nothing of this kind equipped
+INVENTORY_COMPARE_SAME,same stats
+DELTA_DAMAGE,%s%% damage
+DELTA_HEALTH,%s max health
+DELTA_SPEED,%s%% speed
+DELTA_MANA,%s max mana
+DELTA_SPELL,%s%% spell power
+INVENTORY_SORT_FOUND,order found
+INVENTORY_SORT_POWER,power
+INVENTORY_SORT_VALUE,value
+INVENTORY_USE_EQUIP,A: equip
+INVENTORY_USE_UNEQUIP,A: unequip
+INVENTORY_USE_READ,A: read (permanent bonus)
+INVENTORY_USE_DRINK,A: drink
+STAT_DAMAGE,+%d%% damage
+STAT_HEALTH,+%d max health
+STAT_SPEED,+%d%% speed
+STAT_MANA,+%d max mana
+STAT_SPELL,+%d%% spell power
+STAT_HEAL,heals %d health
+STAT_RESTORE_MANA,+%d mana
+STAT_RESTORE_STAMINA,restores %d%% stamina
+ITEM_GOLD,Gold
+ITEM_SWORD_IRON,Iron sword
+ITEM_SWORD_STEEL,Steel sword
+ITEM_SWORD_RUNE,Rune sword
+ITEM_ARMOR_LEATHER,Leather armor
+ITEM_ARMOR_CHAIN,Chain mail
+ITEM_BOOTS_SWIFT,Swift boots
+ITEM_AMULET_MANA,Mana amulet
+ITEM_RING_FIRE,Ring of fire
+ITEM_BOOK_FIRE,Book: Flames
+ITEM_BOOK_MANA,Book: Arcane mind
+ITEM_POTION_HEALTH,Health potion
+ITEM_POTION_MANA,Mana potion
+ITEM_POTION_STAMINA,Stamina potion
+TOUCH_SPELL,Spell
+TOUCH_MANA,Mana
+TOUCH_STAMINA,Stamina
+TOUCH_INVENTORY,Bag
+MERCHANT_TITLE,Travelling merchant
+MERCHANT_HINT,A travelling merchant: interact with the stall to buy and sell
+SHOP_BUY,For sale: rare items you won't find in chests
+SHOP_SELL,Sell your items (not the ones you wear)
+SHOP_PRICE,%d gold
+SHOP_BUY_ACTION,A: buy for %d gold
+SHOP_SELL_ACTION,A: sell for %d gold
+SHOP_NOT_ENOUGH,You don't have enough gold
+SHOP_BELT_FULL,Your potion belt is full
+SHOP_NOTHING_TO_SELL,Nothing to sell: collect items from chests
+SHOP_HINT,A / Enter: buy or sell · B / Esc / %s: close
+SHOP_CLOSE,Close
+ITEM_SWORD_DRAGON,Dragon sword
+ITEM_ARMOR_PLATE,Plate armor
+ITEM_BOOTS_WIND,Wind boots
+ITEM_AMULET_ARCHMAGE,Archmage amulet
+ITEM_RING_INFERNO,Inferno ring
+ITEM_BOOK_METEOR,Meteor tome
+ITEM_BOOK_VIGOR,Tome of vigor
+ITEM_POTION_ELIXIR,Elixir
+MENU_CONTROLS,Controls
+CONTROLS_TITLE,Controls
+CONTROLS_MOVE,"Move (mouse: walk to the cursor, hold to follow it)"
+CONTROLS_ATTACK,"Attack (combo, hold to keep attacking)"
+CONTROLS_HEAVY,"Power strike (hold to charge, uses mana while held; keep holding to chain)"
+CONTROLS_PARRY,"Parry (instant, cancels any action)"
+CONTROLS_DODGE,"Dodge (cancels any action, air dash while jumping)"
+CONTROLS_JUMP,"Jump (cancels any action) · Interact (chests, merchants, caves)"
+CONTROLS_RUN,Tap: run on/off (dodge while running to slide) · Hold: torch on/off
+CONTROLS_FOCUS,"Focus (hold: dims the world, highlights you, items, chests and passages)"
+CONTROLS_SPELL,Fireball
+CONTROLS_SHIELD,Shield
+CONTROLS_POTION,Health potion
+CONTROLS_MANA,Mana potion
+CONTROLS_STAMINA_POTION,Stamina potion
+CONTROLS_INVENTORY,Inventory · sort it
+CONTROLS_MENU,"Pause menu (save, controls, options, quit)"
+CONTROLS_SPECIAL_TITLE,Special attacks
+CONTROLS_SPECIAL_MIXED,"Power strike right after a combo: a wide power strike with bonus damage"
+CONTROLS_SPECIAL_CHARGED,"Charge the first power strike: every power strike chained after it deals extra damage"
+CONTROLS_SPECIAL_AIR,"Attack in mid-air: wide aerial slashes that also reach the enemies below you"
+CONTROLS_SPECIAL_PLUNGE,"Power strike in mid-air: plunge (hold it to float and charge a magic slam: drains mana and stamina, archers can hit you)"
+CONTROLS_SPECIAL_DASH,Power strike during an air dash: dash strike that smashes a wide area
+CONTROLS_TOUCH,On touch screens use the on-screen buttons
+CONTROLS_BACK,Back
+MENU_CONTINUE,Continue
+SLOTS_NEW_TITLE,New game: choose a save slot
+SLOTS_LOAD_TITLE,Continue: choose a save slot
+SLOT_NAME,Slot %d
+SLOT_EMPTY,Empty
+SLOT_EMPTY_NEW,Start a new adventure here
+SLOT_LEVEL,Level %d
+SLOT_HEALTH_DAMAGE,Health %d · Damage %d
+SLOT_GOLD_POTIONS,Gold %d · Potions %d
+SLOT_KILLS,Enemies defeated: %d
+SLOT_PLACE_SURFACE,On the surface
+SLOT_PLACE_DEPTH,Underground · level %d
+SLOT_PLAYTIME,Play time: %s
+SLOT_PLAYTIME_MIN,%d min
+SLOT_PLAYTIME_HOURS,%d h %02d min
+SLOT_PLAYTIME_UNKNOWN,—
+SLOT_SAVED_AT,Saved %s
+SLOT_OVERWRITE,Press again to replace this save
+PAUSE_TITLE,Paused
+PAUSE_RESUME,Resume
+PAUSE_SAVE,Save game
+PAUSE_CONTROLS,Controls
+PAUSE_QUIT,Quit to title
+PAUSE_QUIT_CONFIRM,"Quit to title? Unsaved progress will be lost."
+PAUSE_QUIT_YES,Quit
+PAUSE_QUIT_NO,Cancel
+SAVE_DONE,Game saved
+SAVE_AUTO,Game saved automatically
+SAVE_BLOCKED_ENEMIES,Can't save: enemies nearby
+SAVE_BLOCKED_CHALLENGE,Can't save during a challenge
+SAVE_BLOCKED_DEAD,Can't save now
+LOADING_LANDS,Exploring new lands…
+LOADING_DEPTHS,Descending into the cave: level %d of %d
+LOADING_SURFACE,Back to the surface
+LOADING_GAME,Loading your game
+CAVE_HINT,A cave: interact to explore the depths
+INTERACT,Interact
+CAVE_CLEARED,This cave has been cleared
+STAIRS_HINT,Stairs going down
+EXIT_HINT,The way back to the surface
+DUNGEON_LEVEL,Underground · level %d of %d
+BOSS_NAME,Cave Guardian
+BOSS_DEFEATED,Guardian defeated! The way out is open
+MENU_CREDITS,Created by fdamore1984 with Claude Code
+CONTROLS_LOCK,Lock on the nearest enemy (press again to switch to the nearest one)
+TOUCH_LOCK,Lock
+TOUCH_MAP,Map
+MAP_TITLE,Map
+MAP_HINT,%s / B: close
+CONTROLS_MAP,Map
+ITEM_BLADE_GUARDIAN,Guardian's blade
+ITEM_ARMOR_GUARDIAN,Guardian's armor
+ITEM_BOOTS_GUARDIAN,Guardian's boots
+ITEM_CROWN_GUARDIAN,Guardian's crown
+ITEM_RING_GUARDIAN,Guardian's ring
+ITEM_BOOK_GUARDIAN,Guardian's tome
+CONTROLS_HEADER_ACTION,Action
+MENU_OPTIONS,Options
+PAUSE_OPTIONS,Options
+OPTIONS_TITLE,Options
+OPTIONS_CONTROLS,"Controls: select a binding, then press the new key, mouse button or controller button"
+OPTIONS_HEADER_ACTION,Action
+OPTIONS_HEADER_KEYBOARD,Keyboard
+OPTIONS_HEADER_MOUSE,Mouse
+OPTIONS_HEADER_CONTROLLER,Controller
+OPTIONS_DEVICE_KEYBOARD,key
+OPTIONS_DEVICE_MOUSE,mouse button
+OPTIONS_DEVICE_CONTROLLER,controller button or stick
+OPTIONS_LISTEN,"Press the new %s for ""%s"" (%d s, another device cancels)"
+OPTIONS_BOUND,"""%s"" set to %s"
+OPTIONS_SHARED,also used by: %s
+OPTIONS_CANCELLED,Cancelled: nothing changed
+OPTIONS_RESET,Reset to defaults
+OPTIONS_RESET_DONE,All controls are back to their defaults
+OPTIONS_BACK,Back
+BIND_NONE,—
+BIND_LEFT_STICK,Left stick
+BIND_RIGHT_STICK,Right stick
+BIND_MOUSE,Mouse %d
+BIND_MOUSE_1,Left click
+BIND_MOUSE_2,Right click
+BIND_MOUSE_3,Middle click
+BIND_MOUSE_8,Mouse back
+BIND_MOUSE_9,Mouse forward
+BIND_JOY,Button %d
+BIND_JOY_0,A
+BIND_JOY_1,B
+BIND_JOY_2,X
+BIND_JOY_3,Y
+BIND_JOY_4,Select
+BIND_JOY_5,Guide
+BIND_JOY_6,Start
+BIND_JOY_7,L3
+BIND_JOY_8,R3
+BIND_JOY_9,L1
+BIND_JOY_10,R1
+BIND_JOY_11,D-pad ↑
+BIND_JOY_12,D-pad ↓
+BIND_JOY_13,D-pad ←
+BIND_JOY_14,D-pad →
+BIND_AXIS,Axis %d
+BIND_AXIS_0_NEG,Left stick ←
+BIND_AXIS_0_POS,Left stick →
+BIND_AXIS_1_NEG,Left stick ↑
+BIND_AXIS_1_POS,Left stick ↓
+BIND_AXIS_2_NEG,Right stick ←
+BIND_AXIS_2_POS,Right stick →
+BIND_AXIS_3_NEG,Right stick ↑
+BIND_AXIS_3_POS,Right stick ↓
+BIND_AXIS_4_POS,L2
+BIND_AXIS_5_POS,R2
+BIND_ACTION_MOVE_UP,Move up
+BIND_ACTION_MOVE_DOWN,Move down
+BIND_ACTION_MOVE_LEFT,Move left
+BIND_ACTION_MOVE_RIGHT,Move right
+BIND_ACTION_MOVE_CLICK,Walk to the cursor
+BIND_ACTION_ATTACK,Attack
+BIND_ACTION_HEAVY_ATTACK,Power strike
+BIND_ACTION_PARRY,Parry
+BIND_ACTION_DODGE,Dodge
+BIND_ACTION_JUMP,Jump
+BIND_ACTION_INTERACT,Interact
+BIND_ACTION_RUN,Run / torch
+BIND_ACTION_FOCUS,Focus
+BIND_ACTION_SPELL,Fireball
+BIND_ACTION_SHIELD,Shield
+BIND_ACTION_POTION,Health potion
+BIND_ACTION_MANA_POTION,Mana potion
+BIND_ACTION_STAMINA_POTION,Stamina potion
+BIND_ACTION_INVENTORY,Inventory
+BIND_ACTION_INVENTORY_SORT,Sort the inventory
+BIND_ACTION_MAP,Map
+BIND_ACTION_LOCK_ON,Lock on
+BIND_ACTION_MENU,Pause menu
+BIND_JOY_SHORT_11,↑
+BIND_JOY_SHORT_12,↓
+BIND_JOY_SHORT_13,←
+BIND_JOY_SHORT_14,→

@@ -1,0 +1,67 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  export:
+    name: Export (${{ matrix.preset }})
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.4.1
+    strategy:
+      fail-fast: false
+      # Si pubblicano Linux (SteamOS / Steam Deck) e Windows (anche portatili
+      # come l'MSI Claw 8). Il preset "Android" resta in export_presets.cfg:
+      # per riattivarlo basta aggiungerlo qui (con --export-debug, firmato
+      # con la chiave di debug).
+      matrix:
+        include:
+          - preset: "Linux"
+            dir: linux
+            channel: linux
+            mode: --export-release
+          - preset: "Windows Desktop"
+            dir: windows
+            channel: windows
+            mode: --export-release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      # L'immagine installa template ed editor settings sotto /root, ma nei container di GitHub Actions
+      # HOME è /github/home: li spostiamo dove Godot li cerca.
+      - name: Prepara template ed editor settings
+        run: |
+          mkdir -v -p ~/.local/share/godot/export_templates ~/.config
+          mv /root/.local/share/godot/export_templates/* ~/.local/share/godot/export_templates/
+          mv /root/.config/godot ~/.config/godot
+
+      # La versione mostrata nel gioco coincide con quella caricata su itch.io.
+      - name: Imposta la versione
+        run: sed -i 's|^config/version=.*|config/version="0.1.${{ github.run_number }}"|' project.godot
+
+      - name: Importa le risorse
+        run: godot --headless --verbose --import || true
+
+      - name: Esporta
+        run: |
+          mkdir -p build/${{ matrix.dir }}
+          godot --headless --verbose ${{ matrix.mode }} "${{ matrix.preset }}"
+          # Elenco dei file prodotti: ogni build deve essere un file solo.
+          ls -la build/${{ matrix.dir }}
+
+      # Sulle PR basta verificare che l'export riesca: si carica su itch.io
+      # solo dai push su main. Servono il secret BUTLER_API_KEY e le
+      # variabili ITCH_USER e ITCH_GAME del repository.
+      - name: Carica su itch.io
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: |
+          butler push build/${{ matrix.dir }} "${{ vars.ITCH_USER }}/${{ vars.ITCH_GAME }}:${{ matrix.channel }}" --userversion "0.1.${{ github.run_number }}"
