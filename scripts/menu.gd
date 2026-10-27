@@ -2,7 +2,7 @@ extends Control
 ## Menù iniziale: Continua riprende subito la partita salvata più di
 ## recente (se ce n'è), Nuova partita ne avvia una scegliendo uno dei tre
 ## slot (SlotPanel); mostra i comandi (ControlsPanel) o chiude il gioco.
-## Si usa col controller o col touch.
+## Si usa solo col controller.
 ## In basso a sinistra mostra la versione (per riconoscere a colpo
 ## d'occhio le build scaricate da itch.io) e chi ha fatto il gioco.
 

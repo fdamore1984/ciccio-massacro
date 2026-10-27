@@ -1,10 +1,8 @@
 class_name HudActions
 extends Control
-## Barra delle azioni in basso a sinistra: pozioni (vita, mana, vigore),
-## scudo, palla di fuoco e inventario, ognuno con la sua icona, il tasto del
-## controller (vedi PadLabels),
-## quante ne restano o la ricarica. Sui dispositivi touch non serve: ci
-## sono già i pulsanti a schermo.
+## Barra delle azioni in basso a sinistra: kit medici, taniche, batterie,
+## scudo, bazooka e inventario, ognuno con la sua icona, il tasto del
+## controller (vedi PadLabels), quante ne restano o la ricarica.
 
 const SLOT := 58.0
 const GAP := 8.0
@@ -16,7 +14,7 @@ const COLOR_KEY := Color(1, 1, 1, 0.85)
 ## Azioni: icona e azione dell'Input Map (per il tasto del controller).
 const ACTIONS := [
 	["potion", "potion"], ["mana", "mana_potion"], ["shield", "shield"], ["spell", "spell"],
-	["stamina_potion", "stamina_potion"], ["bag", "inventory"],
+	["battery_potion", "battery_potion"], ["bag", "inventory"],
 ]
 
 var player: Player
@@ -74,8 +72,8 @@ func _is_ready(kind: String) -> bool:
 			return player.potions > 0 and player.health < player.max_health
 		"mana":
 			return player.mana_potions > 0 and player.mana < player.max_mana
-		"stamina_potion":
-			return player.stamina_potions > 0 and player.stamina < player.max_stamina
+		"battery_potion":
+			return player.battery_potions > 0 and player.battery < player.max_battery
 		"shield":
 			return player.shield_active or player.shield_cooldown <= 0.0
 		"spell":
@@ -89,8 +87,8 @@ func _count(kind: String) -> String:
 			return str(player.potions)
 		"mana":
 			return str(player.mana_potions)
-		"stamina_potion":
-			return str(player.stamina_potions)
+		"battery_potion":
+			return str(player.battery_potions)
 		"spell":
 			return str(roundi(Player.SPELL_COST))
 		"bag":

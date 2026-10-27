@@ -76,7 +76,7 @@ static func draw_item(canvas: CanvasItem, center: Vector2, side: float, id: Stri
 
 
 ## Scorte: kit medico (cura), tanica (carburante), lattina energetica
-## (vigore); quelle che fanno più cose (kit di sopravvivenza) sono una
+## (batteria); quelle che fanno più cose (kit di sopravvivenza) sono una
 ## borsa con la croce.
 static func draw_supply(canvas: CanvasItem, center: Vector2, s: float, id: String, color: Color) -> void:
 	var heal := Items.stat(id, "heal") > 0.0

@@ -26,6 +26,12 @@ extends Node2D
 ## L'arma disegnata (voce "weapon" del tipo) è solo grafica: mazza,
 ## manganello, tubo, mazza da demolizione, pistola o fucile.
 ##
+## Aspetto: corpo tondo come il giocatore, braccia e gambe a linee nere.
+## Ogni nemico nasce con una taglia (che cambia anche il raggio dei colpi e
+## delle collisioni), un colore della pelle e accessori a caso (capelli,
+## bandana, berretto, occhiali, maschera...), scelti da un seme salvato con
+## il nemico (vedi _apply_look).
+##
 ## Si muovono sul terreno a gradini come il giocatore: scendono dai gradini
 ## cadendo e, quando un gradino alto un livello li blocca, ci saltano sopra;
 ## nei burroni non entrano mai. Il boss resta sempre dentro la sua arena
@@ -151,6 +157,16 @@ const COLOR_DANGER := Color(1.0, 0.25, 0.15)
 ## Chiamata dei rinforzi: i fumogeni arancioni dove arriveranno.
 const COLOR_SUMMON := Color(1.0, 0.5, 0.2)
 const COLOR_DAMAGE := Color(1.0, 1.0, 1.0)
+## Aspetto casuale: taglia (moltiplica il raggio del tipo), tonalità della
+## pelle e colori di capelli e accessori.
+const SIZE_RANGE := Vector2(0.8, 1.25)
+const SKIN_TONES := [Color(0.98, 0.84, 0.72), Color(0.92, 0.72, 0.56), Color(0.78, 0.56, 0.4), Color(0.6, 0.42, 0.3), Color(0.42, 0.29, 0.2), Color(0.3, 0.2, 0.14)]
+const HAIR_COLORS := [Color(0.1, 0.08, 0.06), Color(0.35, 0.22, 0.12), Color(0.8, 0.65, 0.3), Color(0.65, 0.2, 0.1), Color(0.75, 0.75, 0.72), Color(0.2, 0.75, 0.35), Color(0.9, 0.2, 0.55)]
+const GEAR_COLORS := [Color(0.75, 0.12, 0.12), Color(0.12, 0.2, 0.55), Color(0.15, 0.15, 0.17), Color(0.35, 0.4, 0.22), Color(0.85, 0.75, 0.2), Color(0.9, 0.9, 0.88)]
+const HAIRS := ["", "", "mohawk", "spikes", "afro"]
+const HEADWEARS := ["", "", "bandana", "cap", "beanie"]
+const FACES := ["", "", "sunglasses", "gasmask", "scarf", "eyepatch"]
+const COLOR_LIMBS := Color(0.05, 0.05, 0.06)
 
 var player: Player
 var type_id := "warrior"
@@ -174,6 +190,14 @@ var is_minion := false
 
 var _type: Dictionary
 var _color := Color.WHITE
+## Seme dell'aspetto (vedi _apply_look) e accessori scelti.
+var _look_seed := 0
+var _hair := ""
+var _hair_color := Color.BLACK
+var _headwear := ""
+var _headwear_color := Color.BLACK
+var _face := ""
+var _face_color := Color.BLACK
 var _speed := 125.0
 var _state := State.WANDER
 var _state_time := 0.0
@@ -277,8 +301,7 @@ func setup(id: String, level := 1) -> void:
 	damage = floori(EnemyTypes.scaled("damage", _type["damage"], threat_level))
 	armor = EnemyTypes.armor(float(_type.get("armor", 0.0)), threat_level)
 	_speed = _type["speed"]
-	var color: Array = _type["color"]
-	_color = Color(color[0], color[1], color[2])
+	_apply_look(randi())
 	if _type.has("summon"):
 		_summon_cooldown = randf_range(1.0, 2.5)
 	if _type.has("magic"):
@@ -292,7 +315,7 @@ func save_state() -> Dictionary:
 		"type": type_id, "position": SaveGame.array(position), "health": health, "max_health": max_health,
 		"xp": xp_reward, "damage": damage, "loot": drops_loot, "minion": is_minion,
 		"level": threat_level, "armor": armor,
-		"facing": SaveGame.array(_facing),
+		"facing": SaveGame.array(_facing), "look": _look_seed,
 	}
 
 
@@ -307,11 +330,32 @@ func load_state(data: Dictionary) -> void:
 	threat_level = int(data.get("level", threat_level))
 	armor = float(data.get("armor", armor))
 	drops_loot = bool(data.get("loot", drops_loot))
+	if data.has("look"):
+		_apply_look(int(data["look"]))
 	is_minion = bool(data.get("minion", false))
 	if data.has("facing"):
 		var facing := SaveGame.vector(data["facing"])
 		if facing != Vector2.ZERO:
 			_facing = facing.normalized()
+
+
+## Aspetto dal seme: taglia (raggio), pelle e accessori. Il boss ha sempre
+## la stessa taglia e il suo elmetto, senza altri accessori.
+func _apply_look(look_seed: int) -> void:
+	_look_seed = look_seed
+	var rng := RandomNumberGenerator.new()
+	rng.seed = look_seed
+	var size := 1.0 if is_boss() else rng.randf_range(SIZE_RANGE.x, SIZE_RANGE.y)
+	radius = float(_type["radius"]) * size
+	var tone: Color = SKIN_TONES[rng.randi() % SKIN_TONES.size()]
+	_color = Color.from_hsv(wrapf(tone.h + rng.randf_range(-0.02, 0.02), 0.0, 1.0), clampf(tone.s * rng.randf_range(0.85, 1.15), 0.0, 1.0), clampf(tone.v * rng.randf_range(0.9, 1.08), 0.0, 1.0))
+	_hair = "" if is_boss() else HAIRS[rng.randi() % HAIRS.size()]
+	_hair_color = HAIR_COLORS[rng.randi() % HAIR_COLORS.size()]
+	_headwear = "" if is_boss() else HEADWEARS[rng.randi() % HEADWEARS.size()]
+	_headwear_color = GEAR_COLORS[rng.randi() % GEAR_COLORS.size()]
+	_face = "" if is_boss() else FACES[rng.randi() % FACES.size()]
+	_face_color = GEAR_COLORS[rng.randi() % GEAR_COLORS.size()]
+	_shape_radius = -1.0
 
 
 ## Il nemico non esce mai dal cerchio di rombi (raggio in rombi) attorno a
@@ -1129,13 +1173,17 @@ func _draw() -> void:
 	# I salti (attacco speciale, gradini) sollevano tutto tranne l'ombra.
 	draw_set_transform(Vector2(0, -ground_elevation - lift))
 	var walking := _velocity.length() > 15.0 and _state != State.DEAD
-	BodyParts.draw_legs(self, -leg + radius * 0.55, radius * 0.85, radius * 0.35, maxf(4.0, radius * 0.22),
-			_walk_phase, _velocity.normalized(), radius * 0.3 if walking else 0.0, _color.darkened(0.4))
+	BodyParts.draw_legs(self, -leg + radius * 0.55, radius * 0.85, radius * 0.3, 2.5,
+			_walk_phase, _velocity.normalized(), radius * 0.3 if walking else 0.0, COLOR_LIMBS, false)
 	draw_set_transform(_body_offset())
 	_prepare_meshes()
 	draw_mesh(_body_mesh, null, Transform2D.IDENTITY, body)
 	draw_mesh(_outline_mesh, null, Transform2D.IDENTITY, body.darkened(0.35))
-	Shapes.disc(self, _facing * radius * 0.5, maxf(radius * 0.2, 4.0), Color(0.1, 0.05, 0.1))
+	# "Naso" che indica la direzione, come il giocatore, e gli accessori.
+	var tip := _facing * (radius + 10.0)
+	var side := _facing.orthogonal() * radius * 0.35
+	draw_primitive(PackedVector2Array([tip, _facing * radius * 0.6 + side, _facing * radius * 0.6 - side]), PackedColorArray([body.darkened(0.3)]), PackedVector2Array())
+	_draw_look()
 	if is_boss():
 		_draw_crown()
 	if _state == State.SUMMON:
@@ -1176,7 +1224,7 @@ func _body_offset() -> Vector2:
 func _prepare_meshes() -> void:
 	if _shape_radius != radius:
 		_shape_radius = radius
-		var key := "%s:%s" % [_type["shape"], radius]
+		var key := "circle:%s" % radius
 		_body_mesh = Shapes.polygon_mesh(key, _shape_points())
 		_outline_mesh = Shapes.outline_mesh(key + ":outline", _shape_points(), 2.0)
 
@@ -1251,6 +1299,7 @@ func _draw_club() -> void:
 		var flash := _guard_flash / 0.25
 		Shapes.disc(self, hand + Vector2.from_angle(angle) * length * 0.45, 16.0 * flash, Color(COLOR_GUARD, 0.6 * flash))
 		tint = Color.WHITE.lerp(Color(1.4, 1.4, 1.5), flash)
+	_draw_arms(hand, hand + Vector2.from_angle(angle) * length * 0.2)
 	BodyParts.draw_club(self, hand, angle, length, width * 1.3, _type.get("weapon", "bat"), tint)
 
 
@@ -1295,6 +1344,7 @@ func _draw_gun(kind: String) -> void:
 		var muzzle := hand + direction * length
 		draw_line(muzzle, muzzle + direction * radius * 6.0 * progress, Color(1.0, 0.1, 0.1, 0.25 + 0.4 * progress), 1.5)
 		Shapes.disc(self, muzzle + direction * radius * 6.0 * progress, 2.5, Color(1.0, 0.2, 0.2, 0.8))
+	_draw_arms(hand, hand + direction * length * 0.4)
 	BodyParts.draw_gun(self, hand, direction.angle(), length, width, kind, _muzzle_flash / MUZZLE_FLASH_TIME)
 
 
@@ -1305,6 +1355,63 @@ func _draw_radio() -> void:
 	draw_line(at + Vector2(3, -7), at + Vector2(6, -radius * 1.1), Color(0.1, 0.1, 0.1), 2.0)
 	if int(_state_time * 8.0) % 2 == 0:
 		Shapes.disc(self, at + Vector2(6, -radius * 1.1), 3.0, Color(1.0, 0.3, 0.2))
+
+
+## Braccia: linee nere sottili dalle spalle alle due mani sull'arma.
+func _draw_arms(hand: Vector2, other_hand: Vector2) -> void:
+	var shoulder := _facing.orthogonal() * radius * 0.7
+	if hand.dot(shoulder) < 0.0:
+		shoulder = -shoulder
+	for pair: Array in [[shoulder, hand], [-shoulder, other_hand]]:
+		var from: Vector2 = pair[0]
+		draw_line(from, from + ((pair[1] as Vector2) - from).limit_length(radius * 1.3), COLOR_LIMBS, 2.5)
+
+
+## Accessori scelti a caso (vedi _apply_look): capelli in cima al corpo,
+## bandana, berretto o cuffia, e sul lato della faccia occhiali da sole,
+## maschera antigas, fazzoletto o benda sull'occhio.
+func _draw_look() -> void:
+	var top := Vector2(0, -radius)
+	match _hair:
+		"mohawk":
+			for k in 5:
+				var x := (k - 2) * radius * 0.12
+				draw_colored_polygon(PackedVector2Array([top + Vector2(x - radius * 0.08, radius * 0.12), top + Vector2(x, -radius * 0.38), top + Vector2(x + radius * 0.08, radius * 0.12)]), _hair_color)
+		"spikes":
+			for k in 4:
+				var out := Vector2.from_angle(-PI * (0.2 + 0.2 * k))
+				var base := top + out * radius * 0.25 + Vector2(0, radius * 0.2)
+				draw_colored_polygon(PackedVector2Array([base - out.orthogonal() * radius * 0.12, base + out * radius * 0.4, base + out.orthogonal() * radius * 0.12]), _hair_color)
+		"afro":
+			Shapes.disc(self, top + Vector2(0, radius * 0.05), radius * 0.55, _hair_color)
+	match _headwear:
+		"bandana":
+			draw_line(Vector2(-radius * 0.92, -radius * 0.45), Vector2(radius * 0.92, -radius * 0.45), _headwear_color, radius * 0.22)
+			var knot := -_facing.orthogonal() * radius * 0.85 + Vector2(0, -radius * 0.45)
+			draw_line(knot, knot + Vector2(-_facing.x * radius * 0.4, radius * 0.35), _headwear_color, radius * 0.12)
+		"cap":
+			draw_colored_polygon(PackedVector2Array([Vector2(-radius * 0.75, -radius * 0.6), Vector2(radius * 0.75, -radius * 0.6),
+					Vector2(radius * 0.45, -radius * 0.98), Vector2(-radius * 0.45, -radius * 0.98)]), _headwear_color)
+			var visor := _facing * radius * 0.7 + Vector2(0, -radius * 0.62)
+			draw_line(visor - _facing.orthogonal() * radius * 0.35, visor + _facing * radius * 0.35, _headwear_color.darkened(0.3), radius * 0.14)
+		"beanie":
+			draw_colored_polygon(PackedVector2Array([Vector2(-radius * 0.8, -radius * 0.55), Vector2(radius * 0.8, -radius * 0.55),
+					Vector2(radius * 0.5, -radius * 1.0), Vector2(-radius * 0.5, -radius * 1.0)]), _headwear_color)
+			Shapes.disc(self, top + Vector2(0, -radius * 0.05), radius * 0.15, _headwear_color.lightened(0.3))
+	var eyes := _facing * radius * 0.5 + Vector2(0, -radius * 0.2)
+	var across := _facing.orthogonal()
+	match _face:
+		"sunglasses":
+			draw_line(eyes - across * radius * 0.35, eyes + across * radius * 0.35, Color(0.05, 0.05, 0.06), radius * 0.2)
+		"gasmask":
+			Shapes.disc(self, eyes + Vector2(0, radius * 0.25), radius * 0.32, Color(0.3, 0.32, 0.3))
+			Shapes.disc(self, eyes + _facing * radius * 0.25 + Vector2(0, radius * 0.35), radius * 0.15, Color(0.15, 0.15, 0.16))
+		"scarf":
+			draw_colored_polygon(PackedVector2Array([eyes + across * radius * 0.5 + Vector2(0, radius * 0.15), eyes - across * radius * 0.5 + Vector2(0, radius * 0.15),
+					eyes + _facing * radius * 0.2 + Vector2(0, radius * 0.6)]), _face_color)
+		"eyepatch":
+			draw_line(eyes + across * radius * 0.5 + Vector2(0, -radius * 0.25), eyes - across * radius * 0.5 + Vector2(0, radius * 0.1), Color(0.05, 0.05, 0.06), 2.0)
+			Shapes.disc(self, eyes + across * radius * 0.15, radius * 0.14, Color(0.05, 0.05, 0.06))
 
 
 static func _closed(points: PackedVector2Array) -> PackedVector2Array:
@@ -1323,26 +1430,6 @@ func _polygon(sides: int, scale: float, inner := 1.0) -> PackedVector2Array:
 	return points
 
 
+## Corpo tondo, come quello del giocatore.
 func _shape_points() -> PackedVector2Array:
-	match _type["shape"]:
-		"pentagon":
-			return _polygon(5, 1.15)
-		"octagon":
-			return _polygon(8, 1.08)
-		"star":
-			return _polygon(5, 1.3, 0.5)
-		"cross":
-			var a := radius * 0.4
-			var b := radius * 1.1
-			return PackedVector2Array([Vector2(-a, -b), Vector2(a, -b), Vector2(a, -a), Vector2(b, -a), Vector2(b, a), Vector2(a, a),
-					Vector2(a, b), Vector2(-a, b), Vector2(-a, a), Vector2(-b, a), Vector2(-b, -a), Vector2(-a, -a)])
-		"triangle":
-			return PackedVector2Array([Vector2(0, -radius * 1.3), Vector2(radius, radius * 0.8), Vector2(-radius, radius * 0.8)])
-		"square":
-			return PackedVector2Array([Vector2(-radius, -radius), Vector2(radius, -radius), Vector2(radius, radius), Vector2(-radius, radius)])
-		"hexagon":
-			var points := PackedVector2Array()
-			for i in 6:
-				points.append(Vector2.from_angle(TAU * i / 6.0) * radius * 1.1)
-			return points
-	return PackedVector2Array([Vector2(0, -radius * 1.2), Vector2(radius, 0), Vector2(0, radius * 1.2), Vector2(-radius, 0)])
+	return _polygon(20, 1.0)

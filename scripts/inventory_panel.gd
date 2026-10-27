@@ -317,10 +317,10 @@ func _comparison(id: String) -> String:
 ## Nome ed effetti dell'oggetto, tradotti.
 static func describe(id: String) -> String:
 	var effects: Array[String] = []
-	for key: String in ["damage", "health", "speed", "mana", "spell", "heal", "restore_mana", "restore_stamina"]:
+	for key: String in ["damage", "health", "speed", "mana", "spell", "heal", "restore_mana", "restore_battery"]:
 		var value := Items.stat(id, key)
 		if value == 0.0:
 			continue
-		var shown := roundi(value * 100.0) if key in ["damage", "speed", "spell", "restore_stamina"] else roundi(value)
+		var shown := roundi(value * 100.0) if key in ["damage", "speed", "spell", "restore_battery"] else roundi(value)
 		effects.append(TranslationServer.translate("STAT_" + key.to_upper()) % shown)
 	return "%s — %s" % [TranslationServer.translate(Items.name_key(id)), ", ".join(effects)]

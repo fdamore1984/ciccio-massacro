@@ -2,9 +2,7 @@ class_name InteractPrompt
 extends Button
 ## Suggerimento sopra l'elemento con cui si può interagire (cassa,
 ## commerciante, sirena, edificio, scala, uscita): il tasto A del controller
-## e "Interact". Toccandolo si interagisce
-## (segnale activated): non mentre il gioco è in pausa né nel frame in cui
-## si chiude un menù, così il tocco che chiude la pausa non interagisce.
+## e "Interact".
 
 signal activated
 

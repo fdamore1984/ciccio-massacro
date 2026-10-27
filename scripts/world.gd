@@ -133,14 +133,14 @@ var _region_total := 0
 var _view_queue: Array[Vector2i] = []
 var _dungeon_data: Dictionary = DATA.data["dungeon"]
 var _levels: int
-var _height_noise := FastNoiseLite.new()
-var _path_noise := FastNoiseLite.new()
 var _ruins_noise := FastNoiseLite.new()
 var _ridge_noise := FastNoiseLite.new()
 var _gap_noise := FastNoiseLite.new()
 var _barrier_kind_noise := FastNoiseLite.new()
 ## Dati calcolati per rombo: livello, tipo (Kind), rampa, sentiero.
 var _level_cache := {}
+## Isolato -> altezza del suo palazzo (vedi _block_height).
+var _block_cache := {}
 var _kind_cache := {}
 var _ramp_cache := {}
 var _path_cache := {}
@@ -228,14 +228,13 @@ func set_seed(value: int) -> void:
 	seed_value = value
 	_setup_noises()
 	_arena_cache.clear()
+	_block_cache.clear()
 	_merchant_cache.clear()
 	_sites_cache.clear()
 	set_dungeon(dungeon)
 
 
 func _setup_noises() -> void:
-	_setup_noise(_height_noise, 0, _terrain["height_frequency"], _terrain["height_octaves"])
-	_setup_noise(_path_noise, 1, _terrain["path_frequency"], 1)
 	_setup_noise(_ruins_noise, 2, _terrain["ruins_frequency"], 2)
 	_setup_noise(_ridge_noise, 4, _terrain["barrier_frequency"], 1)
 	_setup_noise(_gap_noise, 5, _terrain["barrier_gap_frequency"], 1)
@@ -442,40 +441,63 @@ func level_of(cell: Vector2i) -> int:
 			kind = Kind.ROCK
 			level = dungeon.wall_level
 	else:
+		# Il terreno è tutto piano (livello 0): ci sono solo i palazzi degli
+		# isolati e le fessure dei terremoti.
 		var center := cell_center(cell)
-		var ridge := _barrier_strength(center)
-		if ridge > 0.0:
-			if _barrier_kind_noise.get_noise_2dv(center) >= 0.0:
-				# La montagna sale a gradini verso la cresta.
-				kind = Kind.MOUNTAIN
-				level = _levels + 1 + mini(floori(ridge * 4.0), 3)
-			else:
-				kind = Kind.RAVINE
-				level = -int(_terrain["ravine_depth"])
-		else:
-			level = _ground_level(center)
+		var building := _building_height(cell)
+		if _barrier_strength(center) > 0.0 and _barrier_kind_noise.get_noise_2dv(center) < 0.0:
+			kind = Kind.RAVINE
+			level = -int(_terrain["ravine_depth"])
+		elif building > 0:
+			kind = Kind.MOUNTAIN
+			level = _levels + building
 	_kind_cache[cell] = kind
 	_level_cache[cell] = level
 	return level
 
 
-func _ground_level(center: Vector2) -> int:
-	if center.length() < float(_terrain["start_flat_radius"]):
-		center = Vector2.ZERO
-	else:
-		# Le arene sono tutte allo stesso livello del loro centro.
+## Pianta a griglia della città: isolati quadrati di "city_block" rombi,
+## separati da strade dritte larghe "city_road" rombi. Un isolato su tanti
+## ("building_chance") è un palazzo che lo occupa tutto tranne il
+## marciapiede attorno; gli altri sono spiazzi con rovine e macerie.
+## Restituisce i livelli d'altezza del palazzo (0: niente palazzo).
+func _building_height(cell: Vector2i) -> int:
+	var size := int(_terrain["city_block"])
+	var road := int(_terrain["city_road"])
+	var block := Vector2i(floori(float(cell.x) / size), floori(float(cell.y) / size))
+	var local := cell - block * size
+	if local.x <= road or local.y <= road or local.x >= size - 1 or local.y >= size - 1:
+		return 0
+	return _block_height(block)
+
+
+func _block_height(block: Vector2i) -> int:
+	var cached: Variant = _block_cache.get(block)
+	if cached != null:
+		return cached
+	var size := int(_terrain["city_block"])
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([seed_value, block.x, block.y, "building"])
+	var height := 0
+	if rng.randf() < float(_terrain["building_chance"]):
+		var levels: Array = _terrain["building_levels"]
+		height = rng.randi_range(levels[0], levels[1])
+		# Niente palazzi sulla partenza, sulle piazze delle sirene e sugli
+		# spiazzi dei commercianti.
+		var center := cell_center(block * size + Vector2i(size / 2, size / 2))
+		var reach := size * CELL * 0.8
 		var arena := arena_near(center)
 		var merchant := merchant_near(center)
-		if arena != Vector2.INF and center.distance_to(arena) < float(_arena["radius"]):
-			center = arena
-		# Anche lo spiazzo del mercante è piano.
-		elif merchant != Vector2.INF and center.distance_to(merchant) < float(_merchant["clear_radius"]):
-			center = merchant
-	var t := _height_noise.get_noise_2dv(center) * float(_terrain["height_contrast"]) * 0.5 + 0.5
-	return clampi(floori(t * _levels), 0, _levels - 1)
+		if center.length() < float(_terrain["start_flat_radius"]) + reach \
+				or (arena != Vector2.INF and center.distance_to(arena) < float(_arena["radius"]) + reach) \
+				or (merchant != Vector2.INF and center.distance_to(merchant) < float(_merchant["clear_radius"]) + reach):
+			height = 0
+	_block_cache[block] = height
+	return height
 
 
-## Montagne e burroni corrono lungo le linee in cui un rumore vale zero,
+## Le fessure dei terremoti (nel codice "barriere": prima erano anche
+## montagne) corrono lungo le linee in cui un rumore vale zero,
 ## con qualche passaggio; mai vicino alla partenza, alle arene o ai
 ## mercanti. Restituisce 0 fuori, fino a 1 sulla linea centrale.
 func _barrier_strength(center: Vector2) -> float:
@@ -530,8 +552,8 @@ func ramp_of(cell: Vector2i) -> Vector2i:
 	return result
 
 
-## Sentiero sterrato: una striscia lungo una curva del rumore, e lo
-## spiazzo di terra attorno al totem delle arene e ai mercanti.
+## Strada: la griglia delle strade tra gli isolati, e le piazze attorno
+## alla sirena delle arene e ai commercianti.
 func is_path(cell: Vector2i) -> bool:
 	var cached: Variant = _path_cache.get(cell)
 	if cached != null:
@@ -546,7 +568,10 @@ func is_path(cell: Vector2i) -> bool:
 		elif merchant != Vector2.INF and center.distance_to(merchant) < float(_merchant["plaza_radius"]):
 			result = true
 		else:
-			result = absf(_path_noise.get_noise_2dv(center)) < float(_terrain["path_width"])
+			# Le strade dritte tra gli isolati (vedi _building_height).
+			var size := int(_terrain["city_block"])
+			var road := int(_terrain["city_road"])
+			result = posmod(cell.x, size) < road or posmod(cell.y, size) < road
 	_path_cache[cell] = result
 	return result
 
@@ -1341,7 +1366,7 @@ func draw_cell(canvas: CanvasItem, cell: Vector2i, offset: Vector2) -> void:
 func _top_color(cell: Vector2i, kind: int, path: bool) -> Color:
 	match kind:
 		Kind.MOUNTAIN:
-			return _tower_colors[clampi(level_of(cell) - _levels - 1, 0, _tower_colors.size() - 1)]
+			return _tower_colors[posmod(level_of(cell), _tower_colors.size())]
 		Kind.RAVINE:
 			return _fissure_color
 		Kind.ROCK:

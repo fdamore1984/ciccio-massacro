@@ -18,8 +18,6 @@ const POWER_UP_ICON_SIZE := 28.0
 const CARD_ICON_SIZE := 64.0
 const POWER_UPS_FONT_SIZE := 14
 const POWER_UPS_MARGIN := 16.0
-## Con i controlli touch la riga sta sotto la minimappa.
-const POWER_UPS_TOUCH_TOP := 234.0
 const COLOR_POWER_UPS_PANEL := Color(0.05, 0.07, 0.05, 0.8)
 ## Per quanto resta il messaggio di fine sfida.
 const CHALLENGE_FLASH_TIME := 3.5
@@ -40,7 +38,7 @@ const UPGRADE_NAMES := {
 	"run": "UPGRADE_RUN",
 	"mana": "UPGRADE_MANA",
 	"spell": "UPGRADE_SPELL",
-	"stamina": "UPGRADE_STAMINA",
+	"battery": "UPGRADE_BATTERY",
 	"potion_slots": "UPGRADE_POTION_SLOTS",
 	"potion_heal": "UPGRADE_POTION_HEAL",
 	"mana_restore": "UPGRADE_MANA_RESTORE",
@@ -76,7 +74,7 @@ var pause_menu := PauseMenu.new()
 	"run": %UpgradeRun as Button,
 	"mana": %UpgradeMana as Button,
 	"spell": %UpgradeSpell as Button,
-	"stamina": %UpgradeStamina as Button,
+	"battery": %UpgradeBattery as Button,
 	"potion_slots": %UpgradePotionSlots as Button,
 	"potion_heal": %UpgradePotionHeal as Button,
 	"mana_restore": %UpgradeManaRestore as Button,
@@ -131,7 +129,6 @@ func _ready() -> void:
 	# Vita bassa e modalità focus: il primo figlio di tutti, così legge lo
 	# schermo col solo mondo disegnato e l'interfaccia resta sopra, intatta.
 	move_child(_vignette, 0)
-	_actions.visible = not Platform.use_touch_controls()
 	_level_up.visible = false
 	(_upgrade_buttons["combo"].get_parent() as GridContainer).columns = UPGRADE_CHOICES
 	for upgrade: String in _upgrade_buttons:
@@ -149,7 +146,6 @@ func _process(delta: float) -> void:
 	# Sparisce appena il gioco vede un controller (per esempio dopo aver
 	# tenuto premuto Menu sullo Steam Deck).
 	_deck_hint.visible = Platform.needs_deck_controller_hint()
-	_actions.visible = not Platform.use_touch_controls()
 	if player == null:
 		return
 	_inventory_panel.player = player
@@ -205,33 +201,26 @@ func _update_power_ups() -> void:
 	_fit_power_ups.call_deferred()
 
 
-## In basso a destra; con i controlli touch lì ci sono i pulsanti, quindi
-## sotto la minimappa.
+## In basso a destra.
 func _place_power_ups() -> void:
-	var touch := Platform.use_touch_controls()
-	var preset := Control.PRESET_TOP_RIGHT if touch else Control.PRESET_BOTTOM_RIGHT
+	var preset := Control.PRESET_BOTTOM_RIGHT
 	if _power_ups_preset == preset:
 		return
 	_power_ups_preset = preset
 	_power_ups_panel.set_anchors_preset(preset)
 	_power_ups_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_power_ups_panel.grow_vertical = Control.GROW_DIRECTION_END if touch else Control.GROW_DIRECTION_BEGIN
+	_power_ups_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_fit_power_ups()
 
 
-## Il bordo destro (e quello in basso, o in alto con il touch) resta fermo:
-## con più icone il pannello si allarga verso sinistra, con meno si stringe.
+## Il bordo destro e quello in basso restano fermi: con più icone il
+## pannello si allarga verso sinistra, con meno si stringe.
 func _fit_power_ups() -> void:
-	var touch := _power_ups_preset == Control.PRESET_TOP_RIGHT
 	var needed := _power_ups_panel.get_combined_minimum_size()
 	_power_ups_panel.offset_right = -POWER_UPS_MARGIN
 	_power_ups_panel.offset_left = -POWER_UPS_MARGIN - needed.x
-	if touch:
-		_power_ups_panel.offset_top = POWER_UPS_TOUCH_TOP
-		_power_ups_panel.offset_bottom = POWER_UPS_TOUCH_TOP + needed.y
-	else:
-		_power_ups_panel.offset_bottom = -POWER_UPS_MARGIN
-		_power_ups_panel.offset_top = -POWER_UPS_MARGIN - needed.y
+	_power_ups_panel.offset_bottom = -POWER_UPS_MARGIN
+	_power_ups_panel.offset_top = -POWER_UPS_MARGIN - needed.y
 
 
 ## Mette la riga dei potenziamenti attivi su un pannello scuro, perché si
@@ -273,8 +262,8 @@ func _upgrade_value(upgrade: String) -> String:
 			return str(roundi(player.max_mana))
 		"spell":
 			return str(player.spell_damage())
-		"stamina":
-			return str(roundi(player.max_stamina))
+		"battery":
+			return str(roundi(player.max_battery))
 		"potion_slots":
 			return str(player.potion_capacity())
 		"potion_heal":
@@ -438,7 +427,7 @@ func show_level_up(level: int, damage_before: int, damage_after: int) -> void:
 	_card_values["mana"].text = tr("UPGRADE_VALUE") % [roundi(player.max_mana), roundi(player.max_mana + Player.MANA_UPGRADE)]
 	var spell_bonus := player.spell_bonus + player.inventory.bonus("spell")
 	_card_values["spell"].text = tr("UPGRADE_VALUE") % [player.spell_damage(), roundi(player.spell_damage() * (1.0 + spell_bonus + Player.SPELL_UPGRADE) / (1.0 + spell_bonus))]
-	_card_values["stamina"].text = tr("UPGRADE_VALUE") % [roundi(player.max_stamina), roundi(player.max_stamina + Player.MAX_STAMINA * Player.STAMINA_UPGRADE)]
+	_card_values["battery"].text = tr("UPGRADE_VALUE") % [roundi(player.max_battery), roundi(player.max_battery + Player.MAX_BATTERY * Player.BATTERY_UPGRADE)]
 	_card_values["potion_slots"].text = tr("UPGRADE_VALUE") % [player.potion_capacity(), player.potion_capacity() + 1]
 	_card_values["potion_heal"].text = tr("UPGRADE_VALUE") % [player.potion_heal(), player.potion_heal() + Player.POTION_HEAL_UPGRADE]
 	_card_values["mana_restore"].text = tr("UPGRADE_VALUE") % [roundi(player.mana_potion_restore()), roundi(player.mana_potion_restore() + Player.MANA_POTION_RESTORE * Player.MANA_RESTORE_UPGRADE)]

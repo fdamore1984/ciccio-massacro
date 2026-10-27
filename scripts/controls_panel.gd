@@ -13,7 +13,7 @@ const ROWS := [
 	["CONTROLS_PARRY", [["parry"]]], ["CONTROLS_DODGE", [["dodge"]]], ["CONTROLS_JUMP", [["jump"], ["interact"]]],
 	["CONTROLS_RUN", [["run"]]], ["CONTROLS_FOCUS", [["focus"]]], ["CONTROLS_SPELL", [["spell"]]],
 	["CONTROLS_SHIELD", [["shield"]]], ["CONTROLS_POTION", [["potion"]]], ["CONTROLS_MANA", [["mana_potion"]]],
-	["CONTROLS_STAMINA_POTION", [["stamina_potion"]]], ["CONTROLS_INVENTORY", [["inventory"], ["inventory_sort"]]],
+	["CONTROLS_BATTERY_POTION", [["battery_potion"]]], ["CONTROLS_INVENTORY", [["inventory"], ["inventory_sort"]]],
 	["CONTROLS_MAP", [["map"]]], ["CONTROLS_LOCK", [["lock_on"]]], ["CONTROLS_MENU", [["menu"]]],
 ]
 const MOVE_ACTIONS := ["move_up", "move_left", "move_down", "move_right"]
@@ -53,8 +53,6 @@ func _ready() -> void:
 	box.add_child(specials)
 	for key: String in SPECIALS:
 		specials.add_child(_label(key, 17, COLOR_TEXT, true))
-	if Platform.use_touch_controls():
-		specials.add_child(_label("CONTROLS_TOUCH", 17, COLOR_KEY, true))
 	_back.text = "CONTROLS_BACK"
 	_back.custom_minimum_size = Vector2(220, 44)
 	_back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER

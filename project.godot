@@ -34,7 +34,7 @@ window/handheld/orientation=0
 
 [internationalization]
 
-locale/translations=PackedStringArray("res://data/translations.en.translation")
+locale/translations=PackedStringArray("res://data/translations.en.translation", "res://data/translations.it.translation")
 locale/fallback="en"
 
 [physics]
@@ -135,7 +135,7 @@ mana_potion={
 "deadzone": 0.5,
 "events": [Object(InputEventJoypadButton,"resource_local_to_scene":false,"resource_name":"","device":-1,"button_index":14,"pressure":0.0,"pressed":true,"script":null)]
 }
-stamina_potion={
+battery_potion={
 "deadzone": 0.5,
 "events": [Object(InputEventJoypadButton,"resource_local_to_scene":false,"resource_name":"","device":-1,"button_index":12,"pressure":0.0,"pressed":true,"script":null)]
 }

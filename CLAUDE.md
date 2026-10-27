@@ -1,14 +1,16 @@
 # Regole di lavoro per Ciccio Massacro
 
-- **Lingua**: per ora tutto ciò che vede il giocatore è solo in inglese.
-  I testi del gioco stanno in `data/translations.csv` (colonna `en`)
-  e nel codice si usano con `tr("CHIAVE")`; mai testi scritti nel codice.
-  Anche la pagina itch.io è solo in inglese. Documentazione interna, commenti e
-  commit restano in italiano.
+- **Lingua**: tutto ciò che vede il giocatore è in italiano. I testi del
+  gioco stanno in `data/translations.csv` (colonna `it`; la colonna `en`
+  resta per un'eventuale versione inglese, da tenere allineata) e nel codice
+  si usano con `tr("CHIAVE")`; mai testi scritti nel codice. La pagina
+  itch.io resta in inglese (dice che il gioco è in italiano). Documentazione
+  interna, commenti e commit sono in italiano.
 - **Ambientazione**: post-apocalittica moderna (città distrutta, edifici
   abbandonati, armi da fuoco e armi improvvisate), niente elementi fantasy o
   medievali nei testi e nella grafica. Gli id interni ereditati (per esempio
-  `mana`, `potion`, `totem`, `cave`, `sword_iron`) restano per non rompere i
+  `mana`, `potion`, `totem`, `cave`, `sword_iron`; nei salvataggi vecchi anche
+  `stamina`, oggi `battery`) restano per non rompere i
   salvataggi: nel gioco si mostrano col nome nuovo (vedi README).
 - **Pagina itch.io sempre aggiornata**: a ogni modifica che cambia ciò che il
   gioco fa o mostra, aggiorna `store/itch/README.md` (descrizione, comandi,
@@ -17,8 +19,8 @@
   segnala all'utente cosa ricaricare a mano.
 - **Contenuti nei dati**: caratteristiche di nemici e simili in `data/`
   (per esempio `data/enemies.json`), separate dal codice.
-- **Input**: solo controller (e touch sugli schermi touch), solo azioni
-  dell'Input Map; tastiera e mouse non sono supportati e i comandi non si
+- **Input**: solo controller, solo azioni dell'Input Map; tastiera, mouse
+  e touch non sono supportati e i comandi non si
   possono rimappare. Menù compresi, tutto deve funzionare col controller.
 - **Asset provvisori**: grafica geometrica disegnata in codice e suoni
   sintetizzati in `scripts/sfx.gd`, finché non arrivano gli asset definitivi.

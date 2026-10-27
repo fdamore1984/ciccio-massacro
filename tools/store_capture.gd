@@ -1,6 +1,6 @@
 extends Node
 ## Genera copertina e screenshot per la pagina itch.io (store/itch/), in
-## inglese (l'unica lingua del gioco per ora), componendo scene di gioco reali. Va rilanciato a
+## italiano (la lingua del gioco), componendo scene di gioco reali. Va rilanciato a
 ## ogni modifica visibile del gioco. Serve una finestra (non --headless):
 ##
 ##   godot --path . --resolution 1280x720 res://tools/store_capture.tscn -- screenshots
@@ -9,8 +9,8 @@ extends Node
 ## Non fa parte del gioco: la cartella tools/ è esclusa dagli export.
 
 const OUTPUT := "res://store/itch/"
-const LANGUAGES := ["en"]
-const SUBTITLE := {"en": "Action RPG · prototype"}
+const LANGUAGES := ["it"]
+const SUBTITLE := {"it": "Action RPG · prototipo"}
 const COVER_SIZE := Vector2i(630, 500)
 ## Seme del mondo usato per le immagini, così il terreno è sempre lo stesso.
 const WORLD_SEED := 1234
@@ -74,6 +74,9 @@ func _capture_combat(language: String) -> void:
 	_player._state_time = Player.HEAVY_WINDUP + 0.03
 	_player.shield_active = true
 	_player.shield_cooldown = 21.0
+	# Sporco del sangue dei nemici già uccisi.
+	_player.blood_stain = 0.6
+	_player.queue_redraw()
 	_player.potions = 1
 	_player.apply_upgrade("combo")
 	_player.apply_upgrade("dodge")
@@ -310,7 +313,7 @@ func _capture_air_charge(language: String) -> void:
 	_player._height = 95.0
 	_player.facing = Vector2(1, 0.15).normalized()
 	_player.mana = _player.max_mana * 0.45
-	_player.stamina = _player.max_stamina * 0.55
+	_player.battery = _player.max_battery * 0.55
 	_player.queue_redraw()
 	# Due proiettili in volo, già saliti verso Ciccio.
 	for shooter: Enemy in [archer, caster]:
