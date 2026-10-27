@@ -126,7 +126,7 @@ CONTROLS (controller only)
 Play with a controller (Steam Deck and MSI Claw built-in controls included): keyboard, mouse and touch screens are not supported. The full list of controls is in the main menu. The game is in Italian.
 
 PLATFORMS
-Windows (handheld gaming PCs like the MSI Claw 8 included), Linux and SteamOS (Steam Deck). Capped at a steady 60 FPS.
+Windows (handheld gaming PCs like the MSI Claw 8 included), Linux and SteamOS (Steam Deck). Capped at a steady 60 FPS. On Linux it renders with Vulkan, falling back to OpenGL 3.3 when Vulkan is not available.
 ```
 
 ---
