@@ -56,9 +56,6 @@ func _capture_menu(language: String) -> void:
 	await _frames(3)
 	await _save("%s_10_controls.png" % language)
 	menu._controls_panel.close()
-	menu._on_options_pressed()
-	await _frames(3)
-	await _save("%s_15_options.png" % language)
 	menu.queue_free()
 	await _frames(2)
 
@@ -91,6 +88,14 @@ func _capture_combat(language: String) -> void:
 	_enemy("lancer", Vector2(250, -190), Enemy.State.CHASE, 0.0)
 	_enemy("whirler", Vector2(-420, 200), Enemy.State.WINDUP, 0.7)
 	_enemy("golem", Vector2(470, -40), Enemy.State.CHASE, 0.0)
+	# Un missile che esplode addosso al golem.
+	var blast := Missile.new()
+	blast.position = _player.position + Vector2(440, -30)
+	blast.altitude = _player.ground_elevation
+	_entities().add_child(blast)
+	blast.set_physics_process(false)
+	blast._exploding = 0.12
+	blast.queue_redraw()
 	await _save("%s_1_combat.png" % language)
 	_end_game()
 
@@ -127,7 +132,7 @@ func _capture_level_up(language: String) -> void:
 	_end_game()
 
 
-## Sfida del totem: il giocatore al centro dell'arena, l'ondata in arrivo.
+## Sfida della sirena: il giocatore al centro della piazza, l'ondata in arrivo.
 func _capture_challenge(language: String) -> void:
 	await _start_game(Vector2(0, 30), 1.0)
 	var world: World = _game.get_node("World")
@@ -160,18 +165,19 @@ func _capture_challenge(language: String) -> void:
 	_enemy("brute", _player.position + Vector2(230, 90), Enemy.State.WINDUP, 0.9)
 	_enemy("scout", _player.position + Vector2(-300, -150), Enemy.State.CHASE, 0.0)
 	_enemy("warrior", _player.position + Vector2(-260, 190), Enemy.State.WINDUP, 0.4)
-	# Di notte, con la torcia accesa e una palla di fuoco in volo.
+	# Di notte, con la torcia elettrica accesa e un missile in volo.
 	(_game.get_node("DayNight") as DayNight).time = 0.7
 	_player.torch_on = true
 	_player._torch.enabled = true
 	_player._torch.position = Vector2(0, -_player.ground_elevation + Player.RADIUS * 0.6)
-	var fireball := Fireball.new()
-	fireball.position = _player.position + Vector2(120, -70)
-	fireball.direction = Vector2(1, -0.4).normalized()
-	fireball.altitude = _player.ground_elevation
-	_entities().add_child(fireball)
-	fireball.set_physics_process(false)
-	fireball._light.position.y = -fireball.altitude
+	var missile := Missile.new()
+	missile.position = _player.position + Vector2(120, -70)
+	missile.direction = Vector2(1, -0.4).normalized()
+	missile.altitude = _player.ground_elevation
+	missile._trail = [missile.position - missile.direction * 12.0, missile.position - missile.direction * 24.0, missile.position - missile.direction * 36.0]
+	_entities().add_child(missile)
+	missile.set_physics_process(false)
+	missile._light.position.y = -missile.altitude
 	# Il mondo attorno alla nuova posizione va generato prima della foto.
 	var camera: Camera2D = _player.get_node("Camera")
 	camera.position_smoothing_enabled = false
@@ -205,7 +211,7 @@ func _capture_inventory(language: String) -> void:
 	_end_game()
 
 
-## Il banco di un mercante nel mondo e il suo negozio aperto.
+## Il banco di un commerciante nel mondo e il suo negozio aperto.
 func _capture_merchant(language: String) -> void:
 	await _start_game(Vector2(0, -40), 1.25)
 	_player.level = 5
@@ -284,8 +290,8 @@ func _capture_slam(language: String) -> void:
 	_end_game()
 
 
-## Slam aereo in carica: il goblin fluttua a mezz'aria con la spada carica
-## di magia, mentre un arciere e un lanciatore gli tirano contro.
+## Slam aereo in carica: Ciccio fluttua a mezz'aria con la motosega su di
+## giri, mentre un fuciliere e un pistolero gli sparano contro.
 func _capture_air_charge(language: String) -> void:
 	await _start_game(Vector2(0, -40), 1.25)
 	_player.level = 5
@@ -306,13 +312,13 @@ func _capture_air_charge(language: String) -> void:
 	_player.mana = _player.max_mana * 0.45
 	_player.stamina = _player.max_stamina * 0.55
 	_player.queue_redraw()
-	# Freccia e dardo in volo, già saliti verso il goblin.
+	# Due proiettili in volo, già saliti verso Ciccio.
 	for shooter: Enemy in [archer, caster]:
 		var bolt := EnemyBolt.new()
 		var direction := (origin - shooter.position).normalized()
 		bolt.direction = direction
-		bolt.arrow = shooter == archer
-		bolt.color = Color(0.85, 0.85, 0.8) if bolt.arrow else shooter._color.lightened(0.3)
+		bolt.speed = 400.0 if shooter == archer else 250.0
+		bolt.color = Color(1.0, 0.85, 0.45)
 		bolt.altitude = shooter.ground_elevation
 		bolt.position = shooter.position + direction * shooter.position.distance_to(origin) * 0.55
 		bolt._rise = 45.0
@@ -325,7 +331,7 @@ func _capture_air_charge(language: String) -> void:
 	_end_game()
 
 
-## Ingresso di una caverna nella parete di una montagna.
+## Porta di un edificio abbandonato nella parete di un palazzo.
 func _capture_cave(language: String) -> void:
 	await _start_game(Vector2(0, -60), 1.0)
 	_player.level = 5
@@ -342,7 +348,7 @@ func _capture_cave(language: String) -> void:
 	hud.show_interact(cave["position"] - Vector2(0, world.elevation_at(cave["position"]) + 96.0))
 	await _frames(2)
 	await _save("%s_11_cave.png" % language)
-	# Mappa completa aperta lì: montagne, caverne, casse, mercanti.
+	# Mappa completa aperta lì: palazzi, edifici, casse, commercianti.
 	hud.hide_interact()
 	hud._world_map.open()
 	await _frames(20)
@@ -351,7 +357,7 @@ func _capture_cave(language: String) -> void:
 	_end_game()
 
 
-## Ultimo piano del sotterraneo: al buio con la torcia, davanti al boss.
+## Ultimo piano dell'edificio: al buio con la torcia elettrica, davanti al boss.
 func _capture_dungeon(language: String) -> void:
 	await _start_game(Vector2(0, -40), 1.0)
 	_player.level = 6
@@ -405,7 +411,7 @@ func _place_player(at: Vector2) -> void:
 	(_game.get_node("World") as World).refresh_now()
 
 
-## Mercante più vicino alla partenza nel mondo delle immagini.
+## Commerciante più vicino alla partenza nel mondo delle immagini.
 func _nearest_merchant() -> Vector2:
 	var world: World = _game.get_node("World")
 	var best := Vector2.INF
@@ -432,13 +438,13 @@ func _capture_cover(language: String) -> void:
 	var layer := CanvasLayer.new()
 	_game.add_child(layer)
 	var band := ColorRect.new()
-	band.color = Color(0.07, 0.09, 0.06, 0.55)
+	band.color = Color(0.08, 0.06, 0.06, 0.6)
 	band.size = Vector2(2000, 300)
 	layer.add_child(band)
 	var width := get_viewport().get_visible_rect().size.x
-	var title := _label("Gobelino", 150, Color(0.85, 0.75, 0.4), width, 30.0)
+	var title := _label("Ciccio Massacro", 120, Color(1.0, 0.55, 0.74), width, 45.0)
 	title.add_theme_constant_override("outline_size", 18)
-	title.add_theme_color_override("font_outline_color", Color(0.08, 0.06, 0.03))
+	title.add_theme_color_override("font_outline_color", Color(0.1, 0.03, 0.05))
 	layer.add_child(title)
 	layer.add_child(_label(SUBTITLE[language], 44, Color(1, 1, 1, 0.85), width, 205.0))
 

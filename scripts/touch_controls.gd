@@ -1,7 +1,7 @@
 extends Control
 ## Controlli a schermo per i dispositivi touch: levetta virtuale nella metà
 ## sinistra dello schermo e pulsanti azione a destra. Premono le stesse
-## azioni dell'Input Map usate da tastiera e gamepad.
+## azioni dell'Input Map usate dal controller.
 
 const STICK_RADIUS := 90.0
 const BUTTON_RADIUS := 52.0
@@ -73,7 +73,7 @@ func _input(event: InputEvent) -> void:
 				_held[touch.index] = action
 				Input.action_press(action)
 				if action in ["inventory", "map"]:
-					# Inventario e mappa si aprono e si chiudono con un evento, come da tastiera.
+					# Inventario e mappa si aprono e si chiudono con un evento.
 					var open_event := InputEventAction.new()
 					open_event.action = action
 					open_event.pressed = true

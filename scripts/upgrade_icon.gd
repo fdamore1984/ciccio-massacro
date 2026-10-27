@@ -13,18 +13,18 @@ const COLORS := {
 	"health": Color(0.95, 0.35, 0.35),
 	"potion": Color(0.95, 0.3, 0.3),
 	"stamina_potion": Color(0.3, 0.85, 0.3),
-	"shield": Color(0.45, 0.7, 1.0),
+	"shield": Color(0.6, 0.7, 0.8),
 	"run": Color(1.0, 0.85, 0.3),
 	"empowered": Color(1.0, 0.8, 0.25),
-	"bubble": Color(0.55, 0.85, 1.0),
-	"mana": Color(0.45, 0.65, 1.0),
-	"spell": Color(1.0, 0.5, 0.15),
-	"torch": Color(1.0, 0.75, 0.35),
+	"bubble": Color(0.72, 0.8, 0.88),
+	"mana": Color(0.95, 0.4, 0.15),
+	"spell": Color(0.55, 0.6, 0.38),
+	"torch": Color(0.92, 0.95, 1.0),
 	"bag": Color(0.8, 0.6, 0.35),
 	"stamina": Color(0.4, 0.85, 0.35),
 	"potion_slots": Color(0.95, 0.6, 0.75),
 	"potion_heal": Color(0.95, 0.35, 0.35),
-	"mana_restore": Color(0.45, 0.65, 1.0),
+	"mana_restore": Color(0.95, 0.4, 0.15),
 	"choice": Color(0.95, 0.85, 0.45),
 }
 
@@ -84,26 +84,26 @@ static func draw_icon(canvas: CanvasItem, center: Vector2, side: float, icon_kin
 			canvas.draw_circle(Vector2(-0.24, -0.15), 0.28, color)
 			canvas.draw_circle(Vector2(0.24, -0.15), 0.28, color)
 			canvas.draw_colored_polygon(PackedVector2Array([Vector2(-0.5, -0.05), Vector2(0.5, -0.05), Vector2(0, 0.6)]), color)
-		"potion", "stamina_potion":
-			# Boccetta con il liquido.
-			canvas.draw_rect(Rect2(-0.12, -0.65, 0.24, 0.3), Color(0.85, 0.85, 0.85))
-			canvas.draw_circle(Vector2(0, 0.15), 0.45, Color(0.85, 0.85, 0.85))
-			canvas.draw_circle(Vector2(0, 0.2), 0.36, color)
+		"potion":
+			# Kit medico: valigetta bianca con la croce rossa.
+			_draw_medkit(canvas, Vector2(0, 0.05), 0.6, color)
+		"stamina_potion":
+			# Lattina dell'energetico col fulmine.
+			_draw_can(canvas, Vector2.ZERO, 0.6, color)
 		"potion_slots":
-			# Tre boccette (vita, mana e vigore) e un + sopra: se ne portano di più.
-			var liquids := [color_of("potion_heal"), color_of("mana_restore"), color_of("stamina_potion")]
-			for k in 3:
-				var x := -0.5 + k * 0.5
-				canvas.draw_rect(Rect2(x - 0.06, -0.2, 0.12, 0.18), Color(0.85, 0.85, 0.85))
-				canvas.draw_circle(Vector2(x, 0.25), 0.24, Color(0.85, 0.85, 0.85))
-				canvas.draw_circle(Vector2(x, 0.28), 0.18, liquids[k])
+			# Kit medico, tanica e lattina, e un + sopra: se ne portano di più.
+			_draw_medkit(canvas, Vector2(-0.52, 0.25), 0.26, color_of("potion_heal"))
+			_draw_jerrycan(canvas, Vector2(0, 0.25), 0.26, color_of("mana_restore"))
+			_draw_can(canvas, Vector2(0.52, 0.25), 0.26, color_of("stamina_potion"))
 			_draw_plus(canvas, Vector2(0, -0.55), 0.18, color)
-		"potion_heal", "mana_restore":
-			# Boccetta (rossa o blu) con un + accanto: cura di più.
-			canvas.draw_rect(Rect2(-0.27, -0.55, 0.2, 0.25), Color(0.85, 0.85, 0.85))
-			canvas.draw_circle(Vector2(-0.17, 0.15), 0.4, Color(0.85, 0.85, 0.85))
-			canvas.draw_circle(Vector2(-0.17, 0.19), 0.32, color)
-			_draw_plus(canvas, Vector2(0.45, -0.35), 0.22, Color(1, 1, 1, 0.9))
+		"potion_heal":
+			# Kit medico con un + accanto: cura di più.
+			_draw_medkit(canvas, Vector2(-0.15, 0.1), 0.45, color)
+			_draw_plus(canvas, Vector2(0.45, -0.4), 0.22, Color(1, 1, 1, 0.9))
+		"mana_restore":
+			# Tanica con un + accanto: ridà più carburante.
+			_draw_jerrycan(canvas, Vector2(-0.15, 0.1), 0.45, color)
+			_draw_plus(canvas, Vector2(0.45, -0.4), 0.22, Color(1, 1, 1, 0.9))
 		"choice":
 			# Tre carte a ventaglio con una quarta che si aggiunge.
 			for k in 4:
@@ -113,9 +113,10 @@ static func draw_icon(canvas: CanvasItem, center: Vector2, side: float, icon_kin
 					card.append((corner + Vector2(0, -0.25)).rotated(angle) + Vector2(0, 0.25))
 				canvas.draw_colored_polygon(card, color if k == 3 else color.darkened(0.45))
 		"shield":
-			# Scudo con una freccia che gira: ricarica più rapida.
-			canvas.draw_colored_polygon(PackedVector2Array([Vector2(-0.5, -0.55), Vector2(0.5, -0.55), Vector2(0.5, 0.0), Vector2(0, 0.65), Vector2(-0.5, 0.0)]), color)
-			canvas.draw_arc(Vector2(0, -0.05), 0.25, -PI * 0.8, PI * 0.6, 12, Color(0.1, 0.15, 0.3), 0.08)
+			# Scudo antisommossa con una freccia che gira: ricarica più rapida.
+			canvas.draw_rect(Rect2(-0.45, -0.6, 0.9, 1.2), color)
+			canvas.draw_rect(Rect2(-0.3, -0.45, 0.6, 0.18), Color(0.15, 0.2, 0.28))
+			canvas.draw_arc(Vector2(0, 0.2), 0.22, -PI * 0.8, PI * 0.6, 12, Color(0.1, 0.15, 0.25), 0.08)
 		"stamina":
 			# Fulmine verde, come accanto alla barra della stamina.
 			canvas.draw_colored_polygon(PackedVector2Array([Vector2(0.15, -0.65), Vector2(-0.4, 0.08), Vector2(0.0, 0.08),
@@ -133,21 +134,26 @@ static func draw_icon(canvas: CanvasItem, center: Vector2, side: float, icon_kin
 				canvas.draw_line(direction * 0.45, direction * 0.75, color, 0.1)
 			canvas.draw_circle(Vector2.ZERO, 0.35, color)
 		"mana":
-			# Goccia di mana.
+			# Goccia di carburante.
 			canvas.draw_circle(Vector2(0, 0.18), 0.38, color)
 			canvas.draw_colored_polygon(PackedVector2Array([Vector2(-0.33, 0.0), Vector2(0.33, 0.0), Vector2(0, -0.62)]), color)
 			canvas.draw_circle(Vector2(-0.12, 0.1), 0.1, Color(1, 1, 1, 0.6))
 		"spell":
-			# Palla di fuoco con la scia.
+			# Missile in volo, in diagonale, con il fumo dietro.
 			for k in 3:
-				canvas.draw_circle(Vector2(-0.45 + k * 0.15, 0.3 - k * 0.1), 0.1 + k * 0.04, Color(color, 0.4 + 0.2 * k))
-			canvas.draw_circle(Vector2(0.15, -0.1), 0.38, color)
-			canvas.draw_circle(Vector2(0.15, -0.1), 0.18, Color(1.0, 0.95, 0.6))
+				canvas.draw_circle(Vector2(-0.5 + k * 0.14, 0.5 - k * 0.14), 0.1 + k * 0.04, Color(0.6, 0.6, 0.6, 0.35 + 0.15 * k))
+			canvas.draw_set_transform(center + Vector2(0.1, -0.1) * side / 2.0, -PI / 4.0, Vector2.ONE * side / 2.0)
+			canvas.draw_rect(Rect2(-0.4, -0.13, 0.65, 0.26), color)
+			canvas.draw_colored_polygon(PackedVector2Array([Vector2(0.25, -0.13), Vector2(0.55, 0.0), Vector2(0.25, 0.13)]), Color(0.8, 0.22, 0.15))
+			canvas.draw_colored_polygon(PackedVector2Array([Vector2(-0.4, -0.13), Vector2(-0.25, -0.13), Vector2(-0.5, -0.32)]), color.darkened(0.3))
+			canvas.draw_colored_polygon(PackedVector2Array([Vector2(-0.4, 0.13), Vector2(-0.25, 0.13), Vector2(-0.5, 0.32)]), color.darkened(0.3))
+			canvas.draw_circle(Vector2(-0.48, 0.0), 0.1, Color(1.0, 0.6, 0.2))
 		"torch":
-			# Torcia accesa.
-			canvas.draw_line(Vector2(0, 0.65), Vector2(0, -0.1), Color(0.55, 0.36, 0.2), 0.16)
-			canvas.draw_circle(Vector2(0, -0.3), 0.28, color)
-			canvas.draw_circle(Vector2(0, -0.36), 0.14, Color(1.0, 0.95, 0.6))
+			# Torcia elettrica accesa, col fascio di luce.
+			canvas.draw_colored_polygon(PackedVector2Array([Vector2(0.05, -0.12), Vector2(0.7, -0.45), Vector2(0.7, 0.45), Vector2(0.05, 0.12)]), Color(color, 0.35))
+			canvas.draw_rect(Rect2(-0.6, -0.12, 0.65, 0.24), Color(0.2, 0.2, 0.22))
+			canvas.draw_rect(Rect2(-0.05, -0.17, 0.12, 0.34), Color(0.35, 0.35, 0.38))
+			canvas.draw_circle(Vector2(0.08, 0.0), 0.1, color)
 		"bag":
 			# Zaino: sacca con la patta e la fibbia.
 			canvas.draw_colored_polygon(PackedVector2Array([Vector2(-0.5, -0.25), Vector2(0.5, -0.25), Vector2(0.6, 0.6), Vector2(-0.6, 0.6)]), color)
@@ -155,11 +161,37 @@ static func draw_icon(canvas: CanvasItem, center: Vector2, side: float, icon_kin
 			canvas.draw_arc(Vector2(0, -0.3), 0.25, PI, TAU, 10, color.darkened(0.3), 0.1)
 			canvas.draw_rect(Rect2(-0.08, 0.05, 0.16, 0.16), Color(0.9, 0.8, 0.4))
 		"bubble":
-			# Bolla dello scudo attivo.
-			canvas.draw_circle(Vector2.ZERO, 0.6, Color(color, 0.3))
-			canvas.draw_arc(Vector2.ZERO, 0.6, 0.0, TAU, 32, color, 0.1)
-			canvas.draw_circle(Vector2(-0.22, -0.22), 0.12, Color(1, 1, 1, 0.7))
+			# Piastre di kevlar dello scudo attivo.
+			var plates := PackedVector2Array()
+			for k in 7:
+				plates.append(Vector2.from_angle(TAU * k / 6.0 + PI / 6.0) * 0.62)
+			canvas.draw_colored_polygon(plates, Color(color, 0.3))
+			canvas.draw_polyline(plates, color, 0.1)
 	canvas.draw_set_transform(Vector2.ZERO)
+
+
+## Kit medico (valigetta bianca con la croce del colore dato), largo
+## 2 * half, centrato in at.
+static func _draw_medkit(canvas: CanvasItem, at: Vector2, half: float, color: Color) -> void:
+	canvas.draw_rect(Rect2(at - Vector2(half, half * 0.75), Vector2(half * 2.0, half * 1.5)), Color(0.95, 0.95, 0.92))
+	canvas.draw_arc(at - Vector2(0, half * 0.75), half * 0.35, PI, TAU, 8, Color(0.6, 0.6, 0.6), half * 0.15)
+	canvas.draw_rect(Rect2(at - Vector2(half * 0.5, half * 0.15), Vector2(half, half * 0.3)), color)
+	canvas.draw_rect(Rect2(at - Vector2(half * 0.15, half * 0.5), Vector2(half * 0.3, half)), color)
+
+
+## Tanica di carburante del colore dato, larga 2 * half, centrata in at.
+static func _draw_jerrycan(canvas: CanvasItem, at: Vector2, half: float, color: Color) -> void:
+	canvas.draw_rect(Rect2(at - Vector2(half * 0.8, half), Vector2(half * 1.6, half * 2.0)), color)
+	canvas.draw_line(at + Vector2(-half * 0.8, -half), at + Vector2(half * 0.8, half), color.darkened(0.35), half * 0.15)
+	canvas.draw_line(at + Vector2(half * 0.4, -half), at + Vector2(half * 0.8, -half * 1.4), Color(0.3, 0.3, 0.3), half * 0.25)
+
+
+## Lattina dell'energetico (colore dato) col fulmine giallo.
+static func _draw_can(canvas: CanvasItem, at: Vector2, half: float, color: Color) -> void:
+	canvas.draw_rect(Rect2(at - Vector2(half * 0.55, half), Vector2(half * 1.1, half * 2.0)), color)
+	canvas.draw_rect(Rect2(at - Vector2(half * 0.55, half), Vector2(half * 1.1, half * 0.2)), Color(0.8, 0.8, 0.8))
+	canvas.draw_colored_polygon(PackedVector2Array([at + Vector2(half * 0.15, -half * 0.6), at + Vector2(-half * 0.3, half * 0.1),
+			at + Vector2(0, half * 0.1), at + Vector2(-half * 0.15, half * 0.7), at + Vector2(half * 0.3, -half * 0.1), at + Vector2(0, -half * 0.1)]), Color(1, 1, 0.4))
 
 
 ## Segno + di metà larghezza half, centrato in at.

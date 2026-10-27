@@ -1,14 +1,17 @@
 class_name Items
 ## Oggetti che si trovano nelle casse, che lasciano i nemici abbattuti o che
-## si comprano dai mercanti ("shop_only": solo dai mercanti, "boss_only":
+## si comprano dai commercianti ("shop_only": solo da loro, "boss_only":
 ## solo dai boss), definiti in data/items.json.
 ##
-## Categorie: "gold" (monete), armi ("weapon"), equipaggiamento ("armor",
-## "boots", "amulet", "ring": uno per tipo), libri di magia ("book", si
-## leggono una volta e migliorano per sempre) e pozioni ("potion").
+## Le categorie e gli id hanno ancora i nomi di prima (salvataggi), ma nel
+## gioco sono: "gold" i rottami (la moneta), "weapon" catene per la
+## motosega, "armor" giubbotti, "boots" scarpe, "amulet" serbatoi di
+## carburante, "ring" mirini per il bazooka (uno per tipo), "book" manuali
+## (si leggono una volta e migliorano per sempre) e "potion" le scorte (kit
+## medici, taniche, energetici).
 ## Bonus possibili: damage (danni +%), health (vita massima), speed
-## (velocità +%), mana (mana massimo), spell (potenza della magia +%),
-## heal e restore_mana per le pozioni.
+## (velocità +%), mana (carburante massimo), spell (danni dei missili +%),
+## heal e restore_mana per le scorte.
 
 const DATA := preload("res://data/items.json")
 ## Categorie che si equipaggiano, una per tipo.

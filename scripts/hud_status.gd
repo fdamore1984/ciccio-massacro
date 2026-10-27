@@ -1,7 +1,7 @@
 class_name HudStatus
 extends Control
 ## Pannello di stato in alto a sinistra: ritratto con il livello, barre di
-## vita (a segmenti), stamina, mana ed esperienza, livelli delle abilità, monete e
+## vita (a segmenti), stamina, carburante ed esperienza, livelli delle abilità, rottami e
 ## nemici sconfitti. Tutto disegnato con forme geometriche.
 
 const PANEL_SIZE := Vector2(460, 146)
@@ -23,7 +23,7 @@ const COLOR_HEALTH_LOW := Color(1.0, 0.45, 0.2)
 const COLOR_STAMINA := Color(0.4, 0.85, 0.35)
 ## Stamina finita: la barra vuota lampeggia finché non si ricarica un po'.
 const COLOR_STAMINA_EMPTY := Color(1.0, 0.3, 0.2)
-const COLOR_MANA := Color(0.35, 0.55, 1.0)
+const COLOR_MANA := Color(0.95, 0.45, 0.12)
 const COLOR_XP := Color(1.0, 0.8, 0.3)
 const COLOR_TEXT := Color(1, 1, 1, 0.92)
 const COLOR_DIM_TEXT := Color(1, 1, 1, 0.82)
@@ -77,7 +77,7 @@ func _draw() -> void:
 	if player.stamina < Player.STAMINA_ATTACK and int(Time.get_ticks_msec() / 150) % 2 == 0:
 		draw_rect(stamina_rect, COLOR_STAMINA_EMPTY, false, 2.0)
 
-	# Mana.
+	# Carburante (nel codice "mana").
 	UpgradeIcon.draw_icon(self, Vector2(BAR_X + 9, 63), 18.0, "mana", false)
 	draw_set_transform(Vector2.ZERO)
 	_draw_bar(Rect2(BAR_X + 24, 57, BAR_WIDTH - 24, 13), player.mana / player.max_mana, COLOR_MANA)
@@ -97,17 +97,16 @@ func _draw() -> void:
 		draw_set_transform(Vector2.ZERO)
 		_text(font, str(values[i]), Vector2(x + 26, 128), FONT_SIZE, COLOR_TEXT)
 		x += 52.0
-	# Monete e nemici sconfitti, a destra.
+	# Rottami e nemici sconfitti, a destra.
 	var coin := Vector2(size.x - 112, 122)
-	draw_circle(coin, 9.0, Items.color("gold").darkened(0.25))
-	draw_circle(coin, 7.0, Items.color("gold"))
+	ItemIcon.draw_item(self, coin, 20.0, "gold")
 	_text(font, str(player.inventory.gold), coin + Vector2(14, 6), FONT_SIZE, COLOR_TEXT)
-	var sword := Vector2(size.x - 46, 122)
-	BodyParts.draw_sword(self, sword + Vector2(-8, 8), -PI / 4.0, 22.0, 3.0)
-	_text(font, str(kills), sword + Vector2(12, 6), FONT_SIZE, COLOR_TEXT)
+	var saw := Vector2(size.x - 46, 122)
+	BodyParts.draw_chainsaw(self, saw + Vector2(-8, 8), -PI / 4.0, 22.0, 2.5)
+	_text(font, str(kills), saw + Vector2(12, 6), FONT_SIZE, COLOR_TEXT)
 
 
-## Ritratto del goblin (forma geometrica) con il livello in un distintivo.
+## Ritratto di Ciccio (forma geometrica rosa) con il livello in un distintivo.
 func _draw_portrait(font: Font) -> void:
 	var center := Vector2(52, 50)
 	draw_circle(center, 34.0, Color(0, 0, 0, 0.35))

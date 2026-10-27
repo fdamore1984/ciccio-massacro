@@ -3,18 +3,24 @@ extends Node2D
 ## Mondo del livello di test: un terreno isometrico a blocchi, senza limiti
 ## e generato a caso. Parametri in data/world.json.
 ##
-## Ogni rombo della griglia è un blocco quadrato con l'erba (o un sentiero
-## sterrato) sopra e le pareti di terra ai lati, a un livello di altezza
-## preso dal rumore: si formano piattaforme a gradini, colline e altopiani.
+## L'ambientazione è una città distrutta. Ogni rombo della griglia è un
+## blocco quadrato di cemento o asfalto (o di strada, nel codice "path")
+## con il marciapiede in cima e le pareti di mattoni ai lati, a un livello
+## di altezza preso dal rumore: si formano piattaforme a gradini, rialzi e
+## terrapieni.
 ## Alcuni blocchi sono rampe inclinate che salgono di un livello. Si sale
 ## sui blocchi più alti saltando (un livello col salto normale, di più con
 ## i salti in aria) e si scende cadendo; anche i nemici scendono dai gradini
-## e saltano su quelli alti un livello (vedi Enemy), ma nei burroni non vanno. Sopra ci sono ostacoli naturali: alberi,
-## sassi, cespugli e casse con il bottino. Qua e là ci sono arene: ampie zone piane e
-## libere con al centro un totem che avvia una sfida (vedi Game).
-## Lunghe catene di montagne e burroni non si attraversano (hanno qualche
-## passaggio); nelle pareti delle montagne si aprono caverne che portano a
-## un sotterraneo (vedi Dungeon), disegnato con gli stessi blocchi.
+## e saltano su quelli alti un livello (vedi Enemy), ma nelle fessure non vanno. Sopra ci sono ostacoli: rovine
+## (nel codice "tree": muri crollati, lampioni piegati, auto bruciate),
+## macerie ("rock"), cumuli di rottami che rallentano ("bush") e casse con
+## il bottino. Qua e là ci sono arene: ampie piazze piane e libere con al
+## centro una sirena ("totem") che avvia una sfida (vedi Game).
+## Lunghe file di grattacieli in rovina ("mountain") e fessure aperte dai
+## terremoti ("ravine") non si attraversano (hanno qualche passaggio);
+## nelle pareti dei palazzi si aprono porte ("cave") che portano agli
+## interni degli edifici abbandonati (vedi Dungeon), disegnati con gli
+## stessi blocchi.
 ##
 ## Le posizioni di personaggi e oggetti sono a terra (il piano x, y);
 ## l'altezza del terreno sotto di loro (elevation_at) li disegna più in
@@ -82,8 +88,8 @@ const RAMP_DIRECTIONS := [Vector2i(-1, 0), Vector2i(0, -1), Vector2i(1, 0), Vect
 const STRATA_STEP := 14.0
 const LIP_WIDTH := 5.0
 
-## Tipi di blocco: terreno normale, montagna o burrone (invalicabili) e
-## roccia del sotterraneo.
+## Tipi di blocco: terreno normale, grattacielo o fessura (invalicabili) e
+## muro degli interni.
 enum Kind { GROUND, MOUNTAIN, RAVINE, ROCK }
 
 ## Mondo attivo: giocatore e nemici lo usano per muoversi.
@@ -129,7 +135,7 @@ var _dungeon_data: Dictionary = DATA.data["dungeon"]
 var _levels: int
 var _height_noise := FastNoiseLite.new()
 var _path_noise := FastNoiseLite.new()
-var _forest_noise := FastNoiseLite.new()
+var _ruins_noise := FastNoiseLite.new()
 var _ridge_noise := FastNoiseLite.new()
 var _gap_noise := FastNoiseLite.new()
 var _barrier_kind_noise := FastNoiseLite.new()
@@ -139,20 +145,24 @@ var _kind_cache := {}
 var _ramp_cache := {}
 var _path_cache := {}
 ## Colori già convertiti dai dati, per disegnare in fretta.
-var _grass_colors: Array[Color] = []
+var _ground_colors: Array[Color] = []
 var _face_colors: Array[Color] = []
-var _mountain_colors: Array[Color] = []
-var _mountain_face_colors: Array[Color] = []
+var _fissure_face_colors: Array[Color] = []
+var _tower_colors: Array[Color] = []
+var _tower_face_colors: Array[Color] = []
+var _window_colors: Array[Color] = []
 var _dungeon_floor_colors: Array[Color] = []
 var _dungeon_face_colors: Array[Color] = []
-var _pebble_colors: Array[Color] = []
-var _flower_colors: Array[Color] = []
-var _mushroom_colors: Array[Color] = []
-var _path_color: Color
-var _lip_color: Color
-var _ravine_color: Color
+var _debris_colors: Array[Color] = []
+var _litter_colors: Array[Color] = []
+var _glowstick_colors: Array[Color] = []
+var _road_color: Color
+var _lane_color: Color
+var _curb_color: Color
+var _fissure_color: Color
+var _fissure_glow: Color
 var _dungeon_wall_color: Color
-var _tuft_range := Vector2i.ZERO
+var _crack_range := Vector2i.ZERO
 ## Pezzo -> ostacoli (dizionari), generati quando servono.
 var _chunk_obstacles := {}
 ## Rettangolo di pezzi (Vector4i) -> i loro ostacoli in una sola lista (vedi obstacles_near).
@@ -181,25 +191,29 @@ func _ready() -> void:
 	_levels = _terrain["levels"]
 	level_height = _terrain["level_height"]
 	_setup_noises()
-	_grass_colors = _colors(_terrain["grass_colors"])
+	_ground_colors = _colors(_terrain["ground_colors"])
 	_face_colors = _colors(_terrain["face_colors"])
-	_mountain_colors = _colors(_terrain["mountain_colors"])
-	_mountain_face_colors = _colors(_terrain["mountain_face_colors"])
+	_fissure_face_colors = _colors(_terrain["fissure_face_colors"])
+	_tower_colors = _colors(_terrain["tower_colors"])
+	_tower_face_colors = _colors(_terrain["tower_face_colors"])
+	_window_colors = _colors(_terrain["window_colors"])
 	_dungeon_floor_colors = _colors(_dungeon_data["floor_colors"])
 	_dungeon_face_colors = _colors(_dungeon_data["face_colors"])
-	_pebble_colors = _colors(_decor["pebble_colors"])
-	_flower_colors = _colors(_decor["flower_colors"])
-	_mushroom_colors = _colors(_dungeon_data["mushroom_colors"])
-	_path_color = _color(_terrain["path_color"])
-	_lip_color = _color(_terrain["lip_color"])
-	_ravine_color = _color(_terrain["ravine_color"])
+	_debris_colors = _colors(_decor["debris_colors"])
+	_litter_colors = _colors(_decor["litter_colors"])
+	_glowstick_colors = _colors(_dungeon_data["glowstick_colors"])
+	_road_color = _color(_terrain["road_color"])
+	_lane_color = _color(_decor["lane_color"])
+	_curb_color = _color(_terrain["curb_color"])
+	_fissure_color = _color(_terrain["fissure_color"])
+	_fissure_glow = _color(_terrain["fissure_glow"])
 	_dungeon_wall_color = _color(_dungeon_data["wall_color"])
-	var tufts: Array = _decor["grass_tufts"]
-	_tuft_range = Vector2i(tufts[0], tufts[1])
+	var cracks: Array = _decor["cracks"]
+	_crack_range = Vector2i(cracks[0], cracks[1])
 	# I pezzi di terreno si disegnano da dietro in avanti.
 	y_sort_enabled = true
-	# Dove il terreno non è ancora disegnato si vede il colore dell'erba più bassa.
-	RenderingServer.set_default_clear_color(_grass_colors[0].darkened(0.3))
+	# Dove il terreno non è ancora disegnato si vede il colore del cemento più basso.
+	RenderingServer.set_default_clear_color(_ground_colors[0].darkened(0.3))
 
 
 func _exit_tree() -> void:
@@ -222,7 +236,7 @@ func set_seed(value: int) -> void:
 func _setup_noises() -> void:
 	_setup_noise(_height_noise, 0, _terrain["height_frequency"], _terrain["height_octaves"])
 	_setup_noise(_path_noise, 1, _terrain["path_frequency"], 1)
-	_setup_noise(_forest_noise, 2, _terrain["forest_frequency"], 2)
+	_setup_noise(_ruins_noise, 2, _terrain["ruins_frequency"], 2)
 	_setup_noise(_ridge_noise, 4, _terrain["barrier_frequency"], 1)
 	_setup_noise(_gap_noise, 5, _terrain["barrier_gap_frequency"], 1)
 	_setup_noise(_barrier_kind_noise, 6, _terrain["barrier_kind_frequency"], 1)
@@ -1037,7 +1051,7 @@ func _site_obstacle(type_id: String, at: Vector2, radius: float, collision: floa
 
 
 ## Sceglie quale ostacolo mettere sul blocco (o nessuno), con probabilità
-## che dipendono dalla zona: boschi, alture, bordi dei gradini.
+## che dipendono dalla zona: quartieri in rovina, alture, bordi dei gradini.
 func _pick_obstacle(cell: Vector2i, rng: RandomNumberGenerator) -> String:
 	var center := cell_center(cell)
 	if center.length() < float(_terrain["start_clear_radius"]) or kind_of(cell) != Kind.GROUND \
@@ -1049,7 +1063,7 @@ func _pick_obstacle(cell: Vector2i, rng: RandomNumberGenerator) -> String:
 	var merchant := merchant_near(center)
 	if merchant != Vector2.INF and center.distance_to(merchant) < float(_merchant["clear_radius"]) + CELL:
 		return ""
-	var forest := clampf(_forest_noise.get_noise_2dv(center) * 2.0, 0.0, 1.0)
+	var ruins := clampf(_ruins_noise.get_noise_2dv(center) * 2.0, 0.0, 1.0)
 	var level := level_of(cell)
 	var near_edge := false
 	for step: Vector2i in RAMP_DIRECTIONS:
@@ -1060,7 +1074,7 @@ func _pick_obstacle(cell: Vector2i, rng: RandomNumberGenerator) -> String:
 	for type_id: String in _obstacle_types:
 		var type: Dictionary = _obstacle_types[type_id]
 		var chance: float = type["chance"]
-		chance += float(type.get("forest_bonus", 0.0)) * forest
+		chance += float(type.get("ruins_bonus", 0.0)) * ruins
 		chance += float(type.get("level_bonus", 0.0)) * level
 		if near_edge:
 			chance += float(type.get("edge_bonus", 0.0))
@@ -1300,8 +1314,17 @@ func draw_cell(canvas: CanvasItem, cell: Vector2i, offset: Vector2) -> void:
 	# basso-sinistra, vicino (u, v+1)): i vertici combaciano con quelli del vicino.
 	var faces := _face_colors_of(kind)
 	var lip := kind == Kind.GROUND and dungeon == null
-	_draw_face(canvas, corners, heights, cell + Vector2i(1, 0), 1, 2, 0, 3, faces[0], lip)
-	_draw_face(canvas, corners, heights, cell + Vector2i(0, 1), 2, 3, 1, 0, faces[1], lip)
+	var windows := kind == Kind.MOUNTAIN
+	for side in 2:
+		var other := cell + (Vector2i(1, 0) if side == 0 else Vector2i(0, 1))
+		# Verso una fessura la parete è terra spaccata, non mattoni.
+		var color := faces[side]
+		if kind == Kind.GROUND and dungeon == null and kind_of(other) == Kind.RAVINE:
+			color = _fissure_face_colors[side]
+		if side == 0:
+			_draw_face(canvas, corners, heights, other, 1, 2, 0, 3, color, lip, windows, cell)
+		else:
+			_draw_face(canvas, corners, heights, other, 2, 3, 1, 0, color, lip, windows, cell)
 
 	var path := is_path(cell)
 	var color := _top_color(cell, kind, path)
@@ -1318,26 +1341,29 @@ func draw_cell(canvas: CanvasItem, cell: Vector2i, offset: Vector2) -> void:
 func _top_color(cell: Vector2i, kind: int, path: bool) -> Color:
 	match kind:
 		Kind.MOUNTAIN:
-			return _mountain_colors[clampi(level_of(cell) - _levels - 1, 0, _mountain_colors.size() - 1)]
+			return _tower_colors[clampi(level_of(cell) - _levels - 1, 0, _tower_colors.size() - 1)]
 		Kind.RAVINE:
-			return _ravine_color
+			return _fissure_color
 		Kind.ROCK:
 			return _dungeon_wall_color
 	if dungeon:
 		return _dungeon_floor_colors[posmod(hash([cell.x, cell.y]), _dungeon_floor_colors.size())]
-	return _path_color if path else _grass_colors[clampi(level_of(cell), 0, _levels - 1)]
+	return _road_color if path else _ground_colors[clampi(level_of(cell), 0, _levels - 1)]
 
 
 func _face_colors_of(kind: int) -> Array[Color]:
 	if kind == Kind.MOUNTAIN:
-		return _mountain_face_colors
+		return _tower_face_colors
 	if dungeon:
 		return _dungeon_face_colors
 	return _face_colors
 
 
+## lip: bordo del marciapiede in cima; windows: finestre del grattacielo
+## (cell serve a sceglierle sempre uguali).
 func _draw_face(canvas: CanvasItem, corners: PackedVector2Array, heights: Array[float], other: Vector2i,
-		first: int, second: int, other_first: int, other_second: int, color: Color, lip: bool) -> void:
+		first: int, second: int, other_first: int, other_second: int, color: Color, lip: bool,
+		windows := false, cell := Vector2i.ZERO) -> void:
 	var top_a := heights[first]
 	var top_b := heights[second]
 	var bottom_a := minf(corner_height(other, other_first), top_a)
@@ -1352,7 +1378,11 @@ func _draw_face(canvas: CanvasItem, corners: PackedVector2Array, heights: Array[
 	if top_a - bottom_a >= 0.5:
 		points.append(a - Vector2(0, bottom_a))
 	canvas.draw_colored_polygon(points, color)
-	# Strati della roccia o della terra, tutti in una sola chiamata.
+	if windows:
+		_draw_windows(canvas, a, b, top_a, top_b, bottom_a, bottom_b, cell, first)
+		canvas.draw_line(a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), Color(0, 0, 0, 0.3), 2.0)
+		return
+	# Corsi dei mattoni, strati della terra o del muro, tutti in una sola chiamata.
 	var strata := PackedVector2Array()
 	var depth := STRATA_STEP
 	while depth < maxf(top_a - bottom_a, top_b - bottom_b) - 4.0:
@@ -1362,7 +1392,7 @@ func _draw_face(canvas: CanvasItem, corners: PackedVector2Array, heights: Array[
 	if not strata.is_empty():
 		canvas.draw_multiline(strata, color.darkened(0.18), 1.5)
 	if lip:
-		# Bordo d'erba che sporge in cima.
+		# Bordo del marciapiede in cima.
 		var lip_a := minf(LIP_WIDTH, top_a - bottom_a)
 		var lip_b := minf(LIP_WIDTH, top_b - bottom_b)
 		var lip_points := PackedVector2Array([a - Vector2(0, top_a), b - Vector2(0, top_b)])
@@ -1371,8 +1401,40 @@ func _draw_face(canvas: CanvasItem, corners: PackedVector2Array, heights: Array[
 		if lip_a > 0.5:
 			lip_points.append(a - Vector2(0, top_a - lip_a))
 		if lip_points.size() >= 3:
-			canvas.draw_colored_polygon(lip_points, _lip_color)
+			canvas.draw_colored_polygon(lip_points, _curb_color)
 	canvas.draw_line(a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), Color(0, 0, 0, 0.3), 2.0)
+
+
+## Finestre del grattacielo in rovina sulla parete tra a e b (dall'alto
+## top alla base bottom): file di finestre buie, qualcuna rotta o con una
+## luce calda accesa, uguali ogni volta per lo stesso blocco.
+func _draw_windows(canvas: CanvasItem, a: Vector2, b: Vector2, top_a: float, top_b: float,
+		bottom_a: float, bottom_b: float, cell: Vector2i, side: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([_decor_seed(), cell.x, cell.y, side, "windows"])
+	var height := minf(top_a - bottom_a, top_b - bottom_b)
+	var columns := 3
+	var row := 18.0
+	var depth := 8.0
+	while depth + 10.0 < height:
+		for k in columns:
+			var t0 := (k + 0.2) / columns
+			var t1 := (k + 0.8) / columns
+			var roll := rng.randf()
+			if roll < 0.12:
+				continue
+			var color := _window_colors[0]
+			if roll > 0.95:
+				color = _window_colors[2]
+			elif roll > 0.6:
+				color = _window_colors[1]
+			var p0 := a.lerp(b, t0)
+			var p1 := a.lerp(b, t1)
+			var h0 := lerpf(top_a, top_b, t0) - depth
+			var h1 := lerpf(top_a, top_b, t1) - depth
+			canvas.draw_colored_polygon(PackedVector2Array([p0 - Vector2(0, h0), p1 - Vector2(0, h1),
+					p1 - Vector2(0, h1 - 10.0), p0 - Vector2(0, h0 - 10.0)]), color)
+		depth += row
 
 
 ## Linee lungo la pendenza di una rampa, parallele al lato più alto.
@@ -1400,9 +1462,14 @@ func _draw_ramp_lines(canvas: CanvasItem, top: PackedVector2Array, ramp: Vector2
 	canvas.draw_multiline(lines, color.darkened(0.15), 1.5)
 
 
-## Ciuffi d'erba e fiori sui blocchi d'erba, sassolini sui sentieri e nel
-## sotterraneo (dove crescono anche funghi luminosi): solo decorazione.
+## Decorazione, solo grafica: crepe e rifiuti sul cemento, strisce di
+## mezzeria sbiadite e calcinacci sulle strade e negli interni (dove ci
+## sono anche bastoncini luminosi d'emergenza), lingue di fuoco e crepe nel
+## fondo delle fessure.
 func _draw_decor(canvas: CanvasItem, cell: Vector2i, offset: Vector2, kind: int, path: bool) -> void:
+	if kind == Kind.RAVINE and dungeon == null:
+		_draw_fissure(canvas, cell, offset)
+		return
 	if kind != Kind.GROUND:
 		return
 	var rng := RandomNumberGenerator.new()
@@ -1410,27 +1477,50 @@ func _draw_decor(canvas: CanvasItem, cell: Vector2i, offset: Vector2, kind: int,
 	if path or dungeon:
 		for k in rng.randi_range(2, 4):
 			var at := _decor_point(cell, rng, offset)
-			canvas.draw_circle(at, rng.randf_range(1.5, 3.0), _pebble_colors[k % _pebble_colors.size()])
-		if dungeon and rng.randf() < float(_dungeon_data["mushroom_chance"]):
+			canvas.draw_circle(at, rng.randf_range(1.5, 3.0), _debris_colors[k % _debris_colors.size()])
+		if path and not dungeon and rng.randf() < 0.5:
 			var at := _decor_point(cell, rng, offset)
-			var glow := _mushroom_colors[rng.randi() % _mushroom_colors.size()]
-			canvas.draw_circle(at, 7.0, Color(glow, 0.25))
-			canvas.draw_line(at, at + Vector2(0, -5), Color(0.8, 0.8, 0.75), 2.0)
-			canvas.draw_circle(at + Vector2(0, -6), 3.5, glow)
+			canvas.draw_line(at - Vector2(9, 4.5), at + Vector2(9, 4.5), Color(_lane_color, 0.55), 3.0)
+		if dungeon and rng.randf() < float(_dungeon_data["glowstick_chance"]):
+			var at := _decor_point(cell, rng, offset)
+			var glow := _glowstick_colors[rng.randi() % _glowstick_colors.size()]
+			canvas.draw_circle(at, 9.0, Color(glow, 0.22))
+			canvas.draw_line(at + Vector2(-4, 1), at + Vector2(4, -2), glow.lightened(0.3), 3.0)
 		return
-	var grass := _grass_colors[clampi(level_of(cell), 0, _levels - 1)].darkened(0.3)
-	var tufts := PackedVector2Array()
-	for k in rng.randi_range(_tuft_range.x, _tuft_range.y):
+	var crack := _ground_colors[clampi(level_of(cell), 0, _levels - 1)].darkened(0.35)
+	var lines := PackedVector2Array()
+	for k in rng.randi_range(_crack_range.x, _crack_range.y):
 		var at := _decor_point(cell, rng, offset)
-		tufts.append_array([at, at + Vector2(-4, -7), at, at + Vector2(0, -9), at, at + Vector2(4, -7)])
-	if not tufts.is_empty():
-		canvas.draw_multiline(tufts, grass, 1.5)
-	if rng.randf() < float(_decor["flower_chance"]):
-		var color := _flower_colors[rng.randi() % _flower_colors.size()]
+		var bend := at + Vector2(rng.randf_range(-8.0, 8.0), rng.randf_range(-3.0, 3.0))
+		lines.append_array([at, bend, bend, bend + Vector2(rng.randf_range(-8.0, 8.0), rng.randf_range(-3.0, 3.0))])
+	if not lines.is_empty():
+		canvas.draw_multiline(lines, crack, 1.5)
+	if rng.randf() < float(_decor["litter_chance"]):
+		var color := _litter_colors[rng.randi() % _litter_colors.size()]
 		var at := _decor_point(cell, rng, offset)
-		for k in 3:
-			canvas.draw_circle(at + Vector2.from_angle(k * TAU / 3.0) * 3.0, 2.5, color)
-		canvas.draw_circle(at, 1.5, Color(0.95, 0.8, 0.3))
+		canvas.draw_colored_polygon(PackedVector2Array([at + Vector2(-4, -1), at + Vector2(3, -3), at + Vector2(5, 2), at + Vector2(-2, 3)]), color)
+
+
+## Fondo di una fessura aperta dal terremoto: crepe più chiare e, qua e
+## là, il bagliore rosso del fuoco che arde in profondità.
+func _draw_fissure(canvas: CanvasItem, cell: Vector2i, offset: Vector2) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([_decor_seed(), cell.x, cell.y, "fissure"])
+	var top := PackedVector2Array()
+	var corners := cell_corners(cell)
+	for k in 4:
+		top.append(corners[k] + offset - Vector2(0, corner_height(cell, k)))
+	var center := (top[0] + top[2]) / 2.0
+	if rng.randf() < 0.35:
+		canvas.draw_circle(center, 14.0, Color(_fissure_glow, 0.18))
+		canvas.draw_circle(center, 6.0, Color(_fissure_glow, 0.35))
+	var lines := PackedVector2Array()
+	var at := top[3].lerp(top[1], rng.randf_range(0.3, 0.7))
+	for k in 3:
+		var next := at + Vector2(rng.randf_range(6.0, 16.0), rng.randf_range(-6.0, 6.0))
+		lines.append_array([at, next])
+		at = next
+	canvas.draw_multiline(lines, Color(_fissure_face_colors[0], 0.6), 2.0)
 
 
 ## Punto a caso sulla faccia superiore del blocco, lontano dai bordi.
@@ -1456,7 +1546,7 @@ func set_dungeon(value: Dungeon) -> void:
 	for cache: Dictionary in [_level_cache, _ramp_cache, _path_cache, _kind_cache]:
 		cache.clear()
 	region = Rect2i()
-	var ground := _dungeon_wall_color if dungeon else _grass_colors[0].darkened(0.3)
+	var ground := _dungeon_wall_color if dungeon else _ground_colors[0].darkened(0.3)
 	RenderingServer.set_default_clear_color(ground)
 
 
@@ -1469,7 +1559,7 @@ func _decor_seed() -> int:
 func _dungeon_obstacles(chunk: Vector2i) -> Array:
 	var result: Array[Dictionary] = []
 	var rng := RandomNumberGenerator.new()
-	var chance := float(_dungeon_data["stalagmite_chance"])
+	var chance := float(_dungeon_data["rubble_chance"])
 	var rock: Dictionary = _obstacle_types["rock"]
 	var radius_range: Array = rock["radius"]
 	for i in CHUNK_CELLS:

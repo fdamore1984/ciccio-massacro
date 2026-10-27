@@ -1,13 +1,18 @@
 class_name Obstacle
 extends Node2D
-## Ostacolo naturale del mondo, disegnato con forme geometriche: albero,
-## sasso, cespuglio, cassa, il totem al centro di un'arena, il banco di un mercante,
-## l'ingresso di una caverna o le scale del sotterraneo. La posizione è la base a terra, così
+## Ostacolo del mondo, disegnato con forme geometriche. I tipi hanno ancora
+## i nomi di prima (dati e salvataggi), ma l'aspetto è quello della città
+## distrutta: "tree" è una rovina (muro crollato, lampione piegato o auto
+## bruciata), "rock" un blocco di macerie, "bush" un cumulo di rottami che
+## rallenta, "chest" una cassa militare, "totem" la sirena al centro di
+## un'arena, "merchant" il banco di un commerciante, "cave" la porta di un
+## edificio abbandonato, "stairs" le scale verso il piano dopo ed "exit"
+## l'uscita all'aperto. La posizione è la base a terra, così
 ## l'ordinamento per y lo mette davanti o dietro ai personaggi; viene
 ## disegnato più in alto quanto il blocco di terreno su cui si trova. Gli effetti (blocco,
 ## rallentamento) sono gestiti da World.
 
-## La chioma degli alberi diventa trasparente quando il giocatore ci passa dietro.
+## La parte alta delle rovine diventa trasparente quando il giocatore ci passa dietro.
 const CANOPY_FADE_ALPHA := 0.4
 ## Elementi con cui si interagisce: in modalità focus restano a colori con
 ## un'aura bianca attorno (vedi LowHealthVignette).
@@ -166,77 +171,112 @@ func _draw_shadow(width: float) -> void:
 	draw_set_transform(Vector2(0, -_lift))
 
 
-## Tronco e chioma: tonda (latifoglia) o a strati di triangoli (abete).
+## Rovina: un pezzo di muro di mattoni crollato con le finestre vuote, un
+## lampione piegato o un'auto bruciata. La parte alta sfuma quando il
+## giocatore ci passa dietro (_canopy_alpha).
 func _draw_tree(rng: RandomNumberGenerator) -> void:
 	_draw_shadow(radius * 0.9)
-	var trunk := _type_color("trunk")
-	var trunk_height := radius * 1.1
-	draw_rect(Rect2(-radius * 0.18, -trunk_height, radius * 0.36, trunk_height), trunk)
-	draw_rect(Rect2(-radius * 0.18, -trunk_height, radius * 0.12, trunk_height), trunk.lightened(0.15))
-	var leaves := _color(rng.randi())
-	leaves.a = _canopy_alpha
-	var dark := leaves.darkened(0.25)
-	if rng.randf() < 0.35:
-		for k in 3:
-			var width := radius * (1.1 - k * 0.25)
-			var base_y := -trunk_height * 0.6 - k * radius * 0.7
-			var tip_y := base_y - radius * 1.3
-			draw_colored_polygon(PackedVector2Array([Vector2(-width, base_y), Vector2(width, base_y), Vector2(0, tip_y)]), dark if k == 0 else leaves)
-			draw_colored_polygon(PackedVector2Array([Vector2(0, base_y), Vector2(width, base_y), Vector2(0, tip_y)]), leaves.darkened(0.12))
-	else:
-		var center := Vector2(0, -trunk_height - radius * 0.55)
-		draw_circle(center + Vector2(0, radius * 0.2), radius, dark)
-		draw_circle(center + Vector2(-radius * 0.45, 0), radius * 0.7, leaves)
-		draw_circle(center + Vector2(radius * 0.4, -radius * 0.1), radius * 0.75, leaves)
-		draw_circle(center + Vector2(0, -radius * 0.45), radius * 0.7, leaves.lightened(0.08))
-		draw_circle(center + Vector2(-radius * 0.25, -radius * 0.55), radius * 0.3, Color(leaves.lightened(0.2), 0.6 * _canopy_alpha))
+	var metal := _type_color("metal")
+	var roll := rng.randf()
+	if roll < 0.3:
+		# Lampione piegato con la lampada rotta.
+		var top := Vector2(radius * 0.15, -radius * 2.6)
+		var bend := top + Vector2(radius * 0.7, radius * 0.25)
+		var pole := Color(metal, _canopy_alpha)
+		draw_rect(Rect2(-radius * 0.25, -radius * 0.25, radius * 0.5, radius * 0.25), metal.darkened(0.3))
+		draw_line(Vector2.ZERO, top, pole, 5.0)
+		draw_line(top, bend, pole, 4.0)
+		draw_colored_polygon(PackedVector2Array([bend + Vector2(-6, 0), bend + Vector2(6, 0), bend + Vector2(3, 6), bend + Vector2(-3, 6)]), Color(metal.darkened(0.3), _canopy_alpha))
+		return
+	if roll < 0.55:
+		# Auto bruciata: carrozzeria annerita, vetri rotti, ruote a terra.
+		var colors: Array = _type["car_colors"]
+		var tone: Array = colors[rng.randi() % colors.size()]
+		var paint := Color(tone[0], tone[1], tone[2]).darkened(0.35)
+		var width := radius * 1.3
+		draw_rect(Rect2(-width, -radius * 0.75, width * 2.0, radius * 0.55), paint)
+		draw_colored_polygon(PackedVector2Array([Vector2(-width * 0.6, -radius * 0.75), Vector2(width * 0.5, -radius * 0.75),
+				Vector2(width * 0.3, -radius * 1.25), Vector2(-width * 0.4, -radius * 1.25)]), paint.darkened(0.25))
+		draw_colored_polygon(PackedVector2Array([Vector2(-width * 0.45, -radius * 0.8), Vector2(width * 0.35, -radius * 0.8),
+				Vector2(width * 0.22, -radius * 1.15), Vector2(-width * 0.3, -radius * 1.15)]), Color(0.08, 0.08, 0.09))
+		for x: float in [-width * 0.6, width * 0.6]:
+			draw_circle(Vector2(x, -radius * 0.2), radius * 0.28, Color(0.08, 0.08, 0.08))
+		draw_circle(Vector2(width * 0.2, -radius * 0.55), 3.0, Color(0.6, 0.3, 0.15))
+		return
+	# Muro di mattoni crollato: bordo superiore spezzato e finestre vuote.
+	var wall := _color(rng.randi())
+	wall.a = _canopy_alpha
+	var width := radius * 0.95
+	var height := radius * rng.randf_range(2.2, 3.0)
+	var outline := PackedVector2Array([Vector2(-width, 0), Vector2(width, 0)])
+	for k in range(6, -1, -1):
+		var x := -width + width * 2.0 * k / 6.0
+		outline.append(Vector2(x, -height * rng.randf_range(0.55, 1.0)))
+	draw_colored_polygon(outline, wall)
+	draw_rect(Rect2(width * 0.55, -height * 0.5, width * 0.45, height * 0.5), Color(wall.darkened(0.25), _canopy_alpha))
+	var bricks := PackedVector2Array()
+	var y := -10.0
+	while y > -height * 0.5:
+		bricks.append_array([Vector2(-width, y), Vector2(width, y)])
+		y -= 10.0
+	draw_multiline(bricks, Color(wall.darkened(0.3), 0.6 * _canopy_alpha), 1.0)
+	for x: float in [-width * 0.55, width * 0.15]:
+		draw_rect(Rect2(x, -height * 0.48, width * 0.35, height * 0.2), Color(0.06, 0.06, 0.07, _canopy_alpha))
+	draw_line(Vector2(width * 0.3, -height * 0.55), Vector2(width * 0.5, -height * 0.85), Color(metal, _canopy_alpha), 2.0)
 
 
-## Masso irregolare con la faccia superiore più chiara.
+## Blocco di macerie di cemento con la faccia superiore più chiara e i
+## tondini di ferro che spuntano.
 func _draw_rock(rng: RandomNumberGenerator) -> void:
 	_draw_shadow(radius * 1.05)
 	var color := _color(rng.randi())
 	var points := PackedVector2Array()
-	var sides := rng.randi_range(6, 8)
+	var sides := rng.randi_range(4, 6)
 	for k in sides:
-		var angle := TAU * k / sides + rng.randf_range(-0.2, 0.2)
+		var angle := TAU * k / sides + rng.randf_range(-0.25, 0.25)
 		points.append(Vector2(cos(angle), sin(angle) * 0.75) * radius * rng.randf_range(0.8, 1.05) + Vector2(0, -radius * 0.45))
 	draw_colored_polygon(points, color.darkened(0.15))
 	var top := PackedVector2Array()
 	for point in points:
 		top.append(point * 0.65 + Vector2(0, -radius * 0.35))
 	draw_colored_polygon(top, color.lightened(0.1))
+	var rebar := _type_color("rebar")
+	for k in 2:
+		var from := top[k] * 0.6 + Vector2(0, -radius * 0.1)
+		draw_line(from, from + Vector2(rng.randf_range(-0.4, 0.4), -1.0) * radius * 0.6, rebar, 2.0)
 	points.append(points[0])
 	draw_polyline(points, color.darkened(0.4), 2.0)
 
 
-## Cespuglio: gruppo di cerchi, a volte con le bacche.
+## Cumulo di rottami che rallenta: assi, lamiere, un copertone e pezzi
+## arrugginiti.
 func _draw_bush(rng: RandomNumberGenerator) -> void:
 	_draw_shadow(radius * 0.95)
 	var color := _color(rng.randi())
-	var blobs := []
-	for k in 5:
-		blobs.append([Vector2(rng.randf_range(-0.6, 0.6), rng.randf_range(-0.9, -0.3)) * radius, radius * rng.randf_range(0.4, 0.6)])
-	for blob: Array in blobs:
-		draw_circle(blob[0] + Vector2(0, 4), blob[1], color.darkened(0.3))
-	for blob: Array in blobs:
-		draw_circle(blob[0], blob[1], color)
-		draw_circle(blob[0] + Vector2(-blob[1] * 0.3, -blob[1] * 0.3), blob[1] * 0.35, color.lightened(0.12))
-	if rng.randf() < 0.5:
-		var berries := _type_color("berries")
-		for k in 4:
-			draw_circle(Vector2(rng.randf_range(-0.6, 0.6), rng.randf_range(-1.0, -0.3)) * radius, 2.5, berries)
+	for k in 4:
+		var at := Vector2(rng.randf_range(-0.6, 0.6), rng.randf_range(-0.6, -0.2)) * radius
+		var along := Vector2.from_angle(rng.randf_range(-0.5, 0.5)) * radius * rng.randf_range(0.4, 0.7)
+		var across := along.orthogonal().normalized() * radius * 0.15
+		draw_colored_polygon(PackedVector2Array([at - along - across, at + along - across, at + along + across, at - along + across]),
+				color.darkened(0.1 * k) if k % 2 == 0 else color.lightened(0.08))
+	if rng.randf() < 0.6:
+		var tire := Vector2(rng.randf_range(-0.3, 0.3), -0.45) * radius
+		draw_arc(tire, radius * 0.32, 0.0, TAU, 16, Color(0.08, 0.08, 0.08), radius * 0.16)
+	var rust := _type_color("rust")
+	for k in 3:
+		draw_circle(Vector2(rng.randf_range(-0.6, 0.6), rng.randf_range(-0.8, -0.2)) * radius, 2.5, rust)
 
 
-## Totem di pietra a tre blocchi con occhi luminosi: azzurri e con un
-## anello pulsante a terra quando si può avviare la sfida, rossi durante la
-## sfida, spenti dopo.
+## Sirena d'allarme su un palo: tromba e luce lampeggiante verdi con un
+## anello pulsante a terra quando si può avviare la sfida, rosse durante la
+## sfida, spente dopo.
 func _draw_totem() -> void:
 	var state := World.current.totem_state(position) if World.current else "ready"
 	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 250.0)
 	var glow := _type_color("glow")
 	if state == "active":
 		glow = _type_color("active")
+		pulse = 0.5 + 0.5 * sin(Time.get_ticks_msec() / 90.0)
 	elif state == "used":
 		glow = _type_color("used")
 	if state != "used":
@@ -244,27 +284,29 @@ func _draw_totem() -> void:
 		draw_arc(Vector2.ZERO, radius * 2.2 + pulse * 10.0, 0.0, TAU, 40, Color(glow, 0.35 + 0.3 * pulse), 5.0)
 		draw_set_transform(Vector2(0, -_lift))
 	_draw_shadow(radius * 1.1)
-	var stone := _type_color("stone")
-	var y := 0.0
-	for k in 3:
-		var width := radius * (1.0 - k * 0.18)
-		var height := radius * (0.9 - k * 0.1)
-		y -= height
-		# Faccia davanti e lato in ombra, come un blocco squadrato.
-		draw_rect(Rect2(-width, y, width * 2.0, height), stone.darkened(0.05 * k))
-		draw_rect(Rect2(width * 0.55, y, width * 0.45, height), stone.darkened(0.25))
-		draw_line(Vector2(-width, y), Vector2(width, y), stone.lightened(0.2), 2.0)
-		# Occhi e bocca incisi, con la luce dello stato.
-		var eye := Color(glow, 0.6 + 0.4 * pulse) if state != "used" else glow
-		draw_circle(Vector2(-width * 0.38, y + height * 0.38), width * 0.13, eye)
-		draw_circle(Vector2(width * 0.18, y + height * 0.38), width * 0.13, eye)
-		draw_line(Vector2(-width * 0.4, y + height * 0.75), Vector2(width * 0.2, y + height * 0.75), stone.darkened(0.45), 3.0)
-	# In cima una punta.
-	draw_colored_polygon(PackedVector2Array([Vector2(-radius * 0.5, y), Vector2(radius * 0.5, y), Vector2(0, y - radius * 0.7)]), stone.lightened(0.1))
+	var metal := _type_color("metal")
+	# Basamento di cemento e palo.
+	draw_rect(Rect2(-radius * 0.7, -radius * 0.5, radius * 1.4, radius * 0.5), Color(0.45, 0.44, 0.42))
+	draw_rect(Rect2(radius * 0.35, -radius * 0.5, radius * 0.35, radius * 0.5), Color(0.35, 0.34, 0.32))
+	var top := Vector2(0, -radius * 2.6)
+	draw_line(Vector2(0, -radius * 0.5), top, metal, 6.0)
+	draw_line(Vector2(-2, -radius * 0.5), top + Vector2(-2, 0), metal.lightened(0.2), 2.0)
+	# Due trombe della sirena ai lati.
+	for side: float in [-1.0, 1.0]:
+		var mouth := top + Vector2(side * radius * 0.95, radius * 0.1)
+		draw_colored_polygon(PackedVector2Array([top + Vector2(side * 4.0, -4.0), mouth + Vector2(0, -radius * 0.35),
+				mouth + Vector2(0, radius * 0.35), top + Vector2(side * 4.0, 4.0)]), metal.darkened(0.15))
+		draw_line(mouth + Vector2(0, -radius * 0.35), mouth + Vector2(0, radius * 0.35), metal.darkened(0.45), 3.0)
+	# Luce lampeggiante in cima.
+	var lamp := top + Vector2(0, -9.0)
+	if state != "used":
+		draw_circle(lamp, 12.0 + 6.0 * pulse, Color(glow, 0.2 + 0.2 * pulse))
+	draw_circle(lamp, 6.0, Color(glow, 0.6 + 0.4 * pulse) if state != "used" else glow)
+	draw_rect(Rect2(lamp + Vector2(-7, 4), Vector2(14, 4)), metal.darkened(0.3))
 
 
-## Cassa di legno con le fasce di metallo: chiusa brilla un poco, aperta
-## mostra il coperchio alzato e l'interno vuoto.
+## Cassa militare verde con le fasce di metallo e la croce bianca: chiusa
+## brilla un poco, aperta mostra il coperchio alzato e l'interno vuoto.
 func _draw_chest() -> void:
 	_draw_shadow(radius * 1.2)
 	var wood := _color(0)
@@ -273,8 +315,11 @@ func _draw_chest() -> void:
 	var height := radius * 0.9
 	draw_rect(Rect2(-width, -height, width * 2.0, height), wood)
 	draw_rect(Rect2(width * 0.55, -height, width * 0.45, height), wood.darkened(0.25))
-	for x: float in [-width * 0.6, width * 0.4]:
-		draw_rect(Rect2(x, -height, width * 0.18, height), metal.darkened(0.2))
+	for x: float in [-width * 0.85, width * 0.65]:
+		draw_rect(Rect2(x, -height, width * 0.14, height), metal.darkened(0.2))
+	var mark := Vector2(-width * 0.15, -height * 0.5)
+	draw_line(mark - Vector2(6, 0), mark + Vector2(6, 0), Color(0.9, 0.9, 0.85, 0.85), 3.0)
+	draw_line(mark - Vector2(0, 6), mark + Vector2(0, 6), Color(0.9, 0.9, 0.85, 0.85), 3.0)
 	if _opened:
 		draw_rect(Rect2(-width, -height - 4.0, width * 2.0, 6.0), wood.darkened(0.6))
 		draw_colored_polygon(PackedVector2Array([Vector2(-width, -height - 2.0), Vector2(width, -height - 2.0), Vector2(width * 0.9, -height - radius * 1.1), Vector2(-width * 0.9, -height - radius * 1.1)]), wood.lightened(0.05))
@@ -286,75 +331,79 @@ func _draw_chest() -> void:
 	draw_circle(Vector2(width * 0.7, -height - radius * 0.7), 2.0 + pulse * 1.5, Color(1.0, 0.95, 0.6, 0.6 + 0.4 * pulse))
 
 
-## Banco del mercante: pali e tenda a strisce, il mercante col cappello a
-## punta dietro il bancone di legno con la merce in mostra e un'insegna con
-## la moneta che brilla, per riconoscerlo da lontano.
+## Banco del commerciante: pali e telone rattoppato, il commerciante con il
+## berretto e la maschera antigas al collo dietro un bancone di assi con la
+## merce in mostra (kit medico, tanica, catena) e un'insegna con un
+## ingranaggio che brilla, per riconoscerlo da lontano.
 func _draw_merchant() -> void:
 	_draw_shadow(radius * 1.5)
 	var wood := _type_color("wood")
-	var robe := _type_color("robe")
+	var jacket := _type_color("jacket")
 	var skin := _type_color("skin")
-	var gold := _type_color("gold")
+	var scrap := _type_color("scrap")
 	var width := radius * 1.3
 	var height := radius * 0.75
 	var top := -height - radius * 2.0
 	for x: float in [-width, width - 5.0]:
-		draw_rect(Rect2(x, top, 5.0, radius * 2.0), wood.darkened(0.3))
-	# Il mercante dondola appena, come se respirasse.
+		draw_rect(Rect2(x, top, 5.0, radius * 2.0), Color(0.35, 0.35, 0.37))
+	# Il commerciante dondola appena, come se respirasse.
 	var breath := sin(Time.get_ticks_msec() / 400.0) * 1.5
 	var body := Vector2(0, -height - 6.0 + breath * 0.5)
-	draw_circle(body, radius * 0.42, robe)
+	draw_circle(body, radius * 0.42, jacket)
 	var head := body + Vector2(0, -radius * 0.55 + breath * 0.3)
 	draw_circle(head, radius * 0.28, skin)
 	draw_circle(head + Vector2(-4, -1), 2.2, Color(0.1, 0.1, 0.1))
 	draw_circle(head + Vector2(4, -1), 2.2, Color(0.1, 0.1, 0.1))
-	draw_colored_polygon(PackedVector2Array([head + Vector2(-radius * 0.36, -radius * 0.14), head + Vector2(radius * 0.36, -radius * 0.14),
-			head + Vector2(radius * 0.12, -radius * 0.85)]), robe.darkened(0.25))
-	draw_line(head + Vector2(-radius * 0.42, -radius * 0.14), head + Vector2(radius * 0.42, -radius * 0.14), robe.darkened(0.45), 3.0)
-	# Tenda inclinata a strisce, col bordo a festoni.
+	# Berretto con la visiera e maschera antigas appesa al collo.
+	draw_colored_polygon(PackedVector2Array([head + Vector2(-radius * 0.3, -radius * 0.08), head + Vector2(radius * 0.3, -radius * 0.08),
+			head + Vector2(radius * 0.22, -radius * 0.32), head + Vector2(-radius * 0.22, -radius * 0.32)]), jacket.darkened(0.3))
+	draw_line(head + Vector2(-radius * 0.05, -radius * 0.1), head + Vector2(radius * 0.45, -radius * 0.08), jacket.darkened(0.45), 3.0)
+	draw_circle(body + Vector2(0, -radius * 0.2), radius * 0.16, Color(0.2, 0.22, 0.2))
+	draw_circle(body + Vector2(0, -radius * 0.2), radius * 0.07, Color(0.5, 0.55, 0.5))
+	# Telone inclinato a pezze, col bordo sfilacciato.
 	var stripes := 6
 	var back := top
 	var front := top + radius * 0.45
 	for k in stripes:
 		var x0 := -width - 6.0 + (width * 2.0 + 12.0) * k / stripes
 		var x1 := -width - 6.0 + (width * 2.0 + 12.0) * (k + 1) / stripes
-		var color := _color(k)
+		var color := _color(k).darkened(0.08 * (k % 3))
 		draw_colored_polygon(PackedVector2Array([Vector2(x0 * 0.92, back), Vector2(x1 * 0.92, back), Vector2(x1, front), Vector2(x0, front)]), color)
-		draw_circle(Vector2((x0 + x1) / 2.0, front), (x1 - x0) / 2.0, color.darkened(0.08))
-	# Bancone con la merce.
+		draw_line(Vector2(x0, front), Vector2((x0 + x1) / 2.0, front + 5.0), color.darkened(0.2), 2.0)
+	# Bancone di assi con la merce.
 	draw_rect(Rect2(-width, -height, width * 2.0, height), wood)
 	draw_rect(Rect2(width * 0.6, -height, width * 0.4, height), wood.darkened(0.25))
+	draw_line(Vector2(-width, -height * 0.5), Vector2(width, -height * 0.5), wood.darkened(0.35), 1.5)
 	draw_rect(Rect2(-width - 4.0, -height - 5.0, width * 2.0 + 8.0, 6.0), wood.lightened(0.15))
-	draw_circle(Vector2(-width * 0.6, -height - 10.0), 5.0, Items.color("potion_health"))
-	draw_circle(Vector2(-width * 0.38, -height - 9.0), 4.0, Items.color("potion_mana"))
-	draw_rect(Rect2(width * 0.15, -height - 11.0, 14.0, 7.0), Items.color("book_fire"))
-	draw_line(Vector2(width * 0.5, -height - 4.0), Vector2(width * 0.85, -height - 16.0), Items.color("sword_steel"), 3.0)
-	# Insegna con la moneta sopra la tenda.
+	draw_rect(Rect2(-width * 0.75, -height - 14.0, 13.0, 9.0), Player.COLOR_MEDKIT)
+	draw_line(Vector2(-width * 0.75 + 6.5, -height - 13.0), Vector2(-width * 0.75 + 6.5, -height - 6.0), Player.COLOR_HURT, 2.0)
+	draw_rect(Rect2(-width * 0.3, -height - 16.0, 10.0, 11.0), Items.color("potion_mana"))
+	BodyParts.draw_chainsaw(self, Vector2(width * 0.2, -height - 8.0), -0.25, 30.0, 3.0)
+	# Insegna con l'ingranaggio sopra il telone.
 	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 300.0)
 	var board := Vector2(0, top - 10.0)
-	draw_circle(board, 9.0, gold.darkened(0.3))
-	draw_circle(board, 7.0, gold)
+	for k in 8:
+		draw_line(board, board + Vector2.from_angle(TAU * k / 8.0) * 10.5, scrap.darkened(0.3), 4.0)
+	draw_circle(board, 7.5, scrap)
+	draw_circle(board, 3.0, scrap.darkened(0.5))
 	draw_circle(board + Vector2(7, -7), 1.5 + pulse * 1.5, Color(1.0, 0.97, 0.7, 0.5 + 0.5 * pulse))
 
 
-## Arco nella parete (caverna, scale, uscita): bordo di pietre e interno
-## del colore dato. Restituisce i punti dell'interno.
+## Porta nella parete (edificio, scale, uscita): stipiti e architrave di
+## cemento e vano del colore dato. Restituisce i punti del vano.
 func _draw_arch(inside: Color) -> PackedVector2Array:
-	var width := radius * 1.1
+	var width := radius * 1.0
 	var height := radius * 2.0
-	var arch := PackedVector2Array()
-	var rim := PackedVector2Array()
-	for k in 17:
-		var angle := PI * k / 16.0
-		arch.append(_edge * cos(angle) * width + Vector2(0, -sin(angle) * height))
-		rim.append(_edge * cos(angle) * (width + 7.0) + Vector2(0, -sin(angle) * (height + 7.0)))
-	var stone := _color(1)
-	draw_colored_polygon(rim, stone.darkened(0.2))
-	draw_colored_polygon(arch, inside)
-	for k in 7:
-		var angle := PI * k / 6.0
-		draw_circle(_edge * cos(angle) * (width + 4.0) + Vector2(0, -sin(angle) * (height + 4.0)), 6.0, stone)
-	return arch
+	var door := PackedVector2Array([_edge * -width, _edge * width, _edge * width + Vector2(0, -height), _edge * -width + Vector2(0, -height)])
+	var frame := PackedVector2Array([_edge * -(width + 7.0), _edge * (width + 7.0), _edge * (width + 7.0) + Vector2(0, -height - 9.0),
+			_edge * -(width + 7.0) + Vector2(0, -height - 9.0)])
+	var concrete := _color(1)
+	draw_colored_polygon(frame, concrete.darkened(0.2))
+	draw_colored_polygon(door, inside)
+	draw_line(_edge * -(width + 7.0) + Vector2(0, -height - 4.0), _edge * (width + 7.0) + Vector2(0, -height - 4.0), concrete.lightened(0.1), 5.0)
+	draw_line(_edge * -(width + 3.0), _edge * -(width + 3.0) + Vector2(0, -height), concrete, 3.0)
+	draw_line(_edge * (width + 3.0), _edge * (width + 3.0) + Vector2(0, -height), concrete, 3.0)
+	return door
 
 
 ## Direzione dalla parete verso chi guarda (sul pavimento davanti all'arco).
@@ -363,28 +412,29 @@ func _out_of_wall() -> Vector2:
 	return normal if normal.y > 0.0 else -normal
 
 
-## Ingresso della caverna: un arco buio nella parete della montagna;
-## chiuso da massi se il sotterraneo è già completato.
+## Porta dell'edificio abbandonato: un vano buio nella parete del palazzo;
+## sbarrata con le assi se l'edificio è già stato ripulito.
 func _draw_cave() -> void:
 	_draw_arch(_color(0))
-	var width := radius * 1.1
+	var width := radius * 1.0
 	var height := radius * 2.0
 	if World.current and World.current.is_cave_cleared(position):
-		var rubble := _type_color("cleared")
-		for k in 6:
-			draw_circle(_edge * (k - 2.5) * width * 0.35 + Vector2(0, -8.0 - (k % 2) * 10.0), 11.0, rubble.darkened(0.1 * (k % 3)))
+		var planks := _type_color("cleared")
+		for k in 3:
+			var y := -height * (0.25 + 0.27 * k)
+			draw_line(_edge * -width * 1.1 + Vector2(0, y + 6.0), _edge * width * 1.1 + Vector2(0, y - 6.0), planks.darkened(0.12 * k), 8.0)
 		return
-	# Un filo d'aria fredda che esce dal buio.
+	# Un filo di polvere che esce dal buio.
 	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 500.0)
 	draw_circle(Vector2(0, -height * 0.35), width * 0.35, Color(0.4, 0.5, 0.7, 0.08 + 0.06 * pulse))
 
 
-## Passaggio che scende al piano sotto: un arco buio nella parete, con i
-## gradini che spariscono nel buio e una luce fredda che pulsa dal fondo.
+## Porta delle scale verso il piano dopo: un vano buio nella parete, con i
+## gradini che spariscono nel buio e la luce fredda di un neon dal fondo.
 func _draw_stairs() -> void:
 	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 350.0)
 	_draw_arch(_color(0))
-	var width := radius * 1.1
+	var width := radius * 1.0
 	var height := radius * 2.0
 	var stone := _color(1)
 	for k in 4:
@@ -394,8 +444,8 @@ func _draw_stairs() -> void:
 	draw_circle(Vector2(0, -height * 0.55), width * 0.4, Color(_type_color("glow"), 0.12 + 0.18 * pulse))
 
 
-## Uscita verso la superficie: un arco nella parete pieno di luce calda,
-## che si allunga sul pavimento davanti.
+## Uscita all'aperto: una porta nella parete piena di luce calda, che si
+## allunga sul pavimento davanti.
 func _draw_exit() -> void:
 	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 400.0)
 	var light := _type_color("glow")

@@ -3,7 +3,7 @@ extends Control
 ## Scelta dello slot di salvataggio dal menù iniziale. Per una nuova partita
 ## si può scegliere qualsiasi slot (uno già usato va confermato premendolo
 ## una seconda volta: la partita vecchia viene sostituita); per continuare
-## solo quelli salvati. Si chiude con B, Esc o il pulsante Indietro.
+## solo quelli salvati. Si chiude con B o il pulsante Indietro.
 ##
 ## Gli slot sono schede affiancate in una griglia: ognuna mostra livello,
 ## dove si trova il giocatore, vita e danno, monete e pozioni, nemici

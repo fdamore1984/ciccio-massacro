@@ -1,8 +1,8 @@
 class_name InteractPrompt
 extends Button
-## Suggerimento sopra l'elemento con cui si può interagire (cassa, mercante,
-## totem, caverna, scala, uscita): il tasto (A sul controller, E sulla
-## tastiera) e "Interact". Toccandolo (o cliccandolo) si interagisce
+## Suggerimento sopra l'elemento con cui si può interagire (cassa,
+## commerciante, sirena, edificio, scala, uscita): il tasto A del controller
+## e "Interact". Toccandolo si interagisce
 ## (segnale activated): non mentre il gioco è in pausa né nel frame in cui
 ## si chiude un menù, così il tocco che chiude la pausa non interagisce.
 
@@ -13,9 +13,8 @@ const FONT_SIZE := 18
 const KEY_RADIUS := 14.0
 const COLOR_PANEL := Color(0.05, 0.07, 0.05, 0.82)
 const COLOR_BORDER := Color(1, 1, 1, 0.3)
-## Tasto A verde come sui controller, tasto della tastiera grigio.
+## Tasto A verde come sui controller.
 const COLOR_BUTTON_A := Color(0.3, 0.72, 0.3)
-const COLOR_KEY := Color(0.82, 0.82, 0.82)
 const COLOR_TEXT := Color(1, 1, 1, 0.95)
 
 var _panel := StyleBoxFlat.new()
@@ -51,10 +50,7 @@ func show_at(world_point: Vector2) -> void:
 func _draw() -> void:
 	var font := ThemeDB.fallback_font
 	draw_style_box(_panel, Rect2(Vector2.ZERO, PANEL_SIZE))
-	var controller := not Input.get_connected_joypads().is_empty()
 	var key := Vector2(PANEL_SIZE.y / 2.0 + 2.0, PANEL_SIZE.y / 2.0)
-	Shapes.disc(self, key, KEY_RADIUS, COLOR_BUTTON_A if controller else COLOR_KEY)
-	var letter := "A" if controller else "E"
-	draw_string(font, key + Vector2(-KEY_RADIUS, 6.5), letter, HORIZONTAL_ALIGNMENT_CENTER, KEY_RADIUS * 2.0, FONT_SIZE,
-			Color.WHITE if controller else Color(0.1, 0.1, 0.1))
+	Shapes.disc(self, key, KEY_RADIUS, COLOR_BUTTON_A)
+	draw_string(font, key + Vector2(-KEY_RADIUS, 6.5), PadLabels.hint("interact"), HORIZONTAL_ALIGNMENT_CENTER, KEY_RADIUS * 2.0, FONT_SIZE, Color.WHITE)
 	draw_string(font, Vector2(key.x + KEY_RADIUS + 8.0, PANEL_SIZE.y / 2.0 + 6.5), tr("INTERACT"), HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, COLOR_TEXT)

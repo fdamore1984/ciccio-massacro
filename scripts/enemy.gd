@@ -10,19 +10,21 @@ extends Node2D
 ## prevedibile la carica ha durata variabile, a volte è una finta e a
 ## volte segue subito un secondo attacco più rapido.
 ## Quando il giocatore attacca lì vicino, a volte (secondo il tipo) alza la
-## guardia: i colpi di spada che arrivano da davanti vengono parati, la
+## guardia: i colpi di motosega che arrivano da davanti vengono parati, la
 ## combo del giocatore si interrompe e lui viene respinto; poi spesso
-## contrattacca. Attacchi a terra e palle di fuoco passano la guardia. Se
+## contrattacca. Attacchi a terra e missili passano la guardia. Se
 ## invece è il giocatore a parare il suo colpo, il colpo si interrompe e il
 ## nemico viene respinto. Attacca più volte di fila (fino a "max_strikes").
-## Gli evocatori restano a distanza ed evocano altri nemici: colpirli
-## mentre evocano interrompe l'evocazione. I tipi con "ranged" (lanciatori
-## e arcieri) restano a distanza e scagliano dardi magici o frecce (vedi
-## EnemyBolt). Quando il giocatore fluttua a mezz'aria caricando lo slam
+## Gli evocatori (nel gioco chiamano rinforzi via radio) restano a distanza
+## ed evocano altri nemici: colpirli mentre chiamano interrompe la chiamata.
+## I tipi con "ranged" (pistoleri e fucilieri) restano a distanza e sparano
+## proiettili (vedi EnemyBolt). Quando il giocatore fluttua a mezz'aria caricando lo slam
 ## aereo (vedi Player.is_air_charging) ne approfittano: tirano subito, con
 ## una carica più breve, e i loro colpi lo raggiungono anche lassù.
-## I tipi con "magic" (il boss) ogni tanto si fermano a caricare una magia e
-## scagliano da lontano un ventaglio di dardi grandi.
+## I tipi con "magic" (il boss) ogni tanto si fermano a caricare la
+## doppietta e sparano da lontano una rosa di pallettoni.
+## L'arma disegnata (voce "weapon" del tipo) è solo grafica: mazza,
+## manganello, tubo, mazza da demolizione, pistola o fucile.
 ##
 ## Si muovono sul terreno a gradini come il giocatore: scendono dai gradini
 ## cadendo e, quando un gradino alto un livello li blocca, ci saltano sopra;
@@ -72,7 +74,7 @@ const RECOVER_TIME := 0.9
 ## Dopo un attacco aspetta un tempo a caso prima di riprovare.
 const ATTACK_COOLDOWN := Vector2(0.35, 1.2)
 ## Guardia: si alza (con probabilità "guard_chance") quando il giocatore
-## inizia un attacco entro GUARD_RANGE girato verso il nemico, con la spada
+## inizia un attacco entro GUARD_RANGE girato verso il nemico, con l'arma
 ## di traverso davanti al corpo; para i colpi che arrivano entro GUARD_ARC
 ## davanti. Dopo, per un po', non si rialza.
 const GUARD_RANGE := 230.0
@@ -103,8 +105,10 @@ const SLAM_TRACKING := 0.7
 ## disegna GroundFx) e il nodo sparisce.
 const DEATH_FALL_TIME := 0.35
 ## Sangue perso a ogni colpo (gocce), di più con i colpi potenti.
-const BLEED_DROPS := 5
-const BLEED_DROPS_HEAVY := 10
+const BLEED_DROPS := 16
+const BLEED_DROPS_HEAVY := 32
+## Vampata alla bocca della canna dopo uno sparo (secondi).
+const MUZZLE_FLASH_TIME := 0.1
 ## I nemici evocati compaiono a questa distanza dall'evocatore.
 const SUMMON_DISTANCE := 70.0
 ## Salti sui gradini e cadute: gravità, quanti livelli si superano con un
@@ -144,7 +148,8 @@ const WINDUP_GLOW_ALPHA := 0.45
 const COLOR_WINDUP := Color(1.0, 0.45, 0.2)
 const COLOR_STUNNED := Color(0.55, 0.55, 0.8)
 const COLOR_DANGER := Color(1.0, 0.25, 0.15)
-const COLOR_SUMMON := Color(0.4, 1.0, 0.9)
+## Chiamata dei rinforzi: i fumogeni arancioni dove arriveranno.
+const COLOR_SUMMON := Color(1.0, 0.5, 0.2)
 const COLOR_DAMAGE := Color(1.0, 1.0, 1.0)
 
 var player: Player
@@ -211,7 +216,7 @@ var _hop_cooldown := 0.0
 ## rombi; Vector2.INF se non c'è.
 var _home := Vector2.INF
 var _home_cells := 0.0
-## Magia del boss: sta caricando o scagliando una magia (invece di un
+## Doppietta del boss ("magic" nei dati): sta caricando o sparando (invece di un
 ## fendente) e attesa prima della prossima.
 var _casting := false
 var _magic_cooldown := 0.0
@@ -223,6 +228,7 @@ var _minions: Array[Enemy] = []
 ## Verso del fendente (+1 o -1): cambia a ogni attacco.
 var _swing_sign := 1.0
 var _walk_phase := 0.0
+var _muzzle_flash := 0.0
 ## La zona di pericolo va disegnata sotto i personaggi, non sopra.
 var _telegraph := Node2D.new()
 ## Effetti rossi dell'attacco su nodi propri: dietro al corpo il bagliore
@@ -317,7 +323,7 @@ func confine(center: Vector2, cells: float) -> void:
 		position = World.clamp_to_grid_circle(position, _home, _home_cells)
 
 
-## Sta caricando o scagliando una magia (vedi BossBar).
+## Sta caricando o sparando con la doppietta (vedi BossBar).
 func is_casting() -> bool:
 	return _casting and _state in [State.WINDUP, State.STRIKE]
 
@@ -366,6 +372,7 @@ func _physics_process(delta: float) -> void:
 	_attack_cooldown = maxf(_attack_cooldown - delta, 0.0)
 	_summon_cooldown = maxf(_summon_cooldown - delta, 0.0)
 	_hit_flash = maxf(_hit_flash - delta, 0.0)
+	_muzzle_flash = maxf(_muzzle_flash - delta, 0.0)
 	_guard_cooldown = maxf(_guard_cooldown - delta, 0.0)
 	_guard_flash = maxf(_guard_flash - delta, 0.0)
 	_slam_cooldown = maxf(_slam_cooldown - delta, 0.0)
@@ -462,7 +469,7 @@ func _physics_process(delta: float) -> void:
 				_velocity = Vector2.ZERO
 				if not _strike_resolved:
 					_strike_resolved = true
-					# Se intanto il giocatore è finito dietro un ostacolo, niente dardo.
+					# Se intanto il giocatore è finito dietro un ostacolo, niente sparo.
 					if _casting:
 						if _clear_shot():
 							_cast_magic()
@@ -632,7 +639,7 @@ func take_damage(amount: int, direction: Vector2, heavy := false) -> void:
 	if health <= 0:
 		_fall_side = 1.0 if direction.x >= 0.0 else -1.0
 		_trail.clear()
-		GroundFx.pool(global_position, radius * 0.9)
+		GroundFx.pool(global_position, radius * 1.4)
 		_change_state(State.DEAD)
 		remove_from_group("enemies")
 		Sfx.play("enemy_death", global_position, 1.0 / sqrt(_type["mass"]))
@@ -659,16 +666,19 @@ func is_boss() -> bool:
 	return _type.get("boss", false)
 
 
-## Corona d'oro sopra la testa del boss.
+## Elmetto chiodato del boss (il signore della guerra).
 func _draw_crown() -> void:
-	var top := Vector2(0, -radius * 1.05)
-	var width := radius * 0.7
-	var points := PackedVector2Array([top + Vector2(-width, 0), top + Vector2(width, 0)])
-	for k in range(4, -1, -1):
-		var x := -width + width * 2.0 * k / 4.0
-		points.append(top + Vector2(x, -radius * (0.55 if k % 2 == 0 else 0.3)))
-	draw_colored_polygon(points, Color(1.0, 0.8, 0.25))
-	draw_polyline(_closed(points), Color(0.55, 0.35, 0.05), 2.0)
+	var top := Vector2(0, -radius * 1.0)
+	var width := radius * 0.75
+	var points := PackedVector2Array()
+	for k in 9:
+		points.append(top + Vector2.from_angle(PI + PI * k / 8.0) * Vector2(width, radius * 0.5))
+	draw_colored_polygon(points, Color(0.28, 0.28, 0.3))
+	draw_line(top + Vector2(-width * 1.1, 0), top + Vector2(width * 1.1, 0), Color(0.18, 0.18, 0.2), 4.0)
+	for k in 5:
+		var at := top + Vector2.from_angle(PI + PI * (k + 1) / 6.0) * Vector2(width, radius * 0.5)
+		var out := (at - top).normalized()
+		draw_colored_polygon(PackedVector2Array([at - out.orthogonal() * 3.0, at + out * radius * 0.3, at + out.orthogonal() * 3.0]), Color(0.75, 0.75, 0.78))
 
 
 ## True se il nemico sta combattendo: in quel caso non va rimosso
@@ -684,7 +694,7 @@ func add_minion(minion: Enemy) -> void:
 func _change_state(new_state: State) -> void:
 	_state = new_state
 	_state_time = 0.0
-	# La magia è fatta solo di carica e lancio: qualsiasi altra cosa la interrompe.
+	# La doppietta è fatta solo di carica e sparo: qualsiasi altra cosa la interrompe.
 	if new_state not in [State.WINDUP, State.STRIKE]:
 		_casting = false
 
@@ -741,8 +751,8 @@ func _exposed_shot(distance: float) -> bool:
 	return distance <= reach * EXPOSED_RANGE_FACTOR and _clear_shot()
 
 
-## Tiro rapido verso il giocatore esposto: un dardo o una freccia con una
-## carica più breve, o la magia del boss.
+## Tiro rapido verso il giocatore esposto: un colpo con una carica più
+## breve, o la doppietta del boss.
 func _begin_exposed_shot() -> void:
 	_strikes = 0
 	if not _is_ranged():
@@ -753,23 +763,23 @@ func _begin_exposed_shot() -> void:
 	_begin_windup(windup[0] * EXPOSED_WINDUP_FACTOR, windup[1] * EXPOSED_WINDUP_FACTOR, false)
 
 
-## I lanciatori tirano solo se il dardo può arrivare al giocatore (niente
-## pareti, montagne, roccia o ostacoli solidi in mezzo); gli altri sempre.
+## I tiratori sparano solo se il colpo può arrivare al giocatore (niente
+## pareti, palazzi, muri o ostacoli solidi in mezzo); gli altri sempre.
 func _can_shoot_player() -> bool:
 	if not _is_ranged():
 		return true
 	return _clear_shot()
 
 
-## Un dardo partito da qui arriverebbe al giocatore.
+## Un proiettile partito da qui arriverebbe al giocatore.
 func _clear_shot() -> bool:
 	if player == null or World.current == null:
 		return true
 	return World.current.clear_line(global_position, player.global_position, ground_elevation, EnemyBolt.FLIGHT_HEIGHT)
 
 
-## Dardo magico nella direzione data; ranged: voce del tipo con velocità,
-## portata e, se ci sono, grandezza, colore e danno in più del dardo.
+## Proiettile nella direzione data; ranged: voce del tipo con velocità,
+## portata e, se ci sono, grandezza, colore e danno in più del colpo.
 func _shoot_bolt(direction: Vector2, ranged: Dictionary) -> void:
 	var bolt := EnemyBolt.new()
 	bolt.direction = direction
@@ -779,14 +789,14 @@ func _shoot_bolt(direction: Vector2, ranged: Dictionary) -> void:
 	bolt.altitude = ground_elevation
 	bolt.radius = float(ranged.get("bolt_radius", EnemyBolt.RADIUS))
 	bolt.color = World._color(ranged["color"]) if ranged.has("color") else _color.lightened(0.3)
-	bolt.arrow = ranged.get("arrow", false)
 	bolt.position = position + direction * radius
 	get_parent().add_child(bolt)
-	if bolt.arrow:
-		Sfx.play("bow", global_position)
+	_muzzle_flash = MUZZLE_FLASH_TIME
+	if not _casting:
+		Sfx.play("gunshot", global_position, 1.15 if _type.get("weapon", "") == "pistol" else 0.9)
 
 
-## Magia da lontano (voce "magic" del tipo): il giocatore è tra "min_range" e
+## Doppietta da lontano (voce "magic" del tipo): il giocatore è tra "min_range" e
 ## "range", nessun ostacolo in mezzo e il tiro con "chance" riesce; se non
 ## riesce si riprova dopo "retry" secondi.
 func _can_cast(distance: float) -> bool:
@@ -807,17 +817,17 @@ func _begin_cast() -> void:
 	_strikes = 0
 	_begin_windup(windup[0], windup[1], false)
 	_casting = true
-	Sfx.play("summon", global_position, 1.3, -6.0)
+	Sfx.play("reload", global_position)
 
 
-## Ventaglio di dardi verso il giocatore.
+## Rosa di pallettoni verso il giocatore.
 func _cast_magic() -> void:
 	var magic: Dictionary = _type["magic"]
 	var count := maxi(int(magic["bolts"]), 1)
 	var spread := deg_to_rad(float(magic["spread"]))
 	for i in count:
 		_shoot_bolt(_attack_direction.rotated((i - (count - 1) / 2.0) * spread), magic)
-	Sfx.play("fireball", global_position, 0.7)
+	Sfx.play("shotgun", global_position)
 
 
 func _finish_cast() -> void:
@@ -972,7 +982,7 @@ func _land_slam(player_active: bool, slam: Dictionary) -> void:
 	_air = 0.0
 	var impact_radius := float(slam["radius"])
 	GroundFx.shockwave(global_position, ground_elevation, impact_radius)
-	Sfx.play("fireball_hit", global_position, 0.5 / sqrt(_type["mass"]))
+	Sfx.play("impact", global_position, 0.5 / sqrt(_type["mass"]))
 	if player_active and player.global_position.distance_to(global_position) <= impact_radius + Player.RADIUS:
 		# Anche il colpo a terra si può parare: con una parata perfetta
 		# (istantanea, appena prima dell'impatto) si resta storditi.
@@ -1067,10 +1077,10 @@ func _on_screen() -> bool:
 	return _view.has_point(global_position - Vector2(0, ground_elevation))
 
 
-## Cerchi dove compariranno i nemici evocati e bagliore rosso dove atterrerà
+## Fumogeni dove compariranno i rinforzi e bagliore rosso dove atterrerà
 ## il salto con colpo a terra. L'attacco in carica non ha
-## più una zona a terra: si riconosce dal corpo che si accende e dalla spada
-## (o dal bastone) portata indietro.
+## più una zona a terra: si riconosce dal corpo che si accende e dall'arma
+## portata indietro (o dal puntatore laser delle armi da fuoco).
 func _draw_telegraph() -> void:
 	if _state == State.SLAM and not _slam_landed:
 		var slam: Dictionary = _type["slam"]
@@ -1082,6 +1092,11 @@ func _draw_telegraph() -> void:
 		for offset in _summon_positions:
 			Shapes.disc(_telegraph, offset, 24.0, Color(COLOR_SUMMON, 0.12))
 			Shapes.disc(_telegraph, offset, 24.0 * progress, Color(COLOR_SUMMON, 0.3))
+			# Fumo arancione che sale dal fumogeno.
+			for k in 3:
+				var t := fposmod(_state_time * 0.9 + k / 3.0, 1.0)
+				Shapes.disc(_telegraph, offset + Vector2(sin(k * 2.3 + _state_time * 2.0) * 6.0, -10.0 - 40.0 * t), 6.0 + 8.0 * t, Color(COLOR_SUMMON, 0.35 * (1.0 - t) * progress))
+			Shapes.disc(_telegraph, offset, 3.0, Color(1.0, 0.85, 0.5))
 
 
 func _draw() -> void:
@@ -1123,15 +1138,14 @@ func _draw() -> void:
 	Shapes.disc(self, _facing * radius * 0.5, maxf(radius * 0.2, 4.0), Color(0.1, 0.05, 0.1))
 	if is_boss():
 		_draw_crown()
+	if _state == State.SUMMON:
+		_draw_radio()
 	if is_casting():
-		_draw_magic()
-	if _is_ranged():
-		if _type["ranged"].get("arrow", false):
-			_draw_bow()
-		else:
-			_draw_staff()
+		_draw_gun("shotgun")
+	elif _is_ranged():
+		_draw_gun(_type.get("weapon", "pistol"))
 	else:
-		_draw_sword()
+		_draw_club()
 
 	if _state == State.STUNNED:
 		for i in 3:
@@ -1188,7 +1202,7 @@ func _draw_danger_back() -> void:
 		_danger_back.draw_mesh(_body_mesh, null, Transform2D.IDENTITY, Color(COLOR_DANGER, TRAIL_ALPHA * fade * fade))
 
 
-## Davanti al corpo: l'arco rosso lasciato dalla spada che fende.
+## Davanti al corpo: l'arco rosso lasciato dall'arma che colpisce.
 func _draw_danger_front() -> void:
 	if _state != State.STRIKE or _is_ranged():
 		return
@@ -1197,7 +1211,7 @@ func _draw_danger_front() -> void:
 	BodyParts.draw_trail(_danger_front, Vector2.ZERO, angles.x, angles.z, radius * 0.6, radius + float(_type["strike_reach"]), Color(COLOR_DANGER, 0.8))
 
 
-## Angoli della spada nel fendente: inizio, fine e posizione attuale.
+## Angoli dell'arma nel colpo: inizio, fine e posizione attuale.
 func _sword_angles() -> Vector3:
 	var arc := _strike_arc()
 	var start := _attack_direction.angle() - _swing_sign * arc / 2.0
@@ -1206,10 +1220,11 @@ func _sword_angles() -> Vector3:
 	return Vector3(start, end, angle)
 
 
-## Spada: a riposo di lato; durante la carica si porta indietro, poi
-## fende l'arco dell'attacco (il verso cambia a ogni attacco) lasciando
+## Arma contundente (voce "weapon" del tipo: mazza, manganello, tubo, mazza
+## da demolizione): a riposo di lato; durante la carica si porta indietro,
+## poi spazza l'arco dell'attacco (il verso cambia a ogni attacco) lasciando
 ## una scia.
-func _draw_sword() -> void:
+func _draw_club() -> void:
 	var length := radius + float(_type["strike_reach"]) * 0.6
 	var width := maxf(4.0, radius * 0.18)
 	var angles := _sword_angles()
@@ -1226,17 +1241,17 @@ func _draw_sword() -> void:
 			angle = _facing.angle() + 0.6
 	var hand := Vector2.from_angle(angle) * radius * 0.8 if _state in [State.WINDUP, State.STRIKE, State.RECOVER] else _facing.orthogonal() * radius * 0.8
 	if _state == State.GUARD:
-		# In guardia la spada è di traverso davanti al corpo.
+		# In guardia l'arma è di traverso davanti al corpo.
 		var across := -_facing.orthogonal()
 		angle = across.angle()
 		hand = _facing * radius * 0.95 - across * length * 0.45
 	var tint := Color(1.0, 0.9, 0.9) if _state == State.STRIKE else Color.WHITE
 	if _guard_flash > 0.0:
-		# La spada in guardia si illumina quando para un colpo.
+		# L'arma in guardia si illumina quando para un colpo.
 		var flash := _guard_flash / 0.25
 		Shapes.disc(self, hand + Vector2.from_angle(angle) * length * 0.45, 16.0 * flash, Color(COLOR_GUARD, 0.6 * flash))
 		tint = Color.WHITE.lerp(Color(1.4, 1.4, 1.5), flash)
-	BodyParts.draw_sword(self, hand, angle, length, width, tint)
+	BodyParts.draw_club(self, hand, angle, length, width * 1.3, _type.get("weapon", "bat"), tint)
 
 
 ## Alla morte il corpo cade a terra: si inclina, si abbassa e si stende.
@@ -1262,51 +1277,34 @@ func _corpse_color() -> Color:
 	return _color.darkened(0.2).lerp(Color(0.3, 0.27, 0.25), 0.2)
 
 
-## Sfera della magia sopra la testa: cresce durante la carica.
-func _draw_magic() -> void:
-	var color := World._color(_type["magic"]["color"])
-	var charge := minf(_state_time / _windup_time, 1.0) if _state == State.WINDUP else 1.0
-	var at := Vector2(0, -radius * 2.0)
-	var size := radius * 0.45 * (0.3 + 0.7 * charge)
-	Shapes.disc(self, at, size * 1.8, Color(color, 0.25 * charge))
-	Shapes.disc(self, at, size, color.lightened(0.2))
-	Shapes.disc(self, at, size * 0.45, Color(1, 1, 1, 0.9))
-
-
-## Bastone del lanciatore con la sfera che si accende caricando il dardo.
-func _draw_staff() -> void:
-	var hand := _facing.orthogonal() * radius * 0.8
-	var top := hand + Vector2(0, -radius * 1.4)
+## Arma da fuoco (pistola, fucile o la doppietta del boss): puntata verso
+## il giocatore durante la carica, con il puntatore laser rosso che si
+## allunga (il momento di schivare), e la vampata allo sparo.
+func _draw_gun(kind: String) -> void:
+	var aiming := _state in [State.WINDUP, State.STRIKE]
+	var direction := _attack_direction if aiming else _facing
+	var hand := _facing * radius * 0.55 + _facing.orthogonal() * radius * 0.45
+	var length := radius * (0.9 if kind == "pistol" else 1.5)
+	var width := maxf(3.0, radius * 0.16)
 	if _state == State.GUARD:
-		# In guardia il bastone è di traverso davanti al corpo.
-		hand = _facing * radius * 0.9 + _facing.orthogonal() * radius * 0.7
-		top = hand - _facing.orthogonal() * radius * 1.4
-	draw_line(hand + Vector2(0, radius * 0.5), top, Color(0.45, 0.3, 0.18), maxf(3.0, radius * 0.15))
-	var glow := 0.4
+		# In guardia l'arma è di traverso davanti al corpo.
+		direction = -_facing.orthogonal()
+		hand = _facing * radius * 0.9 + _facing.orthogonal() * radius * 0.6
 	if _state == State.WINDUP:
-		glow = 0.4 + 0.6 * _state_time / _windup_time
-	Shapes.disc(self, top, radius * 0.35 * (1.0 + glow * 0.4), Color(_color.lightened(0.4), 0.35 * glow))
-	Shapes.disc(self, top, radius * 0.22, _color.lightened(0.3 + 0.4 * glow))
+		var progress := clampf(_state_time / _windup_time, 0.0, 1.0)
+		var muzzle := hand + direction * length
+		draw_line(muzzle, muzzle + direction * radius * 6.0 * progress, Color(1.0, 0.1, 0.1, 0.25 + 0.4 * progress), 1.5)
+		Shapes.disc(self, muzzle + direction * radius * 6.0 * progress, 2.5, Color(1.0, 0.2, 0.2, 0.8))
+	BodyParts.draw_gun(self, hand, direction.angle(), length, width, kind, _muzzle_flash / MUZZLE_FLASH_TIME)
 
 
-## Arco dell'arciere: la corda si tende caricando il tiro, con la freccia
-## incoccata (che parte al momento del tiro).
-func _draw_bow() -> void:
-	var pull := minf(_state_time / _windup_time, 1.0) if _state == State.WINDUP else 0.0
-	var center := _facing * radius * 0.9
-	var across := _facing.orthogonal()
-	var points := PackedVector2Array()
-	for i in 7:
-		var t := i / 6.0
-		points.append(center + across * radius * lerpf(1.1, -1.1, t) + _facing * radius * 0.45 * sin(PI * t))
-	var wood := Color(0.5, 0.33, 0.18)
-	draw_polyline(points, wood, maxf(3.0, radius * 0.15))
-	var nock := center - _facing * radius * 0.6 * pull
-	draw_polyline(PackedVector2Array([points[0], nock, points[6]]), Color(0.9, 0.88, 0.8, 0.8), 1.5)
-	if _state == State.WINDUP:
-		var tip := nock + _facing * radius * 1.7
-		draw_line(nock, tip, wood.lightened(0.3), 2.0)
-		draw_colored_polygon(PackedVector2Array([tip + _facing * 7.0, tip + across * 3.5, tip - across * 3.5]), Color(0.8, 0.82, 0.85))
+## Radio con l'antenna e la spia che lampeggia mentre chiama i rinforzi.
+func _draw_radio() -> void:
+	var at := -_facing.orthogonal() * radius * 0.7 + Vector2(0, -radius * 0.3)
+	draw_rect(Rect2(at - Vector2(5, 7), Vector2(10, 14)), Color(0.15, 0.17, 0.15))
+	draw_line(at + Vector2(3, -7), at + Vector2(6, -radius * 1.1), Color(0.1, 0.1, 0.1), 2.0)
+	if int(_state_time * 8.0) % 2 == 0:
+		Shapes.disc(self, at + Vector2(6, -radius * 1.1), 3.0, Color(1.0, 0.3, 0.2))
 
 
 static func _closed(points: PackedVector2Array) -> PackedVector2Array:
