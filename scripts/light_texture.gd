@@ -2,26 +2,12 @@ class_name LightTexture
 ## Texture per le luci 2D (torcia, palla di fuoco): luce piena al centro
 ## che sfuma ai bordi, a forma di ellisse larga il doppio che alta, come un
 ## cerchio a terra visto nella prospettiva isometrica. Creata una volta sola
-## e condivisa. C'è anche il fascio a cono della torcia elettrica (vedi
-## get_cone_texture e Flashlight).
+## e condivisa.
 
 const SIZE := 512
 const HEIGHT := 256
-## Fascio a cono: texture quadrata col vertice al centro e il cono verso
-## destra (+X), disegnata in pianta (Flashlight la schiaccia a terra).
-## CONE_HALF_ANGLE è metà dell'apertura, CONE_SOFT la sfumatura dei bordi;
-## attorno al vertice c'è un alone tenue largo CONE_HALO (frazione della portata).
-const CONE_SIZE := 256
-const CONE_HALF_ANGLE := deg_to_rad(28.0)
-const CONE_SOFT := deg_to_rad(9.0)
-const CONE_HALO := 0.2
-const CONE_HALO_ENERGY := 0.4
-## Il fascio si accende tra queste distanze dal vertice (frazioni della
-## portata): la torcia non abbaglia chi la tiene.
-const CONE_START := Vector2(0.04, 0.2)
 
 static var _texture: GradientTexture2D
-static var _cone: ImageTexture
 
 
 static func get_texture() -> GradientTexture2D:
@@ -39,25 +25,3 @@ static func get_texture() -> GradientTexture2D:
 		_texture.height = HEIGHT
 	return _texture
 
-
-## Fascio della torcia elettrica: pieno poco davanti al vertice, si spegne
-## verso la fine della portata (metà della texture) e ai bordi del cono,
-## più un alone tenue tutto attorno al vertice (illumina il personaggio e
-## chi gli sta alle spalle appena appena).
-static func get_cone_texture() -> ImageTexture:
-	if _cone == null:
-		var image := Image.create(CONE_SIZE, CONE_SIZE, false, Image.FORMAT_RGBA8)
-		var middle := Vector2(CONE_SIZE, CONE_SIZE) / 2.0
-		for x in CONE_SIZE:
-			for y in CONE_SIZE:
-				var offset := (Vector2(x + 0.5, y + 0.5) - middle) / middle.x
-				var distance := offset.length()
-				var halo := CONE_HALO_ENERGY * (1.0 - smoothstep(0.0, CONE_HALO, distance))
-				var beam := 0.0
-				if distance < 1.0:
-					var side := absf(offset.angle())
-					beam = (1.0 - smoothstep(CONE_HALF_ANGLE - CONE_SOFT, CONE_HALF_ANGLE + CONE_SOFT, side)) \
-							* (1.0 - smoothstep(0.45, 1.0, distance)) * smoothstep(CONE_START.x, CONE_START.y, distance)
-				image.set_pixel(x, y, Color(1, 1, 1, clampf(maxf(beam, halo), 0.0, 1.0)))
-		_cone = ImageTexture.create_from_image(image)
-	return _cone

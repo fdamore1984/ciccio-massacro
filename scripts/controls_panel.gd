@@ -14,7 +14,7 @@ const ROWS := [
 	["CONTROLS_RUN", [["run"]]], ["CONTROLS_FOCUS", [["focus"]]], ["CONTROLS_SPELL", [["spell"]]],
 	["CONTROLS_SHIELD", [["shield"]]], ["CONTROLS_POTION", [["potion"]]], ["CONTROLS_MANA", [["mana_potion"]]],
 	["CONTROLS_BATTERY_POTION", [["battery_potion"]]], ["CONTROLS_INVENTORY", [["inventory"], ["inventory_sort"]]],
-	["CONTROLS_MAP", [["map"]]], ["CONTROLS_LOCK", [["lock_on"]]], ["CONTROLS_MENU", [["menu"]]],
+	["CONTROLS_MAP", [["map"]]], ["CONTROLS_MENU", [["menu"]]],
 ]
 const MOVE_ACTIONS := ["move_up", "move_left", "move_down", "move_right"]
 const SPECIALS := ["CONTROLS_SPECIAL_MIXED", "CONTROLS_SPECIAL_CHARGED", "CONTROLS_SPECIAL_AIR", "CONTROLS_SPECIAL_PLUNGE", "CONTROLS_SPECIAL_DASH"]

@@ -1,16 +1,16 @@
 class_name Voice
 extends AudioStreamPlayer2D
-## Voce di un personaggio (giocatore e nemici): un verso di dolore quando
-## viene colpito e un urlo straziante quando muore (suoni sintetizzati in
-## Sfx). Ognuno ha il suo tono (tone: 1 = voce normale, più basso = più
+## Voce di un personaggio (giocatore e nemici): un verso breve e secco a
+## onda quadra (stile 8 bit) quando viene colpito e uno appena più lungo
+## quando muore (suoni sintetizzati in Sfx). Ognuno ha il suo tono (tone: 1 = voce normale, più basso = più
 ## profonda). I versi di dolore partono da questo nodo e non si
 ## accavallano: un nuovo colpo non interrompe un verso appena iniziato, e in
 ## tutto il gioco ne partono al più MAX_PAINS insieme (per esempio quando un
-## attacco a terra colpisce molti nemici). L'urlo usa un lettore di Sfx,
+## attacco a terra colpisce molti nemici). Il verso di morte usa un lettore di Sfx,
 ## così continua anche dopo che il nemico morto è sparito.
 
 const PAIN_VOLUME := -4.0
-const SCREAM_VOLUME := 0.0
+const SCREAM_VOLUME := -3.0
 const PAIN_MIN_GAP := 0.2
 const MAX_PAINS := 3
 const PAIN_WINDOW := 0.25

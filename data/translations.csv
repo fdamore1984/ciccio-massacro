@@ -171,7 +171,6 @@ DUNGEON_LEVEL,Inside · floor %d of %d,Dentro · piano %d di %d
 BOSS_NAME,The Warlord,Il Signore della Guerra
 BOSS_DEFEATED,Warlord defeated! The way out is open,Signore della Guerra sconfitto! L'uscita è aperta
 MENU_CREDITS,Created by fdamore1984 with Claude Code,Creato da fdamore1984 con Claude Code
-CONTROLS_LOCK,Lock on the nearest enemy (press again to switch to the nearest one),Aggancia il nemico più vicino (premi di nuovo per passare al più vicino)
 MAP_TITLE,Map,Mappa
 MAP_HINT,%s / B: close,%s / B: chiudi
 CONTROLS_MAP,Map,Mappa
