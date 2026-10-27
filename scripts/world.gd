@@ -4,17 +4,20 @@ extends Node2D
 ## e generato a caso. Parametri in data/world.json.
 ##
 ## L'ambientazione è una città distrutta. Ogni rombo della griglia è un
-## blocco quadrato di cemento o asfalto (o di strada, nel codice "path")
-## con il marciapiede in cima e le pareti di mattoni ai lati, a un livello
-## di altezza preso dal rumore: si formano piattaforme a gradini, rialzi e
-## terrapieni.
+## blocco quadrato di cemento o asfalto (o di strada, nel codice "path"):
+## la pianta (vedi CityPlan) ha strade di larghezza diversa, vicoli ciechi,
+## viali alberati, isolati divisi in lotti con case, negozi, uffici,
+## condomini, grattacieli (gli edifici, nel codice "mountain", alti e
+## rovinati in modo diverso), parchi, parcheggi, piazzette con l'ingresso
+## della metropolitana e cumuli di macerie.
 ## Alcuni blocchi sono rampe inclinate che salgono di un livello. Si sale
 ## sui blocchi più alti saltando (un livello col salto normale, di più con
 ## i salti in aria) e si scende cadendo; anche i nemici scendono dai gradini
-## e saltano su quelli alti un livello (vedi Enemy), ma nelle fessure non vanno. Sopra ci sono ostacoli: rovine
-## (nel codice "tree": muri crollati, lampioni piegati, auto bruciate),
-## macerie ("rock"), cumuli di rottami che rallentano ("bush") e casse con
-## il bottino. Qua e là ci sono arene: ampie piazze piane e libere con al
+## e saltano su quelli alti un livello (vedi Enemy), ma nelle fessure non
+## vanno. Ci sono anche le casse con il bottino. Ostacoli: alberi secchi ("tree", sui viali e nei parchi),
+## lampioni piegati ("lamp"), pensiline ("shelter"), ingressi della
+## metropolitana ("metro"), macerie ("rock") e cumuli di rottami ("bush"),
+## secondo la zona. Qua e là ci sono arene: ampie piazze piane e libere con al
 ## centro una sirena ("totem") che avvia una sfida (vedi Game).
 ## Lunghe file di grattacieli in rovina ("mountain") e fessure aperte dai
 ## terremoti ("ravine") non si attraversano (hanno qualche passaggio);
@@ -133,14 +136,21 @@ var _region_total := 0
 var _view_queue: Array[Vector2i] = []
 var _dungeon_data: Dictionary = DATA.data["dungeon"]
 var _levels: int
-var _ruins_noise := FastNoiseLite.new()
 var _ridge_noise := FastNoiseLite.new()
 var _gap_noise := FastNoiseLite.new()
 var _barrier_kind_noise := FastNoiseLite.new()
 ## Dati calcolati per rombo: livello, tipo (Kind), rampa, sentiero.
 var _level_cache := {}
-## Isolato -> altezza del suo palazzo (vedi _block_height).
-var _block_cache := {}
+## Pianta della città (vedi CityPlan) e codice di ogni rombo già chiesto.
+var _city: CityPlan
+var _city_data: Dictionary = DATA.data["city"]
+var _city_cache := {}
+## Colori degli stili degli edifici (nell'ordine di CityPlan.styles) e
+## delle zone a terra (zona -> colore).
+var _style_tops: Array[Color] = []
+var _style_faces: Array = []
+var _zone_colors := {}
+var _max_building := 1
 var _kind_cache := {}
 var _ramp_cache := {}
 var _path_cache := {}
@@ -148,8 +158,6 @@ var _path_cache := {}
 var _ground_colors: Array[Color] = []
 var _face_colors: Array[Color] = []
 var _fissure_face_colors: Array[Color] = []
-var _tower_colors: Array[Color] = []
-var _tower_face_colors: Array[Color] = []
 var _window_colors: Array[Color] = []
 var _dungeon_floor_colors: Array[Color] = []
 var _dungeon_face_colors: Array[Color] = []
@@ -194,8 +202,18 @@ func _ready() -> void:
 	_ground_colors = _colors(_terrain["ground_colors"])
 	_face_colors = _colors(_terrain["face_colors"])
 	_fissure_face_colors = _colors(_terrain["fissure_face_colors"])
-	_tower_colors = _colors(_terrain["tower_colors"])
-	_tower_face_colors = _colors(_terrain["tower_face_colors"])
+	_city = CityPlan.new(seed_value, _city_data)
+	for style: String in _city.styles:
+		var info: Dictionary = _city_data["styles"][style]
+		_style_tops.append(_color(info["top"]))
+		_style_faces.append(_colors(info["faces"]))
+	var ground: Dictionary = _city_data["ground"]
+	for zone: String in ground:
+		_zone_colors[CityPlan.ZONE_NAMES.find(zone)] = _color(ground[zone])
+	var lots: Dictionary = _city_data["lots"]
+	for kind: String in lots:
+		if lots[kind].has("height"):
+			_max_building = maxi(_max_building, int(lots[kind]["height"][1]))
 	_window_colors = _colors(_terrain["window_colors"])
 	_dungeon_floor_colors = _colors(_dungeon_data["floor_colors"])
 	_dungeon_face_colors = _colors(_dungeon_data["face_colors"])
@@ -227,15 +245,15 @@ func _exit_tree() -> void:
 func set_seed(value: int) -> void:
 	seed_value = value
 	_setup_noises()
+	_city = CityPlan.new(seed_value, _city_data)
+	_city_cache.clear()
 	_arena_cache.clear()
-	_block_cache.clear()
 	_merchant_cache.clear()
 	_sites_cache.clear()
 	set_dungeon(dungeon)
 
 
 func _setup_noises() -> void:
-	_setup_noise(_ruins_noise, 2, _terrain["ruins_frequency"], 2)
 	_setup_noise(_ridge_noise, 4, _terrain["barrier_frequency"], 1)
 	_setup_noise(_gap_noise, 5, _terrain["barrier_gap_frequency"], 1)
 	_setup_noise(_barrier_kind_noise, 6, _terrain["barrier_kind_frequency"], 1)
@@ -441,59 +459,44 @@ func level_of(cell: Vector2i) -> int:
 			kind = Kind.ROCK
 			level = dungeon.wall_level
 	else:
-		# Il terreno è tutto piano (livello 0): ci sono solo i palazzi degli
-		# isolati e le fessure dei terremoti.
+		# Il terreno è tutto piano (livello 0): ci sono gli edifici della
+		# pianta (vedi CityPlan) e le fessure dei terremoti.
 		var center := cell_center(cell)
-		var building := _building_height(cell)
+		var city := _city_code(cell)
 		if _barrier_strength(center) > 0.0 and _barrier_kind_noise.get_noise_2dv(center) < 0.0:
 			kind = Kind.RAVINE
 			level = -int(_terrain["ravine_depth"])
-		elif building > 0:
+		elif CityPlan.zone_of(city) == CityPlan.Zone.BUILDING:
 			kind = Kind.MOUNTAIN
-			level = _levels + building
+			level = _levels + CityPlan.height_of(city)
 	_kind_cache[cell] = kind
 	_level_cache[cell] = level
 	return level
 
 
-## Pianta a griglia della città: isolati quadrati di "city_block" rombi,
-## separati da strade dritte larghe "city_road" rombi. Un isolato su tanti
-## ("building_chance") è un palazzo che lo occupa tutto tranne il
-## marciapiede attorno; gli altri sono spiazzi con rovine e macerie.
-## Restituisce i livelli d'altezza del palazzo (0: niente palazzo).
-func _building_height(cell: Vector2i) -> int:
-	var size := int(_terrain["city_block"])
-	var road := int(_terrain["city_road"])
-	var block := Vector2i(floori(float(cell.x) / size), floori(float(cell.y) / size))
-	var local := cell - block * size
-	if local.x <= road or local.y <= road or local.x >= size - 1 or local.y >= size - 1:
-		return 0
-	return _block_height(block)
-
-
-func _block_height(block: Vector2i) -> int:
-	var cached: Variant = _block_cache.get(block)
+## Codice del rombo nella pianta della città (vedi CityPlan.code), con
+## la partenza, le piazze delle sirene e gli spiazzi dei commercianti
+## sempre liberi da edifici (lì restano cortili).
+func _city_code(cell: Vector2i) -> int:
+	var cached: Variant = _city_cache.get(cell)
 	if cached != null:
 		return cached
-	var size := int(_terrain["city_block"])
-	var rng := RandomNumberGenerator.new()
-	rng.seed = hash([seed_value, block.x, block.y, "building"])
-	var height := 0
-	if rng.randf() < float(_terrain["building_chance"]):
-		var levels: Array = _terrain["building_levels"]
-		height = rng.randi_range(levels[0], levels[1])
-		# Niente palazzi sulla partenza, sulle piazze delle sirene e sugli
-		# spiazzi dei commercianti.
-		var center := cell_center(block * size + Vector2i(size / 2, size / 2))
-		var reach := size * CELL * 0.8
+	var result := _city.code(cell)
+	if CityPlan.zone_of(result) == CityPlan.Zone.BUILDING:
+		var center := cell_center(cell)
 		var arena := arena_near(center)
 		var merchant := merchant_near(center)
-		if center.length() < float(_terrain["start_flat_radius"]) + reach \
-				or (arena != Vector2.INF and center.distance_to(arena) < float(_arena["radius"]) + reach) \
-				or (merchant != Vector2.INF and center.distance_to(merchant) < float(_merchant["clear_radius"]) + reach):
-			height = 0
-	_block_cache[block] = height
-	return height
+		if center.length() < float(_terrain["start_flat_radius"]) \
+				or (arena != Vector2.INF and center.distance_to(arena) < float(_arena["radius"]) + CELL) \
+				or (merchant != Vector2.INF and center.distance_to(merchant) < float(_merchant["clear_radius"]) + CELL):
+			result = CityPlan.Zone.YARD
+	_city_cache[cell] = result
+	return result
+
+
+## Zona del rombo nella pianta della città (vedi CityPlan.Zone).
+func _zone(cell: Vector2i) -> int:
+	return CityPlan.zone_of(_city_code(cell))
 
 
 ## Le fessure dei terremoti (nel codice "barriere": prima erano anche
@@ -552,8 +555,8 @@ func ramp_of(cell: Vector2i) -> Vector2i:
 	return result
 
 
-## Strada: la griglia delle strade tra gli isolati, e le piazze attorno
-## alla sirena delle arene e ai commercianti.
+## Strada: le strade e i vicoli della pianta, e le piazze attorno alla
+## sirena delle arene e ai commercianti.
 func is_path(cell: Vector2i) -> bool:
 	var cached: Variant = _path_cache.get(cell)
 	if cached != null:
@@ -568,10 +571,8 @@ func is_path(cell: Vector2i) -> bool:
 		elif merchant != Vector2.INF and center.distance_to(merchant) < float(_merchant["plaza_radius"]):
 			result = true
 		else:
-			# Le strade dritte tra gli isolati (vedi _building_height).
-			var size := int(_terrain["city_block"])
-			var road := int(_terrain["city_road"])
-			result = posmod(cell.x, size) < road or posmod(cell.y, size) < road
+			# Strade e vicoli della pianta (vedi CityPlan).
+			result = _zone(cell) in [CityPlan.Zone.ROAD, CityPlan.Zone.ALLEY]
 	_path_cache[cell] = result
 	return result
 
@@ -1075,8 +1076,11 @@ func _site_obstacle(type_id: String, at: Vector2, radius: float, collision: floa
 	}
 
 
-## Sceglie quale ostacolo mettere sul blocco (o nessuno), con probabilità
-## che dipendono dalla zona: quartieri in rovina, alture, bordi dei gradini.
+## Sceglie quale ostacolo mettere sul blocco (o nessuno), con le
+## probabilità della sua zona ("obstacles" della voce "city"): alberi secchi
+## sui viali e nei parchi, lampioni e pensiline sui marciapiedi, macerie e
+## rottami nei cortili e sulle macerie, l'ingresso della metropolitana al
+## centro della sua piazzetta.
 func _pick_obstacle(cell: Vector2i, rng: RandomNumberGenerator) -> String:
 	var center := cell_center(cell)
 	if center.length() < float(_terrain["start_clear_radius"]) or kind_of(cell) != Kind.GROUND \
@@ -1088,22 +1092,10 @@ func _pick_obstacle(cell: Vector2i, rng: RandomNumberGenerator) -> String:
 	var merchant := merchant_near(center)
 	if merchant != Vector2.INF and center.distance_to(merchant) < float(_merchant["clear_radius"]) + CELL:
 		return ""
-	var ruins := clampf(_ruins_noise.get_noise_2dv(center) * 2.0, 0.0, 1.0)
-	var level := level_of(cell)
-	var near_edge := false
-	for step: Vector2i in RAMP_DIRECTIONS:
-		if level_of(cell + step) != level:
-			near_edge = true
-			break
+	var table: Dictionary = _city_data["obstacles"].get(CityPlan.ZONE_NAMES[_zone(cell)], {})
 	var roll := rng.randf()
-	for type_id: String in _obstacle_types:
-		var type: Dictionary = _obstacle_types[type_id]
-		var chance: float = type["chance"]
-		chance += float(type.get("ruins_bonus", 0.0)) * ruins
-		chance += float(type.get("level_bonus", 0.0)) * level
-		if near_edge:
-			chance += float(type.get("edge_bonus", 0.0))
-		roll -= chance
+	for type_id: String in table:
+		roll -= float(table[type_id])
 		if roll < 0.0:
 			return type_id
 	return ""
@@ -1173,7 +1165,7 @@ func _forget_outside(keep: Rect2i) -> void:
 			_chunk_obstacles.erase(chunk)
 	_near_cache.clear()
 	_close_cache.clear()
-	for cache: Dictionary in [_level_cache, _ramp_cache, _path_cache, _kind_cache]:
+	for cache: Dictionary in [_level_cache, _ramp_cache, _path_cache, _kind_cache, _city_cache]:
 		for cell: Vector2i in cache.keys():
 			if not keep.has_point(_chunk_of(cell)):
 				cache.erase(cell)
@@ -1234,7 +1226,7 @@ func _view_rect(margin: float) -> Rect2:
 
 ## Livello più alto possibile: le cime delle montagne o la roccia del sotterraneo.
 func _max_level() -> int:
-	return dungeon.wall_level if dungeon else _levels + 4
+	return dungeon.wall_level if dungeon else _levels + _max_building
 
 
 func _chunk_bounds(chunk: Vector2i) -> Rect2:
@@ -1318,7 +1310,7 @@ func draw_floor(canvas: CanvasItem, cell: Vector2i, offset: Vector2) -> void:
 		corners[k] += offset
 		top.append(corners[k] - Vector2(0, base))
 	var kind := kind_of(cell)
-	var faces := _face_colors_of(kind)
+	var faces := _face_colors_of(kind, cell)
 	_draw_face(canvas, corners, heights, cell + Vector2i(1, 0), 1, 2, 0, 3, faces[0], false)
 	_draw_face(canvas, corners, heights, cell + Vector2i(0, 1), 2, 3, 1, 0, faces[1], false)
 	canvas.draw_colored_polygon(top, _top_color(cell, kind, is_path(cell)).darkened(0.15))
@@ -1337,7 +1329,7 @@ func draw_cell(canvas: CanvasItem, cell: Vector2i, offset: Vector2) -> void:
 	var kind := kind_of(cell)
 	# Parete destra (lato destra-basso, vicino (u+1, v)) e sinistra (lato
 	# basso-sinistra, vicino (u, v+1)): i vertici combaciano con quelli del vicino.
-	var faces := _face_colors_of(kind)
+	var faces := _face_colors_of(kind, cell)
 	var lip := kind == Kind.GROUND and dungeon == null
 	var windows := kind == Kind.MOUNTAIN
 	for side in 2:
@@ -1366,19 +1358,25 @@ func draw_cell(canvas: CanvasItem, cell: Vector2i, offset: Vector2) -> void:
 func _top_color(cell: Vector2i, kind: int, path: bool) -> Color:
 	match kind:
 		Kind.MOUNTAIN:
-			return _tower_colors[posmod(level_of(cell), _tower_colors.size())]
+			# Il tetto dello stile, appena più chiaro o più scuro da un rombo all'altro.
+			var top := _style_tops[CityPlan.style_of(_city_code(cell))]
+			return top.lightened(0.04) if posmod(level_of(cell), 2) == 0 else top
 		Kind.RAVINE:
 			return _fissure_color
 		Kind.ROCK:
 			return _dungeon_wall_color
 	if dungeon:
 		return _dungeon_floor_colors[posmod(hash([cell.x, cell.y]), _dungeon_floor_colors.size())]
-	return _road_color if path else _ground_colors[clampi(level_of(cell), 0, _levels - 1)]
+	if path:
+		return _road_color
+	return _zone_colors.get(_zone(cell), _ground_colors[clampi(level_of(cell), 0, _levels - 1)])
 
 
-func _face_colors_of(kind: int) -> Array[Color]:
+func _face_colors_of(kind: int, cell: Vector2i) -> Array[Color]:
 	if kind == Kind.MOUNTAIN:
-		return _tower_face_colors
+		var faces: Array[Color] = []
+		faces.assign(_style_faces[CityPlan.style_of(_city_code(cell))])
+		return faces
 	if dungeon:
 		return _dungeon_face_colors
 	return _face_colors
@@ -1430,35 +1428,70 @@ func _draw_face(canvas: CanvasItem, corners: PackedVector2Array, heights: Array[
 	canvas.draw_line(a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), Color(0, 0, 0, 0.3), 2.0)
 
 
-## Finestre del grattacielo in rovina sulla parete tra a e b (dall'alto
-## top alla base bottom): file di finestre buie, qualcuna rotta o con una
-## luce calda accesa, uguali ogni volta per lo stesso blocco.
+## Finestre dell'edificio in rovina sulla parete tra a e b (dall'alto top
+## alla base bottom), secondo il suo stile ("windows" in "styles"): file
+## di finestre buie (o vetrate, negli uffici), qualcuna murata, qualcuna
+## annerita dal fuoco o con una luce calda accesa, i balconi dei condomini
+## e, al piano terra dei negozi, la vetrina con la tenda colorata; uguali
+## ogni volta per lo stesso blocco.
 func _draw_windows(canvas: CanvasItem, a: Vector2, b: Vector2, top_a: float, top_b: float,
 		bottom_a: float, bottom_b: float, cell: Vector2i, side: int) -> void:
+	var style: Dictionary = _city_data["styles"][_city.styles[CityPlan.style_of(_city_code(cell))]]
+	var windows: Dictionary = style.get("windows", {})
+	if windows.is_empty():
+		return
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([_decor_seed(), cell.x, cell.y, side, "windows"])
 	var height := minf(top_a - bottom_a, top_b - bottom_b)
-	var columns := 3
-	var row := 18.0
+	var columns := int(windows["columns"])
+	var row := float(windows["row"])
+	var size := float(windows["size"])
+	var dark := _color(windows["glass"]) if windows.has("glass") else _window_colors[0]
+	var reserved := 0.0
+	if style.get("shopfront", false) and maxf(bottom_a, bottom_b) < 1.0 and height >= 28.0:
+		# Vetrina al piano terra, con la tenda sopra e la saracinesca a metà.
+		reserved = 26.0
+		var awnings: Array = style["awnings"]
+		var awning := _color(awnings[rng.randi() % awnings.size()]).darkened(0.15)
+		var p0 := a.lerp(b, 0.08)
+		var p1 := a.lerp(b, 0.92)
+		var h0 := lerpf(bottom_a, bottom_b, 0.08)
+		var h1 := lerpf(bottom_a, bottom_b, 0.92)
+		canvas.draw_colored_polygon(PackedVector2Array([p0 - Vector2(0, h0 + 3.0), p1 - Vector2(0, h1 + 3.0),
+				p1 - Vector2(0, h1 + 18.0), p0 - Vector2(0, h0 + 18.0)]), _window_colors[0])
+		var shutter := rng.randf_range(0.3, 0.8)
+		canvas.draw_colored_polygon(PackedVector2Array([p0 - Vector2(0, h0 + 18.0 - 15.0 * shutter), p1 - Vector2(0, h1 + 18.0 - 15.0 * shutter),
+				p1 - Vector2(0, h1 + 18.0), p0 - Vector2(0, h0 + 18.0)]), Color(0.42, 0.42, 0.4))
+		canvas.draw_colored_polygon(PackedVector2Array([a - Vector2(0, bottom_a + 18.0), b - Vector2(0, bottom_b + 18.0),
+				b - Vector2(0, bottom_b + 24.0), a - Vector2(0, bottom_a + 24.0)]), awning)
 	var depth := 8.0
-	while depth + 10.0 < height:
+	while depth + size + 2.0 < height - reserved:
 		for k in columns:
 			var t0 := (k + 0.2) / columns
 			var t1 := (k + 0.8) / columns
 			var roll := rng.randf()
-			if roll < 0.12:
+			if roll < float(windows["missing"]):
 				continue
-			var color := _window_colors[0]
-			if roll > 0.95:
+			var color := dark
+			if roll > 0.96:
 				color = _window_colors[2]
-			elif roll > 0.6:
+			elif roll > 0.65:
 				color = _window_colors[1]
 			var p0 := a.lerp(b, t0)
 			var p1 := a.lerp(b, t1)
 			var h0 := lerpf(top_a, top_b, t0) - depth
 			var h1 := lerpf(top_a, top_b, t1) - depth
 			canvas.draw_colored_polygon(PackedVector2Array([p0 - Vector2(0, h0), p1 - Vector2(0, h1),
-					p1 - Vector2(0, h1 - 10.0), p0 - Vector2(0, h0 - 10.0)]), color)
+					p1 - Vector2(0, h1 - size), p0 - Vector2(0, h0 - size)]), color)
+			# Fuliggine di un incendio sopra la finestra.
+			if roll > 0.9 and roll <= 0.96:
+				var middle := (p0 + p1) / 2.0 - Vector2(0, (h0 + h1) / 2.0)
+				canvas.draw_colored_polygon(PackedVector2Array([middle + (p0 - p1) * 0.4, middle - (p0 - p1) * 0.4,
+						middle - Vector2(0, 9.0)]), Color(0.05, 0.05, 0.05, 0.6))
+		if windows.get("balconies", false):
+			var h0 := top_a - depth - size - 2.0
+			var h1 := top_b - depth - size - 2.0
+			canvas.draw_line(a.lerp(b, 0.1) - Vector2(0, lerpf(h0, h1, 0.1)), a.lerp(b, 0.9) - Vector2(0, lerpf(h0, h1, 0.9)), Color(0.25, 0.24, 0.22), 3.0)
 		depth += row
 
 
@@ -1503,7 +1536,7 @@ func _draw_decor(canvas: CanvasItem, cell: Vector2i, offset: Vector2, kind: int,
 		for k in rng.randi_range(2, 4):
 			var at := _decor_point(cell, rng, offset)
 			canvas.draw_circle(at, rng.randf_range(1.5, 3.0), _debris_colors[k % _debris_colors.size()])
-		if path and not dungeon and rng.randf() < 0.5:
+		if path and not dungeon and rng.randf() < 0.5 and _zone(cell) == CityPlan.Zone.ROAD:
 			var at := _decor_point(cell, rng, offset)
 			canvas.draw_line(at - Vector2(9, 4.5), at + Vector2(9, 4.5), Color(_lane_color, 0.55), 3.0)
 		if dungeon and rng.randf() < float(_dungeon_data["glowstick_chance"]):
@@ -1512,7 +1545,19 @@ func _draw_decor(canvas: CanvasItem, cell: Vector2i, offset: Vector2, kind: int,
 			canvas.draw_circle(at, 9.0, Color(glow, 0.22))
 			canvas.draw_line(at + Vector2(-4, 1), at + Vector2(4, -2), glow.lightened(0.3), 3.0)
 		return
-	var crack := _ground_colors[clampi(level_of(cell), 0, _levels - 1)].darkened(0.35)
+	var zone := _zone(cell)
+	if zone == CityPlan.Zone.PARK or zone == CityPlan.Zone.MEDIAN:
+		# Erba secca a ciuffi.
+		var tufts := PackedVector2Array()
+		for k in rng.randi_range(3, 6):
+			var at := _decor_point(cell, rng, offset)
+			tufts.append_array([at, at + Vector2(-2, -5), at, at + Vector2(2, -6)])
+		canvas.draw_multiline(tufts, Color(0.55, 0.5, 0.28, 0.8), 1.5)
+	elif zone == CityPlan.Zone.PARKING and posmod(cell.x, 2) == 0:
+		# Strisce sbiadite dei posti auto.
+		var corners := cell_corners(cell)
+		canvas.draw_line(corners[0] + offset, corners[3] + offset, Color(0.8, 0.8, 0.75, 0.35), 2.0)
+	var crack := _top_color(cell, Kind.GROUND, false).darkened(0.35)
 	var lines := PackedVector2Array()
 	for k in rng.randi_range(_crack_range.x, _crack_range.y):
 		var at := _decor_point(cell, rng, offset)
@@ -1568,7 +1613,7 @@ func set_dungeon(value: Dungeon) -> void:
 	_chunk_obstacles.clear()
 	_near_cache.clear()
 	_close_cache.clear()
-	for cache: Dictionary in [_level_cache, _ramp_cache, _path_cache, _kind_cache]:
+	for cache: Dictionary in [_level_cache, _ramp_cache, _path_cache, _kind_cache, _city_cache]:
 		cache.clear()
 	region = Rect2i()
 	var ground := _dungeon_wall_color if dungeon else _ground_colors[0].darkened(0.3)
@@ -1713,8 +1758,10 @@ func _cave_in_chunk(chunk: Vector2i) -> Dictionary:
 			for side: Vector2i in [Vector2i(-1, 0), Vector2i(0, -1)]:
 				# Un tratto dritto di parete: montagna dietro e ai due lati.
 				var along := Vector2i(side.y, side.x)
+				# Solo negli edifici di almeno qualche piano, non nelle case basse.
+				var tall := _levels + int(_city_data["cave_min_levels"])
 				if kind_of(cell + side) != Kind.MOUNTAIN or kind_of(cell + side + along) != Kind.MOUNTAIN \
-						or kind_of(cell + side - along) != Kind.MOUNTAIN \
+						or kind_of(cell + side - along) != Kind.MOUNTAIN or level_of(cell + side) < tall \
 						or _random_unit([seed_value, cell.x, cell.y, side.x, "cave"]) >= chance:
 					continue
 				# La parete della montagna è il lato del blocco che dà sulla montagna.
