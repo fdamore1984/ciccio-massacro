@@ -40,6 +40,7 @@ func _ready() -> void:
 			await _capture_merchant(language)
 			await _capture_slam(language)
 			await _capture_air_charge(language)
+			await _capture_h_bomb(language)
 			await _capture_cave(language)
 			await _capture_dungeon(language)
 	get_tree().quit()
@@ -168,6 +169,7 @@ func _capture_challenge(language: String) -> void:
 	_player.torch_on = true
 	_player._torch.enabled = true
 	_player._torch.position = Vector2(0, -_player.ground_elevation + Player.RADIUS * 0.6)
+	_player._torch.aim(_player.facing)
 	var missile := Missile.new()
 	missile.position = _player.position + Vector2(120, -70)
 	missile.direction = Vector2(1, -0.4).normalized()
@@ -288,8 +290,8 @@ func _capture_slam(language: String) -> void:
 	_end_game()
 
 
-## Slam aereo in carica: Ciccio fluttua a mezz'aria con la motosega su di
-## giri, mentre un fuciliere e un pistolero gli sparano contro.
+## Bomba H in carica: Ciccio fluttua a mezz'aria con la bomba sopra la
+## testa, mentre un fuciliere e un pistolero gli sparano contro.
 func _capture_air_charge(language: String) -> void:
 	await _start_game(Vector2(0, -40), 1.25)
 	_player.level = 5
@@ -326,6 +328,41 @@ func _capture_air_charge(language: String) -> void:
 		bolt.queue_redraw()
 	await _frames(2)
 	await _save("%s_14_air_charge.png" % language)
+	_end_game()
+
+
+## La bomba H esplode: fungo di fuoco e fumo, nemici abbattuti attorno e
+## Ciccio annerito dalla fuliggine.
+func _capture_h_bomb(language: String) -> void:
+	await _start_game(Vector2(0, -70), 1.0)
+	_player.level = 6
+	_hud_stats()
+	_player.h_bombs = 1
+	var origin := _player.position
+	for spot: Array in [["warrior", Vector2(130, 40)], ["brute", Vector2(-150, 60)], ["scout", Vector2(60, -110)], ["lancer", Vector2(-90, -80)]]:
+		var enemy := _enemy(spot[0], origin + spot[1], Enemy.State.CHASE, 0.0)
+		enemy.take_damage(99999, (spot[1] as Vector2).normalized(), true)
+		enemy._state_time = 0.2
+		enemy._hit_flash = 0.0
+		enemy.queue_redraw()
+	_player._state = Player.State.SLAM
+	_player._slam_kind = "plunge"
+	_player._slam_landed = true
+	_player._state_time = 0.1
+	_player.soot = 0.95
+	_player.facing = Vector2(1, 0.3).normalized()
+	_player.queue_redraw()
+	var blast := HBombBlast.new()
+	blast.radius = Player.H_BOMB_MAX_RADIUS
+	blast.position = origin
+	blast.altitude = _player.ground_elevation
+	_entities().add_child(blast)
+	blast._age = 0.3
+	blast.set_process(false)
+	# Di giorno la luce dell'esplosione coprirebbe la fuliggine su Ciccio.
+	blast._light.energy = 0.4
+	blast.queue_redraw()
+	await _save("%s_15_h_bomb.png" % language)
 	_end_game()
 
 
@@ -371,6 +408,7 @@ func _capture_dungeon(language: String) -> void:
 	_player.torch_on = true
 	_player._torch.enabled = true
 	_player._torch.position = Vector2(0, -_player.ground_elevation + Player.RADIUS * 0.6)
+	_player._torch.aim(_player.facing)
 	var boss: Enemy = _game._boss
 	boss.position = arena
 	boss._change_state(Enemy.State.WINDUP)
@@ -487,6 +525,7 @@ func _hud_stats() -> void:
 	hud.set_health(_player.health, _player.max_health)
 	hud.set_experience(_player.experience, _player.experience_needed(), _player.level)
 	hud.set_kills(_player.level * 4 + 3)
+	_player.h_bombs = 2
 
 
 ## Nemico fermo in uno stato preciso, rivolto verso il giocatore.

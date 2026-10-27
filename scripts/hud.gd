@@ -40,6 +40,7 @@ const UPGRADE_NAMES := {
 	"spell": "UPGRADE_SPELL",
 	"battery": "UPGRADE_BATTERY",
 	"potion_slots": "UPGRADE_POTION_SLOTS",
+	"h_bomb": "UPGRADE_H_BOMB",
 	"potion_heal": "UPGRADE_POTION_HEAL",
 	"mana_restore": "UPGRADE_MANA_RESTORE",
 	"choice": "UPGRADE_CHOICE",
@@ -76,6 +77,7 @@ var pause_menu := PauseMenu.new()
 	"spell": %UpgradeSpell as Button,
 	"battery": %UpgradeBattery as Button,
 	"potion_slots": %UpgradePotionSlots as Button,
+	"h_bomb": %UpgradeHBomb as Button,
 	"potion_heal": %UpgradePotionHeal as Button,
 	"mana_restore": %UpgradeManaRestore as Button,
 	"choice": %UpgradeChoice as Button,
@@ -266,6 +268,8 @@ func _upgrade_value(upgrade: String) -> String:
 			return str(roundi(player.max_battery))
 		"potion_slots":
 			return str(player.potion_capacity())
+		"h_bomb":
+			return str(player.h_bomb_capacity())
 		"potion_heal":
 			return str(player.potion_heal())
 		"mana_restore":
@@ -429,6 +433,7 @@ func show_level_up(level: int, damage_before: int, damage_after: int) -> void:
 	_card_values["spell"].text = tr("UPGRADE_VALUE") % [player.spell_damage(), roundi(player.spell_damage() * (1.0 + spell_bonus + Player.SPELL_UPGRADE) / (1.0 + spell_bonus))]
 	_card_values["battery"].text = tr("UPGRADE_VALUE") % [roundi(player.max_battery), roundi(player.max_battery + Player.MAX_BATTERY * Player.BATTERY_UPGRADE)]
 	_card_values["potion_slots"].text = tr("UPGRADE_VALUE") % [player.potion_capacity(), player.potion_capacity() + 1]
+	_card_values["h_bomb"].text = tr("UPGRADE_VALUE") % [player.h_bomb_capacity(), player.h_bomb_capacity() + 1]
 	_card_values["potion_heal"].text = tr("UPGRADE_VALUE") % [player.potion_heal(), player.potion_heal() + Player.POTION_HEAL_UPGRADE]
 	_card_values["mana_restore"].text = tr("UPGRADE_VALUE") % [roundi(player.mana_potion_restore()), roundi(player.mana_potion_restore() + Player.MANA_POTION_RESTORE * Player.MANA_RESTORE_UPGRADE)]
 	_card_values["choice"].text = tr("UPGRADE_VALUE") % [upgrade_choices(), mini(upgrade_choices() + 1, UPGRADE_NAMES.size())]

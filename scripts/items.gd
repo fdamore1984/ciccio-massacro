@@ -7,8 +7,9 @@ class_name Items
 ## gioco sono: "gold" i rottami (la moneta), "weapon" catene per la
 ## motosega, "armor" giubbotti, "boots" scarpe, "amulet" serbatoi di
 ## carburante, "ring" mirini per il bazooka (uno per tipo), "book" manuali
-## (si leggono una volta e migliorano per sempre) e "potion" le scorte (kit
-## medici, taniche, energetici).
+## (si leggono una volta e migliorano per sempre), "potion" le scorte (kit
+## medici, taniche, energetici) e "bomb" le bombe H (per il colpo potente
+## in aria, vedi Player.h_bombs).
 ## Bonus possibili: damage (danni +%), health (vita massima), speed
 ## (velocità +%), mana (carburante massimo), spell (danni dei missili +%),
 ## heal e restore_mana per le scorte.
@@ -85,8 +86,8 @@ static func _random_kind(item: Dictionary) -> bool:
 
 
 ## Quello che lascia un nemico abbattuto: ogni tanto monete o una pozione
-## (di vita, di mana o di batteria), di rado un oggetto e molto di rado un oggetto raro
-## dei mercanti.
+## (di vita, di mana o di batteria), a volte una bomba H, di rado un
+## oggetto e molto di rado un oggetto raro dei mercanti.
 static func enemy_drops(level: int) -> Array[Array]:
 	var data: Dictionary = DATA.data["enemy_drop"]
 	var drops: Array[Array] = []
@@ -99,6 +100,8 @@ static func enemy_drops(level: int) -> Array[Array]:
 		drops.append(["potion_mana", 1])
 	elif randf() < float(data.get("battery_potion_chance", 0.0)):
 		drops.append(["potion_battery", 1])
+	if randf() < float(data.get("h_bomb_chance", 0.0)):
+		drops.append(["h_bomb", 1])
 	if randf() < float(data["rare_chance"]):
 		var rare := shop_items()
 		drops.append([rare[randi() % rare.size()], 1])

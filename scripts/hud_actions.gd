@@ -1,7 +1,7 @@
 class_name HudActions
 extends Control
 ## Barra delle azioni in basso a sinistra: kit medici, taniche, batterie,
-## scudo, bazooka e inventario, ognuno con la sua icona, il tasto del
+## scudo, bazooka, bombe H (colpo potente in aria) e inventario, ognuno con la sua icona, il tasto del
 ## controller (vedi PadLabels), quante ne restano o la ricarica.
 
 const SLOT := 58.0
@@ -14,7 +14,7 @@ const COLOR_KEY := Color(1, 1, 1, 0.85)
 ## Azioni: icona e azione dell'Input Map (per il tasto del controller).
 const ACTIONS := [
 	["potion", "potion"], ["mana", "mana_potion"], ["shield", "shield"], ["spell", "spell"],
-	["battery_potion", "battery_potion"], ["bag", "inventory"],
+	["battery_potion", "battery_potion"], ["h_bomb", "heavy_attack"], ["bag", "inventory"],
 ]
 
 var player: Player
@@ -78,6 +78,8 @@ func _is_ready(kind: String) -> bool:
 			return player.shield_active or player.shield_cooldown <= 0.0
 		"spell":
 			return player.mana >= Player.SPELL_COST
+		"h_bomb":
+			return player.h_bombs > 0
 	return true
 
 
@@ -89,6 +91,8 @@ func _count(kind: String) -> String:
 			return str(player.mana_potions)
 		"battery_potion":
 			return str(player.battery_potions)
+		"h_bomb":
+			return str(player.h_bombs)
 		"spell":
 			return str(roundi(Player.SPELL_COST))
 		"bag":

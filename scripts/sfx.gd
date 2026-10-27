@@ -161,6 +161,16 @@ func _build_sounds() -> void:
 		var boom := sin(TAU * lerpf(90.0, 28.0, t / d) * t) * 0.8 * exp(-t * 4.0)
 		var debris := _noise() * 0.25 * absf(sin(TAU * 13.0 * t)) * (1.0 if t > 0.25 else 0.0)
 		return clampf((_noise() * 0.9 * exp(-t * 6.0) + boom + debris) * 1.3, -1.0, 1.0) * _env(t, d, 0.002))
+	# Bomba H: il guscio che si spacca e un boato lungo e profondo.
+	_streams["h_bomb"] = _render_filtered(2.2, Vector2(0.6, 0.02), func(t: float, d: float) -> float:
+		var crack := (_noise() + sin(TAU * 1500.0 * t) * 0.4) * exp(-t * 40.0)
+		var boom := sin(TAU * lerpf(70.0, 22.0, t / d) * t) * exp(-t * 1.6)
+		var rumble := _noise() * 0.6 * exp(-t * 1.2)
+		return clampf((crack + boom + rumble) * 1.4, -1.0, 1.0) * _env(t, d, 0.002))
+	# La bomba H alzata sopra la testa: un tonfo di metallo.
+	_streams["h_bomb_lift"] = _render(0.25, func(t: float, d: float) -> float:
+		var metal := sin(TAU * 220.0 * t) + sin(TAU * 347.0 * t) * 0.6
+		return (metal * 0.3 + _noise() * 0.2 * exp(-t * 30.0)) * exp(-t * 9.0) * _env(t, d, 0.002))
 	# Impatto a terra (attacchi a terra, salto dei nemici).
 	_streams["impact"] = _render_filtered(0.5, Vector2(0.5, 0.05), func(t: float, d: float) -> float:
 		var boom := sin(TAU * lerpf(110.0, 40.0, t / d) * t) * 0.6

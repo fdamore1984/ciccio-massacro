@@ -434,7 +434,7 @@ func _setup_boss(boss: Enemy, dungeon: Dungeon) -> void:
 	_hud.show_boss(boss)
 
 
-## Boss sconfitto: rottami, oggetti speciali e uno raro; Ciccio ride, la
+## Boss sconfitto: rottami, oggetti speciali, uno raro e una bomba H; Ciccio ride, la
 ## caverna è completata e nella parete dell'arena compare l'uscita.
 func _on_boss_died(boss: Enemy) -> void:
 	_world.cleared_caves[_cave] = true
@@ -447,6 +447,7 @@ func _on_boss_died(boss: Enemy) -> void:
 		drops.append([special[k], 1])
 	var rare := Items.shop_items()
 	drops.append([rare[randi() % rare.size()], 1])
+	drops.append(["h_bomb", int(_dungeon_data.get("boss_reward_h_bombs", 1))])
 	_drop_loot(boss.global_position, drops)
 	var dungeon := _world.dungeon
 	_world.add_obstacle(_world.make_wall_obstacle("exit", dungeon.arena_exit, dungeon.arena_exit_side))

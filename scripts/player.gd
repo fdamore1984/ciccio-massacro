@@ -123,8 +123,9 @@ const CHARGED_CHAIN_BONUS := 0.5
 const AIR_ATTACK_ARC := deg_to_rad(200.0)
 const AIR_ATTACK_REACH := 110.0
 const AIR_ATTACK_GRAVITY_FACTOR := 0.45
-## Attacchi a terra: il colpo potente in aria fa piombare a terra
-## ("plunge"), durante uno scatto in aria con un colpo più ampio ("dash").
+## Attacchi a terra: il colpo potente in aria fa piombare a terra con la
+## bomba H ("plunge", vedi H_BOMB_*), durante uno scatto in aria con un
+## colpo di motosega più ampio ("dash").
 const SLAM_GRAVITY := 2600.0
 ## In picchiata ci si ferma un attimo in aria, poi si scende veloci.
 const SLAM_HANG := 0.1
@@ -132,29 +133,37 @@ const SLAM_DIVE_SPEED := 650.0
 const SLAM_RECOVERY := 0.32
 ## Se per qualche motivo non si tocca terra, l'impatto arriva comunque.
 const SLAM_MAX_TIME := 2.0
-const SLAM_RADIUS := {"plunge": 90.0, "dash": 165.0}
-const PLUNGE_DAMAGE_FACTOR := 1.6
-## Slam aereo caricato: tenendo premuto il colpo potente in aria si fluttua
-## salendo piano (AIR_SLAM_RISE_SPEED, sempre più piano con la carica, con
-## un leggero ondeggiare di AIR_SLAM_BOB pixel) mentre la motosega va su di
-## giri (fino a HEAVY_CHARGE_TIME, poi parte da solo). La carica consuma
-## mana (HEAVY_CHARGE_MANA) e batteria (AIR_SLAM_BATTERY_DRAIN) al secondo:
-## se uno dei due finisce la picchiata parte subito con la carica raggiunta.
-## Intanto si è esposti a dardi e frecce dei nemici (vedi receive_hit).
-## Al rilascio si piomba giù con un'onda d'urto ampia, larga da
-## AIR_SLAM_MIN_RADIUS a AIR_SLAM_MAX_RADIUS secondo la carica. Conta come
-## caricato se la carica arriva almeno a AIR_SLAM_MIN_CHARGE.
-const AIR_SLAM_MIN_CHARGE := 0.2
-const AIR_SLAM_MIN_RADIUS := 165.0
-const AIR_SLAM_MAX_RADIUS := 240.0
+const SLAM_RADIUS := {"dash": 165.0}
+## Bomba H: il colpo potente in aria si fa solo con una bomba H nella
+## cintura (se ne portano START_H_BOMB_CAPACITY, una in più per ogni
+## potenziamento "h_bomb"); senza, in aria il colpo potente non parte. La
+## motosega sparisce e Ciccio alza sopra la testa una grossa bomba H;
+## tenendo premuto si fluttua salendo piano (AIR_SLAM_RISE_SPEED, sempre più
+## piano con la carica, con un leggero ondeggiare di AIR_SLAM_BOB pixel)
+## fino a HEAVY_CHARGE_TIME, poi parte da sola; intanto si è esposti a dardi
+## e frecce dei nemici (vedi receive_hit). Al rilascio (o con un tocco
+## breve, senza carica) si piomba giù e si spacca la bomba sul terreno:
+## l'esplosione (vedi HBombBlast), larga da H_BOMB_MIN_RADIUS a
+## H_BOMB_MAX_RADIUS secondo la carica, uccide i nemici attorno (al boss
+## toglie H_BOMB_BOSS_DAMAGE della vita massima). Ciccio resta intatto ma
+## si annerisce di fuliggine (vedi soot). La bomba si consuma all'impatto:
+## annullando la picchiata (parata, schivata, salto) resta nella cintura.
+const START_H_BOMB_CAPACITY := 3
+const H_BOMB_MIN_RADIUS := 190.0
+const H_BOMB_MAX_RADIUS := 280.0
+const H_BOMB_BOSS_DAMAGE := 0.35
 const AIR_SLAM_RISE_SPEED := 45.0
 const AIR_SLAM_BOB := 3.0
-const AIR_SLAM_BATTERY_DRAIN := 30.0
-## Il danno della picchiata cresce con l'altezza da cui parte: questa parte
-## in più per ogni pixel (un salto ≈ +50%, un doppio salto ≈ +100%), al
-## massimo SLAM_HEIGHT_MAX_BONUS.
-const SLAM_HEIGHT_DAMAGE := 0.008
-const SLAM_HEIGHT_MAX_BONUS := 2.0
+## Fuliggine dell'esplosione: il corpo si annerisce (fino a SOOT_STRENGTH
+## verso COLOR_SOOT) e si pulisce in SOOT_CLEAN_TIME secondi.
+const SOOT_CLEAN_TIME := 10.0
+const SOOT_STRENGTH := 0.8
+const COLOR_SOOT := Color(0.13, 0.12, 0.11)
+## Bomba H tenuta sopra la testa: centro, lunghezza e mani (destra; la
+## sinistra è speculare), rispetto al centro del corpo.
+const H_BOMB_HELD := Vector2(0, -RADIUS - 20.0)
+const H_BOMB_LENGTH := 74.0
+const H_BOMB_GRIP := Vector2(16.0, -RADIUS - 7.0)
 const DASH_SLAM_DAMAGE_FACTOR := 2.4
 ## Aggancio automatico del bersaglio (nessun tasto): sempre il nemico vivo
 ## più vicino entro LOCK_RANGE, anche dietro muri e ostacoli. Si passa a un
@@ -166,6 +175,13 @@ const DASH_SLAM_DAMAGE_FACTOR := 2.4
 const LOCK_RANGE := 480.0
 const LOCK_SWITCH_MARGIN := 40.0
 const LOCK_CAMERA_SHARE := 0.3
+## Porte nelle pareti (edifici, scale, uscite): chi ci passa davanti le
+## sovrappone, ma l'ordine per altezza sullo schermo a volte le metterebbe
+## davanti al giocatore; così, entro PASSAGE_REACH pixel da una porta, il
+## giocatore sale di PASSAGE_Z livelli di disegno (vedi _update_passage_z).
+const PASSAGES := ["cave", "stairs", "exit"]
+const PASSAGE_REACH := 40.0
+const PASSAGE_Z := 1
 const LOCK_CAMERA_MAX := 170.0
 ## All'impatto la telecamera trema, sempre meno.
 const CAMERA_SHAKE := 9.0
@@ -266,9 +282,10 @@ const HEAVY_CHARGE_MANA := 20.0
 ## La motosega in carica si scalda: alone arancione, scintille e fumo.
 const COLOR_CHARGE_GLOW := Color(1.0, 0.55, 0.15)
 
-## Torcia elettrica: un alone di luce attorno al personaggio (vedi
+## Torcia elettrica: un fascio a cono nella direzione dello sguardo (vedi
 ## Flashlight), acceso e spento tenendo premuto L3 per TORCH_HOLD_TIME
 ## secondi; un tocco più breve è la corsa.
+const TORCH_COLOR := Flashlight.COLOR
 const TORCH_HOLD_TIME := 0.45
 
 ## Ogni pozione cura questi punti vita.
@@ -418,6 +435,10 @@ var _base_max_mana := START_MANA
 ## Pozioni nella cintura: non hanno limite.
 var mana_potions := START_MANA_POTIONS
 var battery_potions := START_BATTERY_POTIONS
+## Bombe H nella cintura (vedi h_bomb_capacity).
+var h_bombs := 0
+## Fuliggine sul corpo dopo l'esplosione di una bomba H (da 0 a 1).
+var soot := 0.0
 ## Bonus ai danni dei missili dai potenziamenti (0.2 = +20%).
 var spell_bonus := 0.0
 var inventory := Inventory.new()
@@ -508,8 +529,6 @@ var _air_dash := false
 var _slam_kind := ""
 var _slam_landed := false
 ## Altezza da cui parte la picchiata e se lo slam aereo è stato caricato.
-var _slam_height := 0.0
-var _slam_charged := false
 ## Da quanto si tiene premuto L3 (-1: tasto non premuto o già usato).
 var _run_hold := -1.0
 ## Tremolio della telecamera (0-1).
@@ -556,6 +575,7 @@ func _ready() -> void:
 	add_to_group(LowHealthVignette.FOCUS_GROUP)
 	if not _torch.is_inside_tree():
 		_torch.enabled = torch_on
+		_torch.aim(facing)
 		add_child(_torch)
 	if not _voice.is_inside_tree():
 		_voice.tone = VOICE_TONE
@@ -579,6 +599,7 @@ func _physics_process(delta: float) -> void:
 	_invulnerable_time = maxf(_invulnerable_time - delta, 0.0)
 	_empowered_time = maxf(_empowered_time - delta, 0.0)
 	_block_flash = maxf(_block_flash - delta, 0.0)
+	soot = maxf(soot - delta / SOOT_CLEAN_TIME, 0.0)
 	_combo_timer = maxf(_combo_timer - delta, 0.0)
 	shield_cooldown = maxf(shield_cooldown - delta, 0.0)
 	_spell_cooldown = maxf(_spell_cooldown - delta, 0.0)
@@ -608,6 +629,7 @@ func _physics_process(delta: float) -> void:
 			_fire_missile(input)
 	if _state != State.DEAD:
 		_update_lock()
+		_update_passage_z()
 		_update_run_button(delta)
 
 	# La parata è istantanea: annulla subito attacchi (anche in carica),
@@ -778,8 +800,9 @@ func _physics_process(delta: float) -> void:
 	_wounds.update(delta)
 	_saw_phase += delta * (SAW_CHAIN_FAST if _state in [State.ATTACK, State.SLAM] else SAW_CHAIN_IDLE)
 	if torch_on:
-		# L'alone è a terra, sotto il personaggio.
+		# Il fascio parte da terra, sotto il personaggio, verso lo sguardo.
 		_torch.position = Vector2(0, -ground_elevation + RADIUS * 0.6)
+		_torch.aim(facing)
 	_squash = move_toward(_squash, 0.0, SQUASH_RECOVERY * delta)
 	if _camera:
 		# Mentre si precipita nel burrone la telecamera resta al bordo.
@@ -920,7 +943,7 @@ func _update_attack(input: Vector2, aim: Vector2, delta: float) -> void:
 		_charge_time += delta
 		if not UiNav.game_held("heavy_attack"):
 			_charging = false
-		elif not _drain_charge(delta, false):
+		elif not _drain_charge(delta):
 			# Mana finito: il colpo parte con la carica raggiunta.
 			_charging = false
 		elif _state_time >= windup * 0.9:
@@ -1208,6 +1231,18 @@ func _update_lock() -> void:
 	_set_lock_target(_lock_nearest())
 
 
+## Vicino a una porta nella parete il giocatore è disegnato sempre davanti
+## a lei, mai dietro (vedi PASSAGES).
+func _update_passage_z() -> void:
+	var near := false
+	if World.current:
+		for type_id: String in PASSAGES:
+			if not World.current.touched(type_id, position, PASSAGE_REACH).is_empty():
+				near = true
+				break
+	z_index = PASSAGE_Z if near else 0
+
+
 ## Cambia bersaglio: il vecchio torna del suo colore, il nuovo si colora di rosso.
 func _set_lock_target(target: Enemy) -> void:
 	if not is_instance_valid(lock_target):
@@ -1237,7 +1272,7 @@ func save_state() -> Dictionary:
 	return {
 		"level": level, "experience": experience, "xp_curve": XP_CURVE_VERSION, "health": health, "base_max_health": _base_max_health,
 		"mana": mana, "base_max_mana": _base_max_mana, "potions": potions,
-		"mana_potions": mana_potions, "battery_potions": battery_potions, "spell_bonus": spell_bonus,
+		"mana_potions": mana_potions, "battery_potions": battery_potions, "h_bombs": h_bombs, "spell_bonus": spell_bonus,
 		"max_combo_hits": max_combo_hits, "max_heavy_chain": max_heavy_chain,
 		"max_chained_dodges": max_chained_dodges, "max_jumps": max_jumps, "run_speed_bonus": run_speed_bonus,
 		"shield_cooldown_max": shield_cooldown_max, "torch_on": torch_on, "upgrades_taken": upgrades_taken,
@@ -1289,6 +1324,8 @@ func load_state(data: Dictionary) -> void:
 		max_chained_dodges = START_CHAINED_DODGES + int(upgrades_taken.get("dodge", 0))
 	_refresh_battery()
 	battery = max_battery
+	# Salvataggi precedenti alle bombe H: nessuna bomba.
+	h_bombs = clampi(int(data.get("h_bombs", h_bombs)), 0, h_bomb_capacity())
 	# Oggetti che questa versione non conosce più vengono scartati.
 	inventory.items.clear()
 	var known: Dictionary = Items.DATA.data["items"]
@@ -1498,11 +1535,12 @@ func _start_attack(step: int, input: Vector2) -> void:
 
 ## held: concatenato tenendo premuto il tasto (non si carica).
 func _start_heavy(input: Vector2, held := false) -> void:
-	if not _use_battery(BATTERY_HEAVY):
-		return
-	# In aria il colpo potente fa piombare a terra.
+	# In aria il colpo potente è la bomba H: senza bombe non parte.
 	if is_airborne():
-		_start_slam("plunge", input)
+		if h_bombs > 0:
+			_start_slam("plunge", input)
+		return
+	if not _use_battery(BATTERY_HEAVY):
 		return
 	# Fuori dalla combo il colpo potente parte da solo, senza bonus.
 	if _combo_timer == 0.0 and _state not in [State.ATTACK, State.SLAM]:
@@ -1566,15 +1604,12 @@ func _start_slam(kind: String, input: Vector2) -> void:
 		return
 	_slam_kind = kind
 	_slam_landed = false
-	_slam_height = _height
-	_slam_charged = false
 	_attack_heavy = false
 	_attack_speed = EMPOWER_ATTACK_SPEED if is_empowered() else 1.0
 	_charge = 0.0
 	_charge_time = 0.0
-	# Tenendo premuto il colpo potente la picchiata si carica a mezz'aria
-	# (serve un po' di mana e di batteria).
-	_charging = kind == "plunge" and UiNav.game_held("heavy_attack") and mana > 0.0 and battery > 0.0
+	# Tenendo premuto il colpo potente la bomba H si carica a mezz'aria.
+	_charging = kind == "plunge" and UiNav.game_held("heavy_attack")
 	_queued_attack = ""
 	_combo_timer = 0.0
 	_carry_velocity = Vector2.ZERO
@@ -1586,7 +1621,10 @@ func _start_slam(kind: String, input: Vector2) -> void:
 		_face_lock()
 	facing = _target_facing
 	_height_velocity = 0.0
-	Sfx.play("heavy_swing", global_position, 0.85)
+	if kind == "plunge":
+		Sfx.play("h_bomb_lift", global_position)
+	else:
+		Sfx.play("heavy_swing", global_position, 0.85)
 	_change_state(State.SLAM)
 
 
@@ -1596,9 +1634,8 @@ func _start_slam(kind: String, input: Vector2) -> void:
 func _update_slam(input: Vector2, aim: Vector2, delta: float) -> void:
 	if _charging:
 		# A mezz'aria si fluttua salendo piano (sempre più piano con la carica):
-		# ci si gira con la levetta (o verso il bersaglio) finché
-		# si tiene premuto; a carica piena la picchiata parte da sola, e anche
-		# quando finiscono mana o batteria.
+		# ci si gira con la levetta (o verso il bersaglio) finché si tiene
+		# premuto; a carica piena la picchiata parte da sola.
 		_height_velocity = AIR_SLAM_RISE_SPEED * (1.0 - 0.6 * _charge)
 		_velocity = _velocity.move_toward(Vector2.ZERO, DECELERATION * 2.0 * delta)
 		if aim != Vector2.ZERO:
@@ -1608,8 +1645,6 @@ func _update_slam(input: Vector2, aim: Vector2, delta: float) -> void:
 		_charge_time += delta
 		if not UiNav.game_held("heavy_attack"):
 			_charging = false
-		elif not _drain_charge(delta, true):
-			_charging = false
 		else:
 			_charge = minf(_charge + delta / HEAVY_CHARGE_TIME, 1.0)
 			if _charge >= 1.0:
@@ -1617,9 +1652,8 @@ func _update_slam(input: Vector2, aim: Vector2, delta: float) -> void:
 				_charging = false
 		if not _charging:
 			_height_velocity = 0.0
-			_slam_charged = _charge >= AIR_SLAM_MIN_CHARGE
 			facing = _target_facing
-			Sfx.play("heavy_swing", global_position, 0.7)
+			Sfx.play("heavy_swing", global_position, 0.6)
 		return
 	if not _slam_landed:
 		if _state_time >= SLAM_HANG and _height_velocity > -SLAM_DIVE_SPEED:
@@ -1646,6 +1680,9 @@ func _slam_impact() -> void:
 	_state_time = 0.0
 	_squash = 1.0
 	_shake = 1.0
+	if _slam_kind == "plunge":
+		_h_bomb_impact()
+		return
 	var radius := _slam_radius()
 	var damage := _slam_damage()
 	var landed := false
@@ -1672,18 +1709,48 @@ func _slam_impact() -> void:
 		HitFeedback.hit(get_tree(), 0.14)
 
 
+## La bomba H si spacca sul terreno: i nemici attorno muoiono (il boss
+## perde una parte della vita), Ciccio resta intatto ma annerito.
+func _h_bomb_impact() -> void:
+	h_bombs = maxi(h_bombs - 1, 0)
+	var radius := _slam_radius()
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as Enemy
+		if enemy == null or enemy.is_dead() or absf(enemy.ground_elevation - ground_elevation) > HIT_HEIGHT_REACH:
+			continue
+		var offset := enemy.global_position - global_position
+		if offset.length() > radius + enemy.radius:
+			continue
+		var direction := offset.normalized() if offset != Vector2.ZERO else facing
+		if enemy.is_boss():
+			# L'armatura non attenua la bomba.
+			enemy.take_damage(roundi(enemy.max_health * H_BOMB_BOSS_DAMAGE / (1.0 - enemy.armor)), direction, true)
+		else:
+			enemy.take_damage(enemy.health * 10 + 1000, direction, true)
+			enemy.shove(direction * SLAM_PUSH_SPEED)
+	var blast := HBombBlast.new()
+	blast.radius = radius
+	blast.position = position
+	blast.altitude = ground_elevation
+	get_parent().add_child(blast)
+	GroundFx.shockwave(global_position, ground_elevation, radius)
+	soot = 1.0
+	_shake = 1.6
+	Sfx.play("h_bomb", global_position)
+	Sfx.play("explosion", global_position, 0.6)
+	HitFeedback.hit(get_tree(), 0.16)
+
+
+## Raggio dell'esplosione della bomba H (secondo la carica) o del colpo dallo scatto.
 func _slam_radius() -> float:
-	if _slam_charged:
-		return lerpf(AIR_SLAM_MIN_RADIUS, AIR_SLAM_MAX_RADIUS, _charge)
+	if _slam_kind == "plunge":
+		return lerpf(H_BOMB_MIN_RADIUS, H_BOMB_MAX_RADIUS, _charge)
 	return SLAM_RADIUS[_slam_kind]
 
 
+## Danno del colpo dallo scatto in aria (la bomba H uccide e basta).
 func _slam_damage() -> int:
-	var multiplier := PLUNGE_DAMAGE_FACTOR if _slam_kind == "plunge" else DASH_SLAM_DAMAGE_FACTOR
-	if _slam_kind == "plunge":
-		# Più si parte in alto (salti concatenati), più la picchiata fa male;
-		# la carica raddoppia il danno, come per il colpo potente.
-		multiplier *= (1.0 + minf(_slam_height * SLAM_HEIGHT_DAMAGE, SLAM_HEIGHT_MAX_BONUS)) * (1.0 + _charge)
+	var multiplier := DASH_SLAM_DAMAGE_FACTOR
 	if _attack_speed > 1.0:
 		multiplier *= EMPOWER_DAMAGE_FACTOR
 	return roundi(base_damage() * multiplier * (1.0 + inventory.bonus("damage")))
@@ -1833,14 +1900,10 @@ func _use_battery(cost: float) -> bool:
 
 
 ## Consumo della carica del colpo potente per un passo: mana (vedi
-## HEAVY_CHARGE_MANA) e, nello slam aereo (air), anche batteria. Restituisce
-## false se una delle due risorse è finita: la carica va interrotta.
-func _drain_charge(delta: float, air: bool) -> bool:
+## HEAVY_CHARGE_MANA). Restituisce false se è finito: la carica va interrotta.
+func _drain_charge(delta: float) -> bool:
 	mana = maxf(mana - HEAVY_CHARGE_MANA * delta, 0.0)
-	if air:
-		battery = maxf(battery - AIR_SLAM_BATTERY_DRAIN * delta, 0.0)
-		_battery_delay = BATTERY_REGEN_DELAY
-	return mana > 0.0 and (not air or battery > 0.0)
+	return mana > 0.0
 
 
 ## Missile del bazooka verso dove si guarda (o si punta la levetta): poi
@@ -1864,6 +1927,11 @@ func _fire_missile(input: Vector2) -> void:
 	get_parent().add_child(missile)
 	_shake = maxf(_shake, 0.25)
 	Sfx.play("missile_launch", global_position)
+
+
+## Bombe H che si possono portare (vedi START_H_BOMB_CAPACITY).
+func h_bomb_capacity() -> int:
+	return START_H_BOMB_CAPACITY + int(upgrades_taken.get("h_bomb", 0))
 
 
 ## Pozioni di ciascun tipo che si possono portare.
@@ -1893,12 +1961,14 @@ func can_pick_up(id: String) -> bool:
 			return mana_potions < potion_capacity()
 		"potion_battery":
 			return battery_potions < potion_capacity()
+		"h_bomb":
+			return h_bombs < h_bomb_capacity()
 	return true
 
 
 ## Raccoglie un oggetto: le monete vanno nel borsello, le pozioni di vita,
-## di mana e di batteria nella cintura (fino a potion_capacity, mai nell'inventario), il
-## resto nell'inventario. Restituisce false se la cintura è piena.
+## di mana e di batteria nella cintura (fino a potion_capacity, mai nell'inventario),
+## le bombe H anche (fino a h_bomb_capacity), il resto nell'inventario. Restituisce false se la cintura è piena.
 func pickup(id: String, amount := 1) -> bool:
 	if not can_pick_up(id):
 		return false
@@ -1917,6 +1987,10 @@ func pickup(id: String, amount := 1) -> bool:
 			return true
 		"potion_battery":
 			battery_potions = mini(battery_potions + amount, potion_capacity())
+			Sfx.play("pickup", global_position)
+			return true
+		"h_bomb":
+			h_bombs = mini(h_bombs + amount, h_bomb_capacity())
 			Sfx.play("pickup", global_position)
 			return true
 	inventory.add(id)
@@ -1982,6 +2056,7 @@ func set_torch(on: bool) -> void:
 		return
 	torch_on = on
 	_torch.enabled = on
+	_torch.aim(facing)
 	if _state != State.DEAD:
 		Sfx.play("torch", global_position, 1.0 if on else 0.7)
 
@@ -2140,6 +2215,8 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, RADIUS + 8.0 + pulse * 4.0, 0.0, TAU, 32, Color(COLOR_EMPOWERED, 0.8), 2.0)
 	if _state != State.DEAD:
 		body = _blood.tint(body)
+		if soot > 0.0:
+			body = Color(body.lerp(COLOR_SOOT, soot * SOOT_STRENGTH), body.a)
 	# Guardando verso nord il "naso", la motosega, le braccia, la torcia e
 	# le scorte sono dietro al corpo, che li copre (vedi BodyParts.gear_behind).
 	var behind := BodyParts.gear_behind(facing)
@@ -2160,7 +2237,23 @@ func _draw() -> void:
 		draw_polyline(plates, Color(COLOR_BUBBLE, 0.8), 3.0)
 		for k in 6:
 			draw_line(plates[k] * 0.86, plates[k], Color(COLOR_BUBBLE, 0.5), 2.0)
+	if holding_h_bomb():
+		_draw_h_bomb()
 	draw_set_transform(Vector2.ZERO)
+
+
+## Sta reggendo la bomba H sopra la testa (picchiata non ancora arrivata a terra).
+func holding_h_bomb() -> bool:
+	return _state == State.SLAM and _slam_kind == "plunge" and not _slam_landed
+
+
+## Bomba H sopra la testa, sempre davanti a tutto (è più in alto del
+## corpo): in carica l'anello si riempie e la bomba si accende di giallo.
+func _draw_h_bomb() -> void:
+	if _charging and _charge > 0.0:
+		_draw_charge_ring()
+	var glow := _charge if _charging else 0.0
+	HBombBlast.draw_bomb(self, H_BOMB_HELD, H_BOMB_LENGTH, glow, facing.x < 0.0)
 
 
 ## "Naso" che indica la direzione e, da vivo, la motosega, la scorta in
@@ -2175,7 +2268,7 @@ func _draw_gear(body: Color) -> void:
 		_draw_weapon()
 		if _state == State.DRINK:
 			_draw_flask()
-		if torch_on:
+		if torch_on and not holding_h_bomb():
 			_draw_torch()
 		_draw_arms(body.a)
 
@@ -2234,6 +2327,13 @@ func _draw_weapon() -> void:
 		tint = Items.color(inventory.items[inventory.equipped["weapon"]]).lightened(0.3)
 	if is_empowered():
 		tint = Color(1.0, 0.95, 0.7)
+	if _state == State.SLAM and _slam_kind == "plunge":
+		# Con la bomba H la motosega sparisce: le mani reggono la bomba sopra
+		# la testa (vedi _draw_h_bomb) e, dopo l'impatto, restano vuote.
+		if holding_h_bomb():
+			_grip = Vector2(H_BOMB_GRIP.x, H_BOMB_GRIP.y)
+			_off_hand = Vector2(-H_BOMB_GRIP.x, H_BOMB_GRIP.y)
+		return
 	if _state == State.SLAM:
 		_draw_slam_saw(tint)
 		return
@@ -2459,10 +2559,13 @@ func _draw_charge_heat(hand: Vector2, angle: float, length: float) -> void:
 		draw_line(tip - Vector2(0, flash), tip + Vector2(0, flash), Color(1, 1, 1, 0.9), 2.0)
 
 
-## Torcia elettrica nell'altra mano, senza fascio di luce.
+## Torcia elettrica nell'altra mano, con il fascio di luce in avanti.
 func _draw_torch() -> void:
 	var hand := -facing.orthogonal() * RADIUS * 0.9
 	var lens := hand + facing * 12.0
+	var across := facing.orthogonal()
+	draw_primitive(PackedVector2Array([lens + across * 3.0, lens + facing * 42.0 + across * 20.0, lens + facing * 42.0 - across * 20.0, lens - across * 3.0]),
+			PackedColorArray([Color(TORCH_COLOR, 0.16)]), PackedVector2Array())
 	draw_line(hand, lens, COLOR_FLASHLIGHT, 5.0)
 	Shapes.disc(self, lens, 3.5, Color(1.0, 1.0, 0.85))
 	_off_hand = hand + facing * 3.0

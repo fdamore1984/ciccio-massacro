@@ -26,6 +26,7 @@ const COLORS := {
 	"potion_heal": Color(0.95, 0.35, 0.35),
 	"mana_restore": Color(0.95, 0.4, 0.15),
 	"choice": Color(0.95, 0.85, 0.45),
+	"h_bomb": Color(0.95, 0.8, 0.15),
 }
 
 @export var kind := "":
@@ -104,6 +105,14 @@ static func draw_icon(canvas: CanvasItem, center: Vector2, side: float, icon_kin
 			# Tanica con un + accanto: ridà più carburante.
 			_draw_jerrycan(canvas, Vector2(-0.15, 0.1), 0.45, color)
 			_draw_plus(canvas, Vector2(0.45, -0.4), 0.22, Color(1, 1, 1, 0.9))
+		"h_bomb":
+			# Bomba H coricata (nella barra delle azioni e nel potenziamento
+			# che ne fa portare una in più, con un + sopra).
+			canvas.draw_set_transform(Vector2.ZERO)
+			HBombBlast.draw_bomb(canvas, center + Vector2(0, side * 0.08), side * 0.85, 0.0)
+			canvas.draw_set_transform(center, 0.0, Vector2.ONE * side / 2.0)
+			if frame:
+				_draw_plus(canvas, Vector2(0.5, -0.5), 0.2, Color(1, 1, 1, 0.9))
 		"choice":
 			# Tre carte a ventaglio con una quarta che si aggiunge.
 			for k in 4:

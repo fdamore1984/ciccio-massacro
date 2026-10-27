@@ -37,6 +37,7 @@ UPGRADE_MANA,Max fuel +20,Carburante massimo +20
 UPGRADE_SPELL,Missile damage +20%,Danni dei missili +20%
 UPGRADE_BATTERY,Battery +10%,Batteria +10%
 UPGRADE_POTION_SLOTS,Supplies carried +1 (each kind),Scorte trasportabili +1 (di ogni tipo)
+UPGRADE_H_BOMB,H-bombs carried +1,Bombe H trasportabili +1
 UPGRADE_POTION_HEAL,Medkit heals +1,Il kit medico cura +1
 UPGRADE_MANA_RESTORE,Fuel can refills +5%,La tanica ridà +5%
 UPGRADE_CHOICE,One more upgrade to choose,Un potenziamento in più da scegliere
@@ -83,6 +84,8 @@ ITEM_BOOK_MANA,Manual: Fuel saving,Manuale: Risparmio di carburante
 ITEM_POTION_HEALTH,Medkit,Kit medico
 ITEM_POTION_MANA,Fuel can,Tanica di carburante
 ITEM_POTION_BATTERY,Spare battery,Batteria di ricambio
+ITEM_H_BOMB,H-bomb,Bomba H
+ITEM_H_BOMB_DESC,for the power strike in mid-air: smash it on the ground and the blast kills the enemies around,per il colpo potente a mezz'aria: spaccala a terra e l'esplosione uccide i nemici attorno
 MERCHANT_TITLE,Wandering trader,Commerciante ambulante
 MERCHANT_HINT,A wandering trader: interact with the stall to buy and sell,Un commerciante ambulante: interagisci con il banco per comprare e vendere
 SHOP_BUY,For sale: rare gear you won't find in crates,In vendita: equipaggiamento raro che nelle casse non trovi
@@ -124,7 +127,7 @@ CONTROLS_SPECIAL_TITLE,Special attacks,Attacchi speciali
 CONTROLS_SPECIAL_MIXED,Power strike right after a combo: a wide power strike with bonus damage,Colpo potente subito dopo una combo: un colpo potente ampio con danni in più
 CONTROLS_SPECIAL_CHARGED,Charge the first power strike: every power strike chained after it deals extra damage,Carica il primo colpo potente: ogni colpo potente concatenato dopo fa danni in più
 CONTROLS_SPECIAL_AIR,Attack in mid-air: wide aerial slashes that also reach the enemies below you,Attacco a mezz'aria: fendenti ampi che colpiscono anche i nemici sotto di te
-CONTROLS_SPECIAL_PLUNGE,"Power strike in mid-air: plunge (hold it to float and rev up a slam: burns fuel and battery, gunners can hit you)","Colpo potente a mezz'aria: picchiata (tienilo premuto per caricarla: consuma carburante e batteria, i tiratori ti colpiscono)"
+CONTROLS_SPECIAL_PLUNGE,"Power strike in mid-air, only with an H-bomb: smash it on the ground, the blast kills the enemies around (hold it to float and widen the blast; gunners can hit you)","Colpo potente a mezz'aria, solo con una bomba H: la spacchi a terra e l'esplosione uccide i nemici attorno (tienilo premuto per fluttuare e allargarla; i tiratori ti colpiscono)"
 CONTROLS_SPECIAL_DASH,Power strike during an air dash: dash strike that smashes a wide area,Colpo potente durante uno scatto in aria: colpo in scatto che spazza un'area ampia
 CONTROLS_BACK,Back,Indietro
 MENU_CONTINUE,Continue,Continua
