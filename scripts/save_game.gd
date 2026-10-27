@@ -4,14 +4,24 @@ class_name SaveGame
 ## Continua riprende lo slot salvato più di recente (vedi latest); in
 ## entrambi i casi lo imposta in slot e Game scrive e legge sempre quello. Il vecchio file unico
 ## (versioni precedenti) diventa lo slot 1 la prima volta che serve.
+##
+## La cartella user:// prende il nome dal progetto: con il cambio di nome
+## (prima "Gobelino", ora "Ciccio Massacro") i salvataggi vecchi restano
+## nella cartella accanto, con il nome di prima. La prima volta, se nella
+## cartella nuova non c'è nessun salvataggio, vengono copiati qui.
 
 const SLOTS := 3
 const PATH := "user://savegame_%d.json"
 ## File unico delle versioni precedenti.
 const OLD_PATH := "user://savegame.json"
+## Nome della cartella dei dati delle versioni con il nome precedente del
+## gioco: si trova accanto a quella attuale (vedi _migrate_legacy_dir).
+const LEGACY_USER_DIR := "Gobelino"
 
 ## Slot della partita in corso (da 1 a SLOTS).
 static var slot := 1
+## La cartella del nome precedente è già stata controllata.
+static var _legacy_checked := false
 
 
 static func path(index: int) -> String:
@@ -103,8 +113,31 @@ static func summary(index: int) -> Dictionary:
 
 
 static func _migrate() -> void:
+	_migrate_legacy_dir()
 	if FileAccess.file_exists(OLD_PATH) and not FileAccess.file_exists(PATH % 1):
 		DirAccess.rename_absolute(ProjectSettings.globalize_path(OLD_PATH), ProjectSettings.globalize_path(PATH % 1))
+
+
+## Copia i salvataggi dalla cartella dei dati del nome precedente, se in
+## quella attuale non ce n'è nessuno (i file vecchi restano dove sono).
+static func _migrate_legacy_dir() -> void:
+	if _legacy_checked:
+		return
+	_legacy_checked = true
+	var current := ProjectSettings.globalize_path("user://")
+	var legacy := current.trim_suffix("/").get_base_dir().path_join(LEGACY_USER_DIR)
+	if legacy == current.trim_suffix("/") or not DirAccess.dir_exists_absolute(legacy):
+		return
+	var names: Array[String] = [OLD_PATH.get_file()]
+	for index in range(1, SLOTS + 1):
+		names.append((PATH % index).get_file())
+	for file_name in names:
+		if FileAccess.file_exists("user://" + file_name):
+			return
+	for file_name in names:
+		var from := legacy.path_join(file_name)
+		if FileAccess.file_exists(from):
+			DirAccess.copy_absolute(from, current.path_join(file_name))
 
 
 static func vector(values: Array) -> Vector2:

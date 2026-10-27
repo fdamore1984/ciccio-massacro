@@ -268,7 +268,7 @@ func _interact() -> void:
 		"cave":
 			_enter_cave(at)
 		"stairs":
-			Sfx.play("summon", _player.global_position, 0.8)
+			Sfx.play("door", _player.global_position, 0.8)
 			_go_to_depth(_world.dungeon.depth + 1, Vector2.INF)
 		"exit":
 			Sfx.play("level_up", _player.global_position, 0.8)
@@ -339,7 +339,7 @@ func _enter_cave(at: Vector2) -> void:
 	_cave = at
 	_cave_levels = Dungeon.levels_for(_cave_seed())
 	_surface_return = _player.position
-	Sfx.play("summon", _player.global_position, 0.7)
+	Sfx.play("door", _player.global_position)
 	await _go_to_depth(1, Vector2.INF)
 	# Autosalvataggio entrando nella caverna.
 	_autosave_pending = true
@@ -435,7 +435,7 @@ func _setup_boss(boss: Enemy, dungeon: Dungeon) -> void:
 	_hud.show_boss(boss)
 
 
-## Boss sconfitto: monete, oggetti speciali e uno raro; il goblin ride, la
+## Boss sconfitto: rottami, oggetti speciali e uno raro; Ciccio ride, la
 ## caverna è completata e nella parete dell'arena compare l'uscita.
 func _on_boss_died(boss: Enemy) -> void:
 	_world.cleared_caves[_cave] = true
@@ -606,7 +606,7 @@ func _start_challenge(arena: Vector2) -> void:
 	_challenge_waves = (data["wave_times"] as Array).duplicate()
 	_challenge_enemies.clear()
 	_world.set_totem_state(arena, "active")
-	Sfx.play("summon", arena)
+	Sfx.play("siren", arena)
 
 
 ## Ondata di nemici dal bordo dell'arena: quanti e quanto forti dipende

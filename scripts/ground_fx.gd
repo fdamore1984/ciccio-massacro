@@ -13,7 +13,7 @@ const DROP_GRAVITY := 950.0
 const SPLAT_TIME := 30.0
 const CORPSE_TIME := 20.0
 const FADE_TIME := 4.0
-const MAX_SPLATS := 260
+const MAX_SPLATS := 700
 const MAX_CORPSES := 40
 ## Onda d'urto: l'anello dura WAVE_TIME, le crepe nel terreno CRACK_TIME.
 const WAVE_TIME := 0.45
@@ -64,18 +64,19 @@ func _ready() -> void:
 	add_child(_wave_layer)
 
 
-## Sangue di un colpo: gocce che schizzano nella direzione del colpo e
-## restano a terra come macchie, più una macchia subito sotto il nemico.
+## Sangue di un colpo (giocatore e nemici): gocce che schizzano a fiotti
+## nella direzione del colpo (alcune grosse, altre come nebbia) e restano a
+## terra come macchie, più una macchia larga subito sotto chi è colpito.
 static func bleed(at: Vector2, altitude: float, direction: Vector2, amount: int) -> void:
 	if current == null:
 		return
 	for i in amount:
-		var spread := direction.rotated(randf_range(-0.8, 0.8)) * randf_range(50.0, 240.0)
+		var spread := direction.rotated(randf_range(-1.0, 1.0)) * randf_range(60.0, 340.0)
 		current._drops.append({
 			"position": at, "altitude": altitude, "velocity": Vector2(spread.x, spread.y * 0.6),
-			"rise": randf_range(60.0, 300.0), "size": randf_range(2.0, 4.0), "age": 0.0,
+			"rise": randf_range(60.0, 380.0), "size": randf_range(1.5, 5.0), "age": 0.0,
 		})
-	current._add_splat(at + direction * 8.0, _ground(at), randf_range(6.0, 10.0), direction, 0.0)
+	current._add_splat(at + direction * 8.0, _ground(at), randf_range(10.0, 16.0), direction, 0.0)
 
 
 ## Pozza sotto un nemico abbattuto: si allarga in un attimo.

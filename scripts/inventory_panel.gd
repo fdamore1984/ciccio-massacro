@@ -1,14 +1,14 @@
 class_name InventoryPanel
 extends Control
-## Pannello dell'inventario (freccia su / I): monete, equipaggiamento
+## Pannello dell'inventario (freccia su): rottami, equipaggiamento
 ## indossato e oggetti raccolti, in una griglia in cui ogni oggetto occupa
 ## una casella; quando non ci stanno tutti la griglia scorre (levetta,
-## croce, rotellina o trascinando col dito). R3 (o C, o toccando il
+## croce o trascinando col dito). R3 (o toccando il
 ## pulsante sopra la griglia) cambia l'ordine: come sono stati trovati, per
-## potenza o per valore. Con A (o clic) si indossa o toglie
-## l'equipaggiamento, si legge un libro o si beve una pozione; per
+## potenza o per valore. Con A (o un tocco) si indossa o toglie
+## l'equipaggiamento, si legge un manuale o si usa una scorta; per
 ## l'equipaggiamento non indossato si vede il confronto con quello indossato
-## dello stesso tipo. B, Esc o di nuovo I chiudono. Mentre è aperto il gioco
+## dello stesso tipo. B o Start chiudono. Mentre è aperto il gioco
 ## è in pausa.
 
 ## Casella del negozio (vedi ShopPanel), con il prezzo sotto l'icona.
@@ -39,7 +39,7 @@ var _order: Array[int] = []
 var _gold := Label.new()
 var _equipped := HBoxContainer.new()
 var _details := Label.new()
-## Comandi in fondo: mostrano i tasti scelti dal giocatore (vedi Keybinds).
+## Comandi in fondo: mostrano i tasti del controller (vedi PadLabels).
 var _hint: Label
 var _empty := Label.new()
 var _buttons: Array[Button] = []
@@ -128,16 +128,16 @@ func close() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible:
 		return
-	# La freccia su del controller serve a muoversi: chiudono B, Esc, Start,
-	# i tasti I / Tab e il pulsante a schermo.
+	# La freccia su del controller serve a muoversi: chiudono B, Start e il
+	# pulsante a schermo.
 	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("menu") \
-			or ((event is InputEventKey or event is InputEventAction) and event.is_action_pressed("inventory")):
+			or (event is InputEventAction and event.is_action_pressed("inventory")):
 		# Il tasto che chiude (B, Start...) non deve anche schivare in gioco.
 		UiNav.consume(event)
 		close()
 		get_viewport().set_input_as_handled()
 		return
-	# R3 (o C) ordina: un'azione a parte da "lock_on", che usa gli stessi tasti.
+	# R3 ordina: un'azione a parte da "lock_on", che usa gli stessi tasti.
 	if event.is_action_pressed("inventory_sort"):
 		_on_sort_pressed()
 		get_viewport().set_input_as_handled()
@@ -150,8 +150,8 @@ func _unhandled_input(event: InputEvent) -> void:
 func _rebuild(focus_index: int) -> void:
 	var inventory := player.inventory
 	_gold.text = tr("INVENTORY_GOLD") % inventory.gold
-	_sort_button.text = tr("INVENTORY_SORT") % [tr("INVENTORY_SORT_" + _sort.to_upper()), Keybinds.hint("inventory_sort")]
-	_hint.text = tr("INVENTORY_HINT") % [Keybinds.hint("inventory_sort"), Keybinds.hint("inventory")]
+	_sort_button.text = tr("INVENTORY_SORT") % [tr("INVENTORY_SORT_" + _sort.to_upper()), PadLabels.hint("inventory_sort")]
+	_hint.text = tr("INVENTORY_HINT") % PadLabels.hint("inventory_sort")
 	for child in _grid.get_children():
 		child.queue_free()
 	for child in _equipped.get_children():

@@ -1,18 +1,21 @@
 class_name Player
 extends Node2D
-## Personaggio giocabile. Per ora è disegnato con forme geometriche:
-## verrà sostituito dagli sprite definitivi.
+## Personaggio giocabile: Ciccio, un sopravvissuto rosa e rotondo armato
+## di motosega e bazooka. Per ora è disegnato con forme geometriche (corpo
+## rosa, braccia e gambe come linee nere sottili): verrà sostituito dagli
+## sprite definitivi.
 ##
 ## Azioni: movimento in tutte le direzioni con accelerazione e frenata,
 ## attacchi consecutivi in combo sempre più potenti (R1), attacco potente
 ## che chiude la combo con un bonus (L2), parata tenendo premuto (L1),
 ## schivate concatenate con cambio di direzione (B), salti anche multipli (A),
-## corsa tenendo premuto R2, palla di fuoco che insegue i nemici (X, costa
-## mana), scudo che assorbe un colpo (Y), pozioni di vita (croce sinistra),
-## di mana (croce destra) e di vigore (croce giù). Un tocco di L3 accende o
-## spegne la corsa, tenendolo premuto si accende o spegne la torcia (vedi
+## corsa, missile del bazooka che insegue i nemici (X, costa carburante:
+## nel codice "mana"), scudo che assorbe un colpo (Y), kit medici (croce
+## sinistra, nel codice "potion"), taniche di carburante (croce destra) ed
+## energetici (croce giù). Un tocco di L3 accende o spegne la corsa,
+## tenendolo premuto si accende o spegne la torcia elettrica (vedi
 ## _update_run_button). Il colpo potente si
-## carica tenendo premuto, fino al doppio del danno. Equipaggiamento e libri
+## carica tenendo premuto, fino al doppio del danno. Equipaggiamento e manuali
 ## dell'inventario migliorano le caratteristiche (vedi Inventory).
 ## Parata, schivata e salto sono istantanei: annullano subito qualsiasi
 ## altra azione (combo, carica, attacco a terra, rinculo, sorso; non lo
@@ -37,11 +40,10 @@ extends Node2D
 ## colpo più ampio. Durante gli attacchi a terra si passa
 ## attraverso i nemici; all'impatto quelli attorno (non i boss) vengono
 ## respinti lontano.
-## Ogni colpo potente consuma mana finché si tiene premuto (HEAVY_CHARGE_MANA):
-## senza mana la carica si interrompe. Lo slam aereo caricato fa fluttuare a
-## mezz'aria, consuma anche vigore ed espone a dardi e frecce.
-## Col mouse: clic sinistro (move_click) per camminare verso il cursore,
-## destro per il colpo potente verso il cursore (vedi _unhandled_input).
+## Ogni colpo potente consuma carburante finché si tiene premuto
+## (HEAVY_CHARGE_MANA): senza carburante la carica si interrompe. Lo slam
+## aereo caricato fa fluttuare a mezz'aria, consuma anche vigore ed espone
+## ai proiettili.
 ## Sconfiggere nemici dà esperienza; a ogni livello aumentano i danni
 ## base e si sceglie un potenziamento.
 
@@ -134,8 +136,8 @@ const SLAM_RADIUS := {"plunge": 90.0, "dash": 165.0}
 const PLUNGE_DAMAGE_FACTOR := 1.6
 ## Slam aereo caricato: tenendo premuto il colpo potente in aria si fluttua
 ## salendo piano (AIR_SLAM_RISE_SPEED, sempre più piano con la carica, con
-## un leggero ondeggiare di AIR_SLAM_BOB pixel) mentre la spada si carica
-## di magia (fino a HEAVY_CHARGE_TIME, poi parte da solo). La carica consuma
+## un leggero ondeggiare di AIR_SLAM_BOB pixel) mentre la motosega va su di
+## giri (fino a HEAVY_CHARGE_TIME, poi parte da solo). La carica consuma
 ## mana (HEAVY_CHARGE_MANA) e vigore (AIR_SLAM_STAMINA_DRAIN) al secondo:
 ## se uno dei due finisce la picchiata parte subito con la carica raggiunta.
 ## Intanto si è esposti a dardi e frecce dei nemici (vedi receive_hit).
@@ -241,8 +243,9 @@ const MANA_REGEN := 2.0
 const MANA_UPGRADE := 20.0
 const MANA_POTION_RESTORE := 40.0
 const START_MANA_POTIONS := 1
-## Palla di fuoco: costo, attesa tra un lancio e l'altro, danni (crescono
-## con il livello e con i potenziamenti della magia, +20% ciascuno).
+## Missile del bazooka: costo in carburante, attesa tra un lancio e
+## l'altro, danni (crescono con il livello e con i potenziamenti dei
+## missili, +20% ciascuno).
 const SPELL_COST := 20.0
 const SPELL_COOLDOWN := 0.45
 const FIREBALL_DAMAGE := 18
@@ -256,19 +259,12 @@ const HEAVY_CHARGE_TIME := 0.9
 ## il tasto (carica compresa, a terra e in aria): senza mana la carica si
 ## interrompe e il colpo parte con quella raggiunta (senza mana non si carica).
 const HEAVY_CHARGE_MANA := 20.0
-const COLOR_CHARGE_GLOW := Color(0.55, 0.8, 1.0)
+## La motosega in carica si scalda: alone arancione, scintille e fumo.
+const COLOR_CHARGE_GLOW := Color(1.0, 0.55, 0.15)
 
-## Mouse: il tasto di "move_click" (sinistro) fa camminare verso il punto
-## del terreno sotto il cursore (tenendolo premuto lo si segue); ci si ferma
-## entro CLICK_ARRIVE_DISTANCE o se si resta bloccati per CLICK_STUCK_TIME.
-## Gli attacchi partiti con un tasto del mouse (il destro è il colpo
-## potente) vanno verso il cursore.
-const CLICK_ARRIVE_DISTANCE := 10.0
-const CLICK_STUCK_TIME := 0.4
-
-## Torcia: luce attorno al personaggio, accesa e spenta tenendo premuto L3
-## (o Maiusc) per TORCH_HOLD_TIME secondi; un tocco più breve è la corsa.
-const TORCH_COLOR := Color(1.0, 0.78, 0.45)
+## Torcia elettrica: luce attorno al personaggio, accesa e spenta tenendo
+## premuto L3 per TORCH_HOLD_TIME secondi; un tocco più breve è la corsa.
+const TORCH_COLOR := Color(0.92, 0.95, 1.0)
 const TORCH_ENERGY := 1.15
 const TORCH_SCALE := 1.9
 const TORCH_HOLD_TIME := 0.45
@@ -359,12 +355,22 @@ const HURT_INVULNERABLE_TIME := 0.8
 const LEG_LENGTH := 14.0
 const WALK_CYCLE := 0.08
 const STRIDE := 7.0
-## Spada: lunghezza e larghezza della lama (il colpo potente usa una spada più grande).
-const SWORD_LENGTH := 46.0
-const HEAVY_SWORD_LENGTH := 58.0
-const SWORD_WIDTH := 5.0
+## Braccia e gambe sono semplici linee nere, corte e sottili; le braccia
+## vanno dalle spalle alle mani (al più ARM_LENGTH).
+const COLOR_LIMBS := Color(0.05, 0.05, 0.06)
+const LIMB_WIDTH := 2.5
+const ARM_LENGTH := 26.0
+## Motosega: lunghezza e larghezza della barra (il colpo potente la porta
+## più avanti). La catena scorre lenta a riposo, veloce attaccando.
+const SAW_LENGTH := 46.0
+const HEAVY_SAW_LENGTH := 58.0
+const SAW_WIDTH := 5.0
+const SAW_CHAIN_IDLE := 14.0
+const SAW_CHAIN_FAST := 140.0
+## Sangue perso quando si viene colpiti (gocce).
+const BLEED_DROPS := 26
 
-const COLOR_BODY := Color(0.35, 0.75, 0.4)
+const COLOR_BODY := Color(1.0, 0.55, 0.74)
 ## Burroni: cadendoci si precipita per FALL_TIME secondi, poi si riappare
 ## sul bordo (l'ultimo punto sicuro) perdendo vita (data/world.json). Si
 ## cade quando si scende sotto il bordo di FALL_DEPTH pixel.
@@ -377,12 +383,12 @@ const COLOR_SLASH := Color(1.0, 1.0, 0.85)
 const COLOR_HEAVY := Color(1.0, 0.5, 0.2)
 const COLOR_EMPOWERED := Color(1.0, 0.8, 0.25)
 const COLOR_HEAL := Color(0.5, 1.0, 0.5)
-const COLOR_BUBBLE := Color(0.55, 0.85, 1.0)
-const COLOR_MANA := Color(0.45, 0.65, 1.0)
-const COLOR_FLAME := Color(1.0, 0.6, 0.2)
-const COLOR_HEALTH_FLASK := Color(0.9, 0.2, 0.25)
-const COLOR_MANA_FLASK := Color(0.3, 0.5, 1.0)
-const COLOR_STAMINA_FLASK := Color(0.3, 0.85, 0.3)
+const COLOR_BUBBLE := Color(0.35, 0.6, 0.85)
+const COLOR_MANA := Color(0.95, 0.45, 0.12)
+const COLOR_FLASHLIGHT := Color(0.15, 0.15, 0.17)
+const COLOR_MEDKIT := Color(0.95, 0.95, 0.92)
+const COLOR_FUEL_CAN := Color(0.85, 0.18, 0.12)
+const COLOR_ENERGY_CAN := Color(0.3, 0.85, 0.3)
 
 var max_health := START_HEALTH
 ## Vita massima senza l'equipaggiamento (cresce con i potenziamenti).
@@ -393,7 +399,7 @@ var _base_max_mana := START_MANA
 ## Pozioni nella cintura: non hanno limite.
 var mana_potions := START_MANA_POTIONS
 var stamina_potions := START_STAMINA_POTIONS
-## Bonus alla potenza della magia dai potenziamenti (0.2 = +20%).
+## Bonus ai danni dei missili dai potenziamenti (0.2 = +20%).
 var spell_bonus := 0.0
 var inventory := Inventory.new()
 var torch_on := false
@@ -449,7 +455,7 @@ var _run_on := false
 var _hurt_time := HURT_TIME
 ## C'è un elemento con cui interagire qui vicino (lo decide Game).
 var can_interact := false
-## Cresce a ogni attacco di spada (non gli attacchi a terra): i nemici lo
+## Cresce a ogni attacco di motosega (non gli attacchi a terra): i nemici lo
 ## guardano per decidere se alzare la guardia (vedi Enemy).
 var attack_serial := 0
 ## L'attacco in corso è partito in aria (attacco aereo).
@@ -496,6 +502,11 @@ var _safe_altitude := 0.0
 ## sparisce (anche liberato dalla scena) l'aggancio si toglie.
 var lock_target: Enemy
 var _lock_marker := LockMarker.new()
+## Catena della motosega (pixel percorsi) e mani nell'ultimo disegno:
+## impugnatura della motosega e l'altra mano (maniglia, torcia, scorta).
+var _saw_phase := 0.0
+var _grip := Vector2.ZERO
+var _off_hand := Vector2.ZERO
 ## Carica del colpo potente (0-1) e se il tasto è ancora tenuto premuto.
 var _charge := 0.0
 var _charging := false
@@ -504,17 +515,8 @@ var _charging := false
 var _chain_charge := 0.0
 ## Il suono del colpo potente parte al rilascio della carica, una volta sola.
 var _heavy_swing_played := false
-## Tempo passato in carica (per l'animazione della magia sulla spada).
+## Tempo passato in carica (per l'animazione della motosega che si scalda).
 var _charge_time := 0.0
-## Movimento col mouse: in corso, punto del terreno da raggiungere e da
-## quanto si è bloccati.
-var _click_moving := false
-var _click_target := Vector2.ZERO
-var _click_stuck := 0.0
-## L'attacco è partito con un tasto del mouse: si mira al cursore finché
-## lo si tiene premuto; direzione verso il cursore (zero se non si mira).
-var _aim_cursor := false
-var _aim := Vector2.ZERO
 var _torch := PointLight2D.new()
 ## Potenziamento -> quante volte è stato scelto, nell'ordine di scelta.
 var upgrades_taken := {}
@@ -567,16 +569,7 @@ func _physics_process(delta: float) -> void:
 	# appena chiuso un menù (A su Riprendi, B) non conta finché non si rilascia.
 	var input := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	var dodge_input := Input.get_vector("move_left", "move_right", "move_up", "move_down", DODGE_STICK_DEADZONE)
-	# Tastiera e levetta hanno la precedenza sul movimento col mouse.
-	if input != Vector2.ZERO:
-		_click_moving = false
-	else:
-		input = _click_input(delta)
-		if dodge_input == Vector2.ZERO:
-			dodge_input = input
-	_update_aim()
-	# Gli attacchi col mouse partono verso il cursore.
-	var attack_input := _aim if _aim != Vector2.ZERO else input
+	var attack_input := input
 
 	if _state not in [State.DEAD, State.HURT]:
 		if UiNav.game_pressed("potion"):
@@ -588,7 +581,7 @@ func _physics_process(delta: float) -> void:
 		if UiNav.game_pressed("stamina_potion"):
 			_start_drink("stamina_potion")
 		if UiNav.game_pressed("spell"):
-			_cast_fireball(input)
+			_fire_missile(input)
 	if _state != State.DEAD:
 		# R3 aggancia il nemico più vicino; premendo di nuovo si aggancia
 		# quello che ora è più vicino (non si sgancia mai).
@@ -761,11 +754,10 @@ func _physics_process(delta: float) -> void:
 	_update_height(delta)
 	_move(delta)
 	_walk_phase += _velocity.length() * delta * WALK_CYCLE
+	_saw_phase += delta * (SAW_CHAIN_FAST if _state in [State.ATTACK, State.SLAM] else SAW_CHAIN_IDLE)
 	if torch_on:
-		# La fiamma tremola.
 		# La luce è un'ellisse a terra centrata sotto il personaggio.
 		_torch.position = Vector2(0, -ground_elevation + RADIUS * 0.6)
-		_torch.energy = TORCH_ENERGY * randf_range(0.92, 1.05)
 	_squash = move_toward(_squash, 0.0, SQUASH_RECOVERY * delta)
 	if _camera:
 		# Mentre si precipita nel burrone la telecamera resta al bordo.
@@ -891,15 +883,15 @@ func _land() -> void:
 
 
 ## Avanzamento dell'attacco in corso: affondo, colpo, combo e recupero.
-## aim: direzione del colpo (il cursore se l'attacco è partito col mouse).
+## aim: direzione del colpo.
 func _update_attack(input: Vector2, aim: Vector2, delta: float) -> void:
 	var windup := (HEAVY_WINDUP if _attack_heavy else ATTACK_WINDUP) / _attack_speed
 	var active := (HEAVY_ACTIVE if _attack_heavy else ATTACK_ACTIVE) / _attack_speed
 	var recovery := _attack_recovery() / _attack_speed
 	if _charging:
 		# Finché si tiene premuto, il colpo potente resta in carica (e consuma
-		# mana); intanto ci si gira con la levetta (o verso il bersaglio
-		# agganciato, o verso il cursore).
+		# carburante); intanto ci si gira con la levetta (o verso il bersaglio
+		# agganciato).
 		if aim != Vector2.ZERO:
 			_target_facing = aim.normalized()
 		_face_lock()
@@ -1030,6 +1022,7 @@ func receive_hit(from: Vector2, damage: int, projectile := false) -> String:
 	# Colpiti si perde la carica (per esempio dello slam aereo: si cade giù).
 	_charging = false
 	_charge = 0.0
+	GroundFx.bleed(global_position, altitude() + LEG_LENGTH + RADIUS * 0.5, -to_attacker, BLEED_DROPS)
 	if health == 0:
 		_change_state(State.DEAD)
 		Sfx.play("death", global_position)
@@ -1046,7 +1039,7 @@ func is_dead() -> bool:
 	return _state == State.DEAD
 
 
-## Risatina da goblin, per esempio dopo aver sconfitto un boss.
+## Risata di Ciccio, per esempio dopo aver sconfitto un boss.
 func laugh() -> void:
 	Sfx.play("giggle", global_position)
 
@@ -1080,6 +1073,12 @@ func _repel(from: Vector2) -> void:
 	HitFeedback.hit(get_tree(), 0.07)
 
 
+## Fa tremare la telecamera (amount da 0 a 1), per esempio per
+## un'esplosione vicina.
+func shake(amount: float) -> void:
+	_shake = maxf(_shake, amount)
+
+
 ## Sta caricando lo slam aereo: fluttua a mezz'aria, esposto a dardi e
 ## frecce (i nemici a distanza ne approfittano, vedi Enemy).
 func is_air_charging() -> bool:
@@ -1105,6 +1104,7 @@ func _climb_out_of_ravine() -> void:
 	var data: Dictionary = World.DATA.data["terrain"]
 	health = maxi(health - int(data["ravine_damage"]), 0)
 	health_changed.emit(health, max_health)
+	GroundFx.bleed(global_position, ground_elevation + LEG_LENGTH + RADIUS * 0.5, Vector2.from_angle(randf() * TAU), BLEED_DROPS)
 	if health == 0:
 		_change_state(State.DEAD)
 		Sfx.play("death", global_position)
@@ -1298,7 +1298,7 @@ func run_speed() -> float:
 	return walk_speed() * RUN_SPEED_FACTOR * (1.0 + run_speed_bonus)
 
 
-## Danni della palla di fuoco.
+## Danni del missile.
 func spell_damage() -> int:
 	var base := FIREBALL_DAMAGE + FIREBALL_DAMAGE_PER_LEVEL * (level - 1)
 	return roundi(base * (1.0 + spell_bonus + inventory.bonus("spell")))
@@ -1544,12 +1544,11 @@ func _start_slam(kind: String, input: Vector2) -> void:
 
 ## Attacco a terra: sosta in aria, discesa e, toccato terra, l'impatto
 ## (vedi _land); poi un breve recupero.
-## aim: direzione verso cui girarsi in carica (il cursore se lo slam è
-## partito col mouse).
+## aim: direzione verso cui girarsi in carica.
 func _update_slam(input: Vector2, aim: Vector2, delta: float) -> void:
 	if _charging:
 		# A mezz'aria si fluttua salendo piano (sempre più piano con la carica):
-		# ci si gira con la levetta (o verso il bersaglio, o il cursore) finché
+		# ci si gira con la levetta (o verso il bersaglio) finché
 		# si tiene premuto; a carica piena la picchiata parte da sola, e anche
 		# quando finiscono mana o vigore.
 		_height_velocity = AIR_SLAM_RISE_SPEED * (1.0 - 0.6 * _charge)
@@ -1619,7 +1618,7 @@ func _slam_impact() -> void:
 		HitSpark.spawn(get_parent(), enemy.global_position - direction * enemy.radius * 0.8, enemy.ground_elevation + enemy.radius * 0.5, 40.0, COLOR_HEAVY)
 		landed = true
 	GroundFx.shockwave(global_position, ground_elevation, radius)
-	Sfx.play("fireball_hit", global_position, 0.6)
+	Sfx.play("impact", global_position, 0.6)
 	if landed:
 		Sfx.play("hit", global_position, 0.7)
 		HitFeedback.hit(get_tree(), 0.14)
@@ -1796,73 +1795,9 @@ func _drain_charge(delta: float, air: bool) -> bool:
 	return mana > 0.0 and (not air or stamina > 0.0)
 
 
-## Tasti del mouse premuti sul mondo (non sui pulsanti dell'interfaccia,
-## che li consumano prima): movimento verso il cursore e mira degli
-## attacchi. I tocchi sullo schermo arrivano anche come clic emulati: lì ci
-## sono già i controlli touch, quindi si ignorano.
-func _unhandled_input(event: InputEvent) -> void:
-	if not (event is InputEventMouseButton) or event.device == InputEvent.DEVICE_ID_EMULATION:
-		return
-	if _state == State.DEAD or Platform.ignores_desktop_input():
-		return
-	if event.is_action_pressed("move_click"):
-		_click_moving = true
-		_click_target = _cursor_ground()
-		_click_stuck = 0.0
-	if event.is_action_pressed("heavy_attack") or event.is_action_pressed("attack"):
-		_aim_cursor = true
-
-
-## Direzione del movimento col mouse (zero se non ci si sta muovendo così):
-## tenendo premuto il tasto si segue il cursore; arrivati, o bloccati da un
-## ostacolo, ci si ferma.
-func _click_input(delta: float) -> Vector2:
-	if not _click_moving or _state == State.DEAD:
-		_click_moving = false
-		return Vector2.ZERO
-	if Input.is_action_pressed("move_click"):
-		_click_target = _cursor_ground()
-	var to_target := _click_target - position
-	if _state == State.NORMAL and _state_time > CLICK_STUCK_TIME and _velocity.length() < SPEED * 0.1:
-		_click_stuck += delta
-	else:
-		_click_stuck = 0.0
-	if to_target.length() <= CLICK_ARRIVE_DISTANCE or _click_stuck >= CLICK_STUCK_TIME:
-		_click_moving = false
-		return Vector2.ZERO
-	return to_target.normalized()
-
-
-## Mira col mouse: finché si tiene premuto il tasto che ha fatto partire
-## l'attacco si mira al cursore.
-func _update_aim() -> void:
-	_aim = Vector2.ZERO
-	if not _aim_cursor:
-		return
-	var to_cursor := _cursor_ground() - position
-	if to_cursor.length() > 1.0:
-		_aim = to_cursor.normalized()
-	if not Input.is_action_pressed("heavy_attack") and not Input.is_action_pressed("attack"):
-		_aim_cursor = false
-
-
-## Punto del terreno sotto il cursore: il terreno è disegnato più in alto
-## della sua altezza, quindi si cerca il punto che, sollevato, cade sotto il
-## cursore (bastano pochi passi).
-func _cursor_ground() -> Vector2:
-	var parent := get_parent() as Node2D
-	var at := parent.to_local(get_global_mouse_position()) if parent else get_global_mouse_position()
-	if World.current == null:
-		return at
-	var point := at
-	for i in 3:
-		point = at + Vector2(0, World.current.elevation_at(point))
-	return point
-
-
-## Palla di fuoco verso dove si guarda (o si punta la levetta): poi
-## insegue da sola il nemico più vicino.
-func _cast_fireball(input: Vector2) -> void:
+## Missile del bazooka verso dove si guarda (o si punta la levetta): poi
+## insegue da solo il nemico più vicino.
+func _fire_missile(input: Vector2) -> void:
 	if _spell_cooldown > 0.0:
 		return
 	if mana < SPELL_COST:
@@ -1870,16 +1805,17 @@ func _cast_fireball(input: Vector2) -> void:
 		return
 	mana -= SPELL_COST
 	_spell_cooldown = SPELL_COOLDOWN
-	var fireball := Fireball.new()
-	fireball.direction = input.normalized() if input != Vector2.ZERO else facing
+	var missile := Missile.new()
+	missile.direction = input.normalized() if input != Vector2.ZERO else facing
 	if lock_target:
-		fireball.target = lock_target
-		fireball.direction = (lock_target.global_position - global_position).normalized()
-	fireball.damage = spell_damage()
-	fireball.altitude = ground_elevation
-	fireball.position = position + fireball.direction * RADIUS
-	get_parent().add_child(fireball)
-	Sfx.play("fireball", global_position)
+		missile.target = lock_target
+		missile.direction = (lock_target.global_position - global_position).normalized()
+	missile.damage = spell_damage()
+	missile.altitude = ground_elevation
+	missile.position = position + missile.direction * RADIUS
+	get_parent().add_child(missile)
+	_shake = maxf(_shake, 0.25)
+	Sfx.play("missile_launch", global_position)
 
 
 ## Pozioni di ciascun tipo che si possono portare.
@@ -2125,8 +2061,8 @@ func _draw() -> void:
 			Shapes.disc(self, -_dodge_direction * k * 16.0 + Vector2(0, -LEG_LENGTH), RADIUS * (1.0 - 0.15 * k), Color(body, 0.35 / k))
 	if _state != State.SLIDE and not rolling:
 		var foot_y := RADIUS * 0.85 - (6.0 if is_airborne() else 0.0)
-		BodyParts.draw_legs(self, -LEG_LENGTH + RADIUS * 0.55, foot_y, 8.0, 6.0, _walk_phase,
-				_velocity.normalized(), STRIDE if walking else 0.0, body.darkened(0.35))
+		BodyParts.draw_legs(self, -LEG_LENGTH + RADIUS * 0.55, foot_y, 7.0, LIMB_WIDTH, _walk_phase,
+				_velocity.normalized(), STRIDE if walking else 0.0, Color(COLOR_LIMBS, body.a), false)
 	# Il corpo ondeggia camminando, si inclina nella direzione di corsa, si
 	# allunga salendo e si schiaccia atterrando.
 	var bob := absf(sin(_walk_phase)) * 2.5 if walking else 0.0
@@ -2160,63 +2096,100 @@ func _draw() -> void:
 	draw_primitive(PackedVector2Array([tip, facing * RADIUS * 0.6 + side, facing * RADIUS * 0.6 - side]), PackedColorArray([body.darkened(0.3)]), PackedVector2Array())
 
 	if _state != State.DEAD:
-		_draw_sword()
+		_grip = facing.orthogonal() * RADIUS * 0.8
+		_off_hand = -_grip
+		_draw_weapon()
 		if _state == State.DRINK:
 			_draw_flask()
 		if torch_on:
 			_draw_torch()
+		_draw_arms(body.a)
 
-	# Scudo attivo: una bolla attorno al personaggio.
+	# Scudo attivo: piastre di kevlar esagonali attorno al personaggio.
 	if shield_active and _state != State.DEAD:
-		Shapes.disc(self, Vector2.ZERO, RADIUS + 16.0, Color(COLOR_BUBBLE, 0.15))
-		draw_arc(Vector2.ZERO, RADIUS + 16.0, 0.0, TAU, 40, Color(COLOR_BUBBLE, 0.7), 2.5)
+		var plates := PackedVector2Array()
+		for k in 7:
+			plates.append(Vector2.from_angle(TAU * k / 6.0 + PI / 6.0) * (RADIUS + 16.0))
+		Shapes.disc(self, Vector2.ZERO, RADIUS + 14.0, Color(COLOR_BUBBLE, 0.12))
+		draw_polyline(plates, Color(COLOR_BUBBLE, 0.8), 3.0)
+		for k in 6:
+			draw_line(plates[k] * 0.86, plates[k], Color(COLOR_BUBBLE, 0.5), 2.0)
 	draw_set_transform(Vector2.ZERO)
 
 
-## Bevendo: la fiaschetta (rossa, blu o verde) sale alla bocca e si inclina.
+## Usando una scorta l'altra mano la porta al corpo: il kit medico
+## bianco con la croce rossa, la tanica rossa del carburante o la lattina
+## verde dell'energetico, che arriva alla bocca.
 func _draw_flask() -> void:
-	var color := COLOR_MANA_FLASK
-	if _drinking == "potion":
-		color = COLOR_HEALTH_FLASK
-	elif _drinking == "stamina_potion":
-		color = COLOR_STAMINA_FLASK
 	var t := clampf(_state_time / DRINK_EFFECT_TIME, 0.0, 1.0)
 	var at := facing * RADIUS * lerpf(1.2, 0.7, t) + Vector2(0, lerpf(4.0, -8.0, t))
-	var neck := Vector2.from_angle(-PI / 2.0 + facing.x * 1.2 * t) * 10.0
-	draw_line(at, at + neck, Color(0.85, 0.8, 0.7), 4.0)
-	Shapes.disc(self, at, 7.5, Color(0, 0, 0, 0.6))
-	Shapes.disc(self, at, 6.0, color)
-	Shapes.disc(self, at + Vector2(-2, -2), 2.0, Color(1, 1, 1, 0.6))
+	match _drinking:
+		"potion":
+			draw_rect(Rect2(at - Vector2(9, 7), Vector2(18, 14)), Color(0, 0, 0, 0.6))
+			draw_rect(Rect2(at - Vector2(8, 6), Vector2(16, 12)), COLOR_MEDKIT)
+			draw_line(at - Vector2(4, 0), at + Vector2(4, 0), COLOR_HURT, 3.0)
+			draw_line(at - Vector2(0, 4), at + Vector2(0, 4), COLOR_HURT, 3.0)
+		"stamina_potion":
+			draw_rect(Rect2(at - Vector2(5, 8), Vector2(10, 16)), Color(0, 0, 0, 0.6))
+			draw_rect(Rect2(at - Vector2(4, 7), Vector2(8, 14)), COLOR_ENERGY_CAN)
+			draw_line(at - Vector2(4, 6), at + Vector2(4, -6), Color(0.85, 0.85, 0.85), 2.0)
+			draw_line(at - Vector2(3, 1), at + Vector2(3, -2), Color(1, 1, 0.4), 2.0)
+		_:
+			draw_rect(Rect2(at - Vector2(8, 9), Vector2(16, 18)), Color(0, 0, 0, 0.6))
+			draw_rect(Rect2(at - Vector2(7, 8), Vector2(14, 16)), COLOR_FUEL_CAN)
+			draw_line(at + Vector2(-7, -8), at + Vector2(7, 8), COLOR_FUEL_CAN.darkened(0.3), 2.0)
+			draw_line(at + Vector2(4, -8), at + Vector2(8, -13), Color(0.3, 0.3, 0.3), 3.0)
+	_off_hand = at
 
 
-## Spada: a riposo è tenuta di lato; nell'attacco si porta indietro durante
-## la carica e poi fende l'arco del colpo, alternando il verso a ogni
-## attacco, lasciando una scia.
-func _draw_sword() -> void:
+## Braccia: linee nere sottili dalle spalle alle mani (vedi _grip e
+## _off_hand), accorciate se le mani sono più lontane di ARM_LENGTH.
+func _draw_arms(alpha: float) -> void:
+	var shoulder := facing.orthogonal() * RADIUS * 0.7
+	if _grip.dot(shoulder) < 0.0:
+		shoulder = -shoulder
+	var color := Color(COLOR_LIMBS, alpha)
+	for pair: Array in [[shoulder, _grip], [-shoulder, _off_hand]]:
+		var from: Vector2 = pair[0]
+		draw_line(from, from + ((pair[1] as Vector2) - from).limit_length(ARM_LENGTH), color, LIMB_WIDTH)
+
+
+## Motosega in mano (hand: impugnatura posteriore): ricorda dove sono le
+## mani per le braccia (l'altra mano sulla maniglia anteriore).
+func _draw_saw(hand: Vector2, angle: float, length: float, width: float, tint: Color) -> void:
+	BodyParts.draw_chainsaw(self, hand, angle, length, width, tint, _saw_phase)
+	_grip = hand
+	_off_hand = hand + Vector2.from_angle(angle) * length * 0.2
+
+
+## Motosega: a riposo è tenuta di lato; nell'attacco si porta indietro
+## durante la carica e poi fende l'arco del colpo, alternando il verso a
+## ogni attacco, lasciando una scia.
+func _draw_weapon() -> void:
 	var tint := Color.WHITE
 	if inventory.equipped.has("weapon"):
 		tint = Items.color(inventory.items[inventory.equipped["weapon"]]).lightened(0.3)
 	if is_empowered():
 		tint = Color(1.0, 0.95, 0.7)
 	if _state == State.SLAM:
-		_draw_slam_sword(tint)
+		_draw_slam_saw(tint)
 		return
 	if _state == State.PARRY:
-		# In parata la spada è di traverso davanti al corpo: si illumina
+		# In parata la motosega è di traverso davanti al corpo: si illumina
 		# all'inizio (quando la parata sarebbe perfetta) e quando para un colpo.
 		var across := -facing.orthogonal()
 		var center := facing * RADIUS * 0.95
 		if _state_time <= PERFECT_PARRY_WINDOW or _block_flash > 0.0:
 			Shapes.disc(self, center, 14.0, Color(COLOR_SHIELD, 0.45))
 			tint = Color(1.3, 1.3, 1.4)
-		BodyParts.draw_sword(self, center - across * SWORD_LENGTH * 0.45, across.angle(), SWORD_LENGTH, SWORD_WIDTH, tint)
+		_draw_saw(center - across * SAW_LENGTH * 0.45, across.angle(), SAW_LENGTH, SAW_WIDTH, tint)
 		return
 	if _state != State.ATTACK:
 		var rest := facing.angle() + 0.6
-		BodyParts.draw_sword(self, facing.orthogonal() * RADIUS * 0.8, rest, SWORD_LENGTH, SWORD_WIDTH, tint)
+		_draw_saw(facing.orthogonal() * RADIUS * 0.8, rest, SAW_LENGTH, SAW_WIDTH, tint)
 		return
 	if not _attack_heavy and not _air_attack:
-		_draw_attack_sword(tint)
+		_draw_attack_saw(tint)
 		return
 	var windup := (HEAVY_WINDUP if _attack_heavy else ATTACK_WINDUP) / _attack_speed
 	var active := (HEAVY_ACTIVE if _attack_heavy else ATTACK_ACTIVE) / _attack_speed
@@ -2225,7 +2198,7 @@ func _draw_sword() -> void:
 	var end := facing.angle() + _swing_sign * arc / 2.0
 	var angle := end
 	if _state_time < windup:
-		# Carica: la spada si porta un po' più indietro.
+		# Carica: la motosega si porta un po' più indietro.
 		angle = start - _swing_sign * 0.35 * _state_time / windup
 		if _attack_heavy:
 			draw_arc(Vector2.ZERO, RADIUS + 6.0, facing.angle() - arc / 2.0, facing.angle() + arc / 2.0, 24, Color(COLOR_HEAVY, _state_time / windup), 4.0)
@@ -2239,17 +2212,17 @@ func _draw_sword() -> void:
 		# I colpi successivi della combo hanno una scia più accesa.
 		var alpha := 0.85 if _attack_heavy else 0.5 + 0.15 * (_combo_step - 1)
 		BodyParts.draw_trail(self, Vector2.ZERO, start, angle, RADIUS + 6.0, _attack_range() + RADIUS, Color(slash, minf(alpha, 0.9)))
-	var length := HEAVY_SWORD_LENGTH if _attack_heavy else SWORD_LENGTH
-	BodyParts.draw_sword(self, Vector2.from_angle(angle) * RADIUS * 0.8, angle, length, SWORD_WIDTH * (1.3 if _attack_heavy else 1.0), tint)
+	var length := HEAVY_SAW_LENGTH if _attack_heavy else SAW_LENGTH
+	_draw_saw(Vector2.from_angle(angle) * RADIUS * 0.8, angle, length, SAW_WIDTH * (1.3 if _attack_heavy else 1.0), tint)
 	if _attack_heavy and _charging:
-		_draw_charge_magic(Vector2.from_angle(angle) * RADIUS * 0.8, angle, length)
+		_draw_charge_heat(Vector2.from_angle(angle) * RADIUS * 0.8, angle, length)
 
 
-## Colpo normale a terra: carica (la spada si porta indietro e la punta
+## Colpo normale a terra: carica (la motosega si porta indietro e la punta
 ## luccica), colpo con la scia e accompagnamento che si spegne tornando in
 ## guardia. Il movimento cambia a ogni colpo (ATTACK_STYLES), l'area colpita
 ## è sempre la stessa, mostrata da un velo chiaro mentre si colpisce.
-func _draw_attack_sword(tint: Color) -> void:
+func _draw_attack_saw(tint: Color) -> void:
 	var windup := ATTACK_WINDUP / _attack_speed
 	var active := ATTACK_ACTIVE / _attack_speed
 	var recovery := _attack_recovery() / _attack_speed
@@ -2269,7 +2242,7 @@ func _draw_attack_sword(tint: Color) -> void:
 	var rest := forward + 0.6
 	var angle := forward
 	var hand := Vector2.ZERO
-	var length := SWORD_LENGTH
+	var length := SAW_LENGTH
 	match ATTACK_STYLES[_attack_style]:
 		"slash", "backhand":
 			# Fendente da un lato all'altro (il rovescio nel verso opposto).
@@ -2289,7 +2262,7 @@ func _draw_attack_sword(tint: Color) -> void:
 					BodyParts.draw_trail(self, Vector2.ZERO, from, to, RADIUS + 6.0, reach, Color(slash, trail_alpha * 0.5 * (1.0 - t)))
 			hand = Vector2.from_angle(angle) * RADIUS * 0.8
 		"chop":
-			# Dall'alto: la spada si alza sopra la testa e cala in avanti.
+			# Dall'alto: la motosega si alza sopra la testa e cala in avanti.
 			var up := -PI / 2.0
 			var down := up + wrapf(forward - up, -PI, PI)
 			match phase:
@@ -2299,16 +2272,16 @@ func _draw_attack_sword(tint: Color) -> void:
 				1:
 					angle = lerpf(up - 0.25, down, ease(t, 0.35))
 					hand = Vector2(0, -RADIUS * 0.9 * (1.0 - t)) + facing * RADIUS * 0.6 * t
-					length = SWORD_LENGTH * (1.0 + 0.15 * t)
+					length = SAW_LENGTH * (1.0 + 0.15 * t)
 					BodyParts.draw_trail(self, Vector2.ZERO, up, angle, RADIUS * 0.5, reach, Color(slash, trail_alpha * 0.8))
 				2:
 					angle = down if t < 0.4 else lerp_angle(down, rest, ease((t - 0.4) / 0.6, 2.0))
 					hand = facing * RADIUS * 0.6 * (1.0 - t)
-					length = SWORD_LENGTH * 1.15
+					length = SAW_LENGTH * 1.15
 			if hand == Vector2.ZERO:
 				hand = Vector2.from_angle(angle) * RADIUS * 0.8
 		"thrust":
-			# Affondo: la spada si ritrae, poi scatta dritta in avanti.
+			# Affondo: la motosega si ritrae, poi scatta dritta in avanti.
 			var side_offset := facing.orthogonal() * RADIUS * 0.5
 			match phase:
 				0:
@@ -2317,7 +2290,7 @@ func _draw_attack_sword(tint: Color) -> void:
 				1:
 					angle = forward
 					hand = side_offset.lerp(Vector2.ZERO, t) + facing * lerpf(-RADIUS * 0.5, RADIUS * 0.9, ease(t, 0.3))
-					length = SWORD_LENGTH * (1.0 + 0.3 * t)
+					length = SAW_LENGTH * (1.0 + 0.3 * t)
 					# Scia dritta lungo la lama.
 					var tip := hand + facing * length
 					var width := facing.orthogonal() * 7.0 * (1.0 - t * 0.5)
@@ -2326,12 +2299,12 @@ func _draw_attack_sword(tint: Color) -> void:
 				2:
 					angle = forward if t < 0.3 else lerp_angle(forward, rest, ease((t - 0.3) / 0.7, 2.0))
 					hand = facing * RADIUS * 0.9 * (1.0 - t)
-					length = SWORD_LENGTH * (1.3 - 0.3 * t)
+					length = SAW_LENGTH * (1.3 - 0.3 * t)
 	# Area colpita: un velo chiaro su tutto l'arco, uguale per ogni movimento.
 	if phase == 1:
 		BodyParts.draw_trail(self, Vector2.ZERO, forward - half, forward + half, RADIUS + 6.0, reach, Color(slash, 0.16 * (1.0 - t)))
-	BodyParts.draw_sword(self, hand, angle, length, SWORD_WIDTH, tint)
-	# Alla fine della carica la punta della spada luccica.
+	_draw_saw(hand, angle, length, SAW_WIDTH, tint)
+	# Alla fine della carica la punta della motosega luccica.
 	if phase == 0 and t > 0.6:
 		var tip := hand + Vector2.from_angle(angle) * length
 		var glint := (t - 0.6) / 0.4
@@ -2365,10 +2338,10 @@ func _attack_body_pose() -> Array:
 	return [screen_side * ATTACK_TWIST * (1.0 - t), Vector2.ONE]
 
 
-## Attacco a terra: spada alzata sopra la testa in salita, che cala con una
+## Attacco a terra: motosega alzata sopra la testa in salita, che cala con una
 ## scia scendendo e resta piantata nel terreno dopo l'impatto. Gli angoli
 ## sono pensati guardando a destra e specchiati guardando a sinistra.
-func _draw_slam_sword(tint: Color) -> void:
+func _draw_slam_saw(tint: Color) -> void:
 	var mirror := facing.x < 0.0
 	var raised := -PI / 2.0 - 0.5
 	var down := PI / 2.0 - 0.35
@@ -2381,12 +2354,12 @@ func _draw_slam_sword(tint: Color) -> void:
 		angle = lerpf(raised, down, clampf(-_height_velocity / 900.0, 0.0, 1.0))
 		var start := PI - raised if mirror else raised
 		var end := PI - angle if mirror else angle
-		BodyParts.draw_trail(self, Vector2.ZERO, start, end, RADIUS + 6.0, HEAVY_SWORD_LENGTH + RADIUS, Color(COLOR_HEAVY, 0.7))
+		BodyParts.draw_trail(self, Vector2.ZERO, start, end, RADIUS + 6.0, HEAVY_SAW_LENGTH + RADIUS, Color(COLOR_HEAVY, 0.7))
 	if mirror:
 		angle = PI - angle
-	BodyParts.draw_sword(self, Vector2.from_angle(angle) * RADIUS * 0.8, angle, HEAVY_SWORD_LENGTH, SWORD_WIDTH * 1.3, tint)
+	_draw_saw(Vector2.from_angle(angle) * RADIUS * 0.8, angle, HEAVY_SAW_LENGTH, SAW_WIDTH * 1.3, tint)
 	if _charging:
-		_draw_charge_magic(Vector2.from_angle(angle) * RADIUS * 0.8, angle, HEAVY_SWORD_LENGTH)
+		_draw_charge_heat(Vector2.from_angle(angle) * RADIUS * 0.8, angle, HEAVY_SAW_LENGTH)
 
 
 ## Carica del colpo potente: un anello che si riempie e diventa bianco al massimo.
@@ -2395,38 +2368,42 @@ func _draw_charge_ring() -> void:
 	draw_arc(Vector2.ZERO, RADIUS + 14.0, -PI / 2.0, -PI / 2.0 + TAU * _charge, 32, ring, 4.0)
 
 
-## Magia della carica sulla spada (hand: impugnatura, angle: direzione
-## della lama): un alone azzurro lungo la lama che pulsa e cresce con la
-## carica, scintille che le girano attorno salendo verso la punta e una
-## punta che brilla; a carica piena tutto diventa bianco, con un lampo.
-func _draw_charge_magic(hand: Vector2, angle: float, length: float) -> void:
+## Carica sulla motosega (hand: impugnatura, angle: direzione della
+## barra): la barra si scalda con un alone arancione che pulsa e cresce con
+## la carica, dalla punta volano scintille e dal motore esce fumo; a carica
+## piena tutto diventa bianco, con un lampo.
+func _draw_charge_heat(hand: Vector2, angle: float, length: float) -> void:
 	var along := Vector2.from_angle(angle)
-	var across := along.orthogonal()
 	var power := 0.25 + 0.75 * _charge
 	var pulse := 0.5 + 0.5 * sin(_charge_time * 14.0)
 	var color := Color.WHITE if _charge >= 1.0 else COLOR_CHARGE_GLOW
-	Shapes.glow(self, hand + along * length * 0.6, length * (0.55 + 0.25 * power), Color(color, 0.25 + 0.3 * power))
-	for k in 5:
-		var at := hand + along * length * (0.25 + 0.18 * k)
-		Shapes.disc(self, at, (6.0 + 5.0 * power) * (1.0 + 0.15 * pulse), Color(color, 0.1 + 0.12 * power))
-	for k in 6:
-		var t := fposmod(_charge_time * 1.6 + k / 6.0, 1.0)
-		var swirl := sin(_charge_time * 9.0 + k * 2.1) * (10.0 + 8.0 * power) * (1.0 - t * 0.5)
-		Shapes.disc(self, hand + along * length * t + across * swirl, 2.5 + 2.0 * power, Color(color.lightened(0.6), 1.0 - 0.7 * t))
+	Shapes.glow(self, hand + along * length * 0.65, length * (0.45 + 0.25 * power), Color(color, 0.2 + 0.3 * power))
+	for k in 4:
+		var at := hand + along * length * (0.45 + 0.15 * k)
+		Shapes.disc(self, at, (4.0 + 4.0 * power) * (1.0 + 0.15 * pulse), Color(color, 0.12 + 0.12 * power))
 	var tip := hand + along * length
-	Shapes.disc(self, tip, (5.0 + 6.0 * power) * (0.8 + 0.4 * pulse), Color(color, 0.45))
-	Shapes.disc(self, tip, 2.5 + 2.0 * power, Color(1, 1, 1, 0.9))
+	for k in 8:
+		var t := fposmod(_charge_time * 3.0 + k / 8.0, 1.0)
+		var spark := along.rotated(PI * 0.75 + (k - 3.5) * 0.22)
+		var from := tip + spark * (4.0 + 26.0 * power * t)
+		draw_line(from, from + spark * 5.0, Color(1.0, 0.85, 0.4, 1.0 - t), 2.0)
+	for k in 3:
+		var t := fposmod(_charge_time * 1.3 + k / 3.0, 1.0)
+		Shapes.disc(self, hand + along * 6.0 + Vector2(sin(k * 2.0 + _charge_time) * 4.0, -8.0 - 24.0 * t), 3.0 + 6.0 * t, Color(0.35, 0.35, 0.37, 0.5 * (1.0 - t) * power))
+	Shapes.disc(self, tip, (4.0 + 5.0 * power) * (0.8 + 0.4 * pulse), Color(color, 0.45))
 	if _charge >= 1.0:
 		var flash := 10.0 + 6.0 * pulse
 		draw_line(tip - Vector2(flash, 0), tip + Vector2(flash, 0), Color(1, 1, 1, 0.9), 2.0)
 		draw_line(tip - Vector2(0, flash), tip + Vector2(0, flash), Color(1, 1, 1, 0.9), 2.0)
 
 
-## Torcia nell'altra mano: bastone e fiamma che tremola.
+## Torcia elettrica nell'altra mano, con il fascio di luce in avanti.
 func _draw_torch() -> void:
 	var hand := -facing.orthogonal() * RADIUS * 0.9
-	var top := hand + Vector2(0, -18)
-	draw_line(hand + Vector2(0, 6), top, Color(0.4, 0.26, 0.14), 4.0)
-	var flicker := randf_range(0.85, 1.15)
-	Shapes.disc(self, top + Vector2(0, -4), 7.0 * flicker, Color(COLOR_FLAME, 0.85))
-	Shapes.disc(self, top + Vector2(0, -6), 4.0 * flicker, Color(1.0, 0.95, 0.6))
+	var lens := hand + facing * 12.0
+	var across := facing.orthogonal()
+	draw_primitive(PackedVector2Array([lens + across * 3.0, lens + facing * 38.0 + across * 14.0, lens + facing * 38.0 - across * 14.0, lens - across * 3.0]),
+			PackedColorArray([Color(TORCH_COLOR, 0.16)]), PackedVector2Array())
+	draw_line(hand, lens, COLOR_FLASHLIGHT, 5.0)
+	Shapes.disc(self, lens, 3.5, Color(1.0, 1.0, 0.85))
+	_off_hand = hand + facing * 3.0
