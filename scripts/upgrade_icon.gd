@@ -12,7 +12,7 @@ const COLORS := {
 	"jump": Color(0.5, 0.95, 0.55),
 	"health": Color(0.95, 0.35, 0.35),
 	"potion": Color(0.95, 0.3, 0.3),
-	"stamina_potion": Color(0.3, 0.85, 0.3),
+	"battery_potion": Color(0.3, 0.85, 0.3),
 	"shield": Color(0.6, 0.7, 0.8),
 	"run": Color(1.0, 0.85, 0.3),
 	"empowered": Color(1.0, 0.8, 0.25),
@@ -21,7 +21,7 @@ const COLORS := {
 	"spell": Color(0.55, 0.6, 0.38),
 	"torch": Color(0.92, 0.95, 1.0),
 	"bag": Color(0.8, 0.6, 0.35),
-	"stamina": Color(0.4, 0.85, 0.35),
+	"battery": Color(0.4, 0.85, 0.35),
 	"potion_slots": Color(0.95, 0.6, 0.75),
 	"potion_heal": Color(0.95, 0.35, 0.35),
 	"mana_restore": Color(0.95, 0.4, 0.15),
@@ -87,14 +87,14 @@ static func draw_icon(canvas: CanvasItem, center: Vector2, side: float, icon_kin
 		"potion":
 			# Kit medico: valigetta bianca con la croce rossa.
 			_draw_medkit(canvas, Vector2(0, 0.05), 0.6, color)
-		"stamina_potion":
+		"battery_potion":
 			# Lattina dell'energetico col fulmine.
 			_draw_can(canvas, Vector2.ZERO, 0.6, color)
 		"potion_slots":
 			# Kit medico, tanica e lattina, e un + sopra: se ne portano di più.
 			_draw_medkit(canvas, Vector2(-0.52, 0.25), 0.26, color_of("potion_heal"))
 			_draw_jerrycan(canvas, Vector2(0, 0.25), 0.26, color_of("mana_restore"))
-			_draw_can(canvas, Vector2(0.52, 0.25), 0.26, color_of("stamina_potion"))
+			_draw_can(canvas, Vector2(0.52, 0.25), 0.26, color_of("battery_potion"))
 			_draw_plus(canvas, Vector2(0, -0.55), 0.18, color)
 		"potion_heal":
 			# Kit medico con un + accanto: cura di più.
@@ -117,8 +117,8 @@ static func draw_icon(canvas: CanvasItem, center: Vector2, side: float, icon_kin
 			canvas.draw_rect(Rect2(-0.45, -0.6, 0.9, 1.2), color)
 			canvas.draw_rect(Rect2(-0.3, -0.45, 0.6, 0.18), Color(0.15, 0.2, 0.28))
 			canvas.draw_arc(Vector2(0, 0.2), 0.22, -PI * 0.8, PI * 0.6, 12, Color(0.1, 0.15, 0.25), 0.08)
-		"stamina":
-			# Fulmine verde, come accanto alla barra della stamina.
+		"battery":
+			# Fulmine verde, come accanto alla barra della batteria.
 			canvas.draw_colored_polygon(PackedVector2Array([Vector2(0.15, -0.65), Vector2(-0.4, 0.08), Vector2(0.0, 0.08),
 					Vector2(-0.15, 0.65), Vector2(0.4, -0.08), Vector2(0.0, -0.08)]), color)
 		"run":

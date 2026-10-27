@@ -112,7 +112,7 @@ func _build_sounds() -> void:
 	_streams["mana_potion"] = _render_filtered(0.55, Vector2(0.25, 0.25), func(t: float, d: float) -> float:
 		var glug := sin(TAU * (140.0 + 90.0 * fmod(t * 7.0, 1.0)) * t) * 0.5
 		return (glug + _noise() * 0.3) * (0.5 + 0.5 * absf(sin(TAU * 7.0 * t))) * sin(PI * t / d))
-	_streams["stamina_potion"] = _render(0.4, func(t: float, d: float) -> float:
+	_streams["battery_potion"] = _render(0.4, func(t: float, d: float) -> float:
 		# Energetico: la lattina si apre ("pssst") e un tono che sale svelto.
 		if t < 0.08:
 			return _noise() * 0.4 * (1.0 - t / 0.08)

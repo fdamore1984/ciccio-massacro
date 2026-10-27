@@ -78,7 +78,6 @@ func _ready() -> void:
 	box.add_child(_details)
 	_hint = _label("", 16, Color(1, 1, 1, 0.55))
 	box.add_child(_hint)
-	# Per chi gioca col touch.
 	_close.text = "SHOP_CLOSE"
 	_close.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_close.custom_minimum_size = Vector2(180, 40)

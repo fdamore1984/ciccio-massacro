@@ -1,7 +1,7 @@
 class_name HudStatus
 extends Control
 ## Pannello di stato in alto a sinistra: ritratto con il livello, barre di
-## vita (a segmenti), stamina, carburante ed esperienza, livelli delle abilità, rottami e
+## vita (a segmenti), batteria, carburante ed esperienza, livelli delle abilità, rottami e
 ## nemici sconfitti. Tutto disegnato con forme geometriche.
 
 const PANEL_SIZE := Vector2(460, 146)
@@ -20,9 +20,9 @@ const COLOR_BORDER := Color(1, 1, 1, 0.14)
 const COLOR_BAR_BACK := Color(0, 0, 0, 0.45)
 const COLOR_HEALTH := Color(0.9, 0.25, 0.25)
 const COLOR_HEALTH_LOW := Color(1.0, 0.45, 0.2)
-const COLOR_STAMINA := Color(0.4, 0.85, 0.35)
-## Stamina finita: la barra vuota lampeggia finché non si ricarica un po'.
-const COLOR_STAMINA_EMPTY := Color(1.0, 0.3, 0.2)
+const COLOR_BATTERY := Color(0.4, 0.85, 0.35)
+## Batteria finita: la barra vuota lampeggia finché non si ricarica un po'.
+const COLOR_BATTERY_EMPTY := Color(1.0, 0.3, 0.2)
 const COLOR_MANA := Color(0.95, 0.45, 0.12)
 const COLOR_XP := Color(1.0, 0.8, 0.3)
 const COLOR_TEXT := Color(1, 1, 1, 0.92)
@@ -70,12 +70,12 @@ func _draw() -> void:
 	_draw_heart(Vector2(BAR_X + 9, 26), 9.0)
 	_draw_segments(Rect2(BAR_X + 24, 16, BAR_WIDTH - 24, 20), player.health, player.max_health, COLOR_HEALTH_LOW if low else COLOR_HEALTH)
 
-	# Stamina: attaccare, schivare, saltare, parare e correre la consumano.
-	var stamina_rect := Rect2(BAR_X + 24, 41, BAR_WIDTH - 24, 11)
+	# Batteria: attaccare, schivare, saltare, parare e correre la consumano.
+	var battery_rect := Rect2(BAR_X + 24, 41, BAR_WIDTH - 24, 11)
 	_draw_bolt(Vector2(BAR_X + 9, 46))
-	_draw_bar(stamina_rect, player.stamina / player.max_stamina, COLOR_STAMINA)
-	if player.stamina < Player.STAMINA_ATTACK and int(Time.get_ticks_msec() / 150) % 2 == 0:
-		draw_rect(stamina_rect, COLOR_STAMINA_EMPTY, false, 2.0)
+	_draw_bar(battery_rect, player.battery / player.max_battery, COLOR_BATTERY)
+	if player.battery < Player.BATTERY_ATTACK and int(Time.get_ticks_msec() / 150) % 2 == 0:
+		draw_rect(battery_rect, COLOR_BATTERY_EMPTY, false, 2.0)
 
 	# Carburante (nel codice "mana").
 	UpgradeIcon.draw_icon(self, Vector2(BAR_X + 9, 63), 18.0, "mana", false)
@@ -121,7 +121,7 @@ func _draw_portrait(font: Font) -> void:
 	_text(font, str(player.level), badge + Vector2(0, 6), FONT_SIZE, Color(0.15, 0.1, 0.0), HORIZONTAL_ALIGNMENT_CENTER)
 
 
-## Fulmine verde accanto alla barra della stamina.
+## Fulmine verde accanto alla barra della batteria.
 func _draw_bolt(center: Vector2) -> void:
 	var points := PackedVector2Array([center + Vector2(2, -8), center + Vector2(-5, 1), center + Vector2(0, 1),
 			center + Vector2(-2, 8), center + Vector2(5, -1), center + Vector2(0, -1)])
@@ -129,7 +129,7 @@ func _draw_bolt(center: Vector2) -> void:
 	for point in points:
 		outline.append(center + (point - center) * 1.3)
 	draw_colored_polygon(outline, COLOR_OUTLINE)
-	draw_colored_polygon(points, COLOR_STAMINA)
+	draw_colored_polygon(points, COLOR_BATTERY)
 
 
 func _draw_heart(center: Vector2, radius: float) -> void:

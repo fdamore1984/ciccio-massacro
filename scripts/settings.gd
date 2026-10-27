@@ -1,9 +1,9 @@
 extends Node
-## Impostazioni del giocatore (autoload "Settings"). Per ora il gioco è
-## solo in inglese: i testi passano comunque da data/translations.csv, così
-## altre lingue si potranno aggiungere più avanti.
+## Impostazioni del giocatore (autoload "Settings"). Il gioco è in
+## italiano: i testi stanno in data/translations.csv (colonna "it"; la
+## colonna "en" resta per un'eventuale versione inglese).
 
-const LANGUAGE := "en"
+const LANGUAGE := "it"
 
 
 func _ready() -> void:

@@ -42,7 +42,7 @@ extends Node2D
 ## respinti lontano.
 ## Ogni colpo potente consuma carburante finché si tiene premuto
 ## (HEAVY_CHARGE_MANA): senza carburante la carica si interrompe. Lo slam
-## aereo caricato fa fluttuare a mezz'aria, consuma anche vigore ed espone
+## aereo caricato fa fluttuare a mezz'aria, consuma anche batteria ed espone
 ## ai proiettili.
 ## Sconfiggere nemici dà esperienza; a ogni livello aumentano i danni
 ## base e si sceglie un potenziamento.
@@ -138,7 +138,7 @@ const PLUNGE_DAMAGE_FACTOR := 1.6
 ## salendo piano (AIR_SLAM_RISE_SPEED, sempre più piano con la carica, con
 ## un leggero ondeggiare di AIR_SLAM_BOB pixel) mentre la motosega va su di
 ## giri (fino a HEAVY_CHARGE_TIME, poi parte da solo). La carica consuma
-## mana (HEAVY_CHARGE_MANA) e vigore (AIR_SLAM_STAMINA_DRAIN) al secondo:
+## mana (HEAVY_CHARGE_MANA) e batteria (AIR_SLAM_BATTERY_DRAIN) al secondo:
 ## se uno dei due finisce la picchiata parte subito con la carica raggiunta.
 ## Intanto si è esposti a dardi e frecce dei nemici (vedi receive_hit).
 ## Al rilascio si piomba giù con un'onda d'urto ampia, larga da
@@ -149,7 +149,7 @@ const AIR_SLAM_MIN_RADIUS := 165.0
 const AIR_SLAM_MAX_RADIUS := 240.0
 const AIR_SLAM_RISE_SPEED := 45.0
 const AIR_SLAM_BOB := 3.0
-const AIR_SLAM_STAMINA_DRAIN := 30.0
+const AIR_SLAM_BATTERY_DRAIN := 30.0
 ## Il danno della picchiata cresce con l'altezza da cui parte: questa parte
 ## in più per ogni pixel (un salto ≈ +50%, un doppio salto ≈ +100%), al
 ## massimo SLAM_HEIGHT_MAX_BONUS.
@@ -271,16 +271,16 @@ const TORCH_HOLD_TIME := 0.45
 
 ## Ogni pozione cura questi punti vita.
 const POTION_HEAL := 3
-## Pozioni di vita (e di mana e di vigore) che si possono portare; ogni
+## Pozioni di vita (e di mana e di batteria) che si possono portare; ogni
 ## potenziamento "potion_slots" ne aggiunge una di ciascun tipo.
 const MAX_POTIONS := 10
 ## Potenziamenti delle pozioni: +1 punto vita curato, +5% di mana ridato.
 const POTION_HEAL_UPGRADE := 1
 const MANA_RESTORE_UPGRADE := 0.05
 const START_POTIONS := 2
-## Pozioni verdi (vigore) di partenza; quanto vigore ridanno sta in
-## data/items.json ("restore_stamina", parte del vigore massimo).
-const START_STAMINA_POTIONS := 1
+## Pozioni verdi (batteria) di partenza; quanto batteria ridanno sta in
+## data/items.json ("restore_batteria", parte del batteria massimo).
+const START_BATTERY_POTIONS := 1
 ## Lo scudo assorbe un colpo; poi va ricaricato. Ogni potenziamento
 ## riduce la ricarica del 5%.
 const SHIELD_COOLDOWN := 30.0
@@ -306,20 +306,20 @@ const REPEL_SPEED := 420.0
 const REPEL_TIME := 0.35
 const COLOR_GUARD_SPARK := Color(0.8, 0.9, 1.0)
 
-## Vigore (stamina): attacchi, schivate, scivolate, salti e colpi parati lo
+## Batteria (batteria): attacchi, schivate, scivolate, salti e colpi parati lo
 ## consumano, la corsa lo consuma finché dura; si ricarica dopo un attimo
-## di pausa (più piano mentre si para). Senza vigore non si agisce e un
+## di pausa (più piano mentre si para). Senza batteria non si agisce e un
 ## colpo parato rompe la guardia.
-const MAX_STAMINA := 100.0
-## Ogni potenziamento della stamina aggiunge il 10% della stamina di partenza.
-const STAMINA_UPGRADE := 0.1
-const STAMINA_REGEN := 45.0
-const STAMINA_REGEN_DELAY := 0.55
-const STAMINA_PARRY_REGEN_FACTOR := 0.35
-const STAMINA_ATTACK := 12.0
-const STAMINA_HEAVY := 32.0
-const STAMINA_DODGE := 28.0
-const STAMINA_JUMP := 12.0
+const MAX_BATTERY := 100.0
+## Ogni potenziamento della batteria aggiunge il 10% della batteria di partenza.
+const BATTERY_UPGRADE := 0.1
+const BATTERY_REGEN := 45.0
+const BATTERY_REGEN_DELAY := 0.55
+const BATTERY_PARRY_REGEN_FACTOR := 0.35
+const BATTERY_ATTACK := 12.0
+const BATTERY_HEAVY := 32.0
+const BATTERY_DODGE := 28.0
+const BATTERY_JUMP := 12.0
 ## Aura bianca della modalità focus: altezza del centro e raggio rispetto
 ## al raggio del corpo, colore.
 const FOCUS_AURA_HEIGHT := 0.6
@@ -333,11 +333,13 @@ const XP_CURVE_QUAD := 2.5
 ## Curva della versione 2 (a tratti), per convertire i salvataggi.
 const XP_CURVE_FAST_LEVELS := 10
 const XP_CURVE_LATE := 32.0
+## Potenziamenti con il nome dei salvataggi precedenti -> nome attuale.
+const LEGACY_UPGRADES := {"stamina": "battery"}
 ## Versione della curva salvata con l'esperienza (1: lineare, 2: a tratti,
 ## 3: quadratica continua).
 const XP_CURVE_VERSION := 3
-const STAMINA_BLOCK := 30.0
-const STAMINA_RUN := 16.0
+const BATTERY_BLOCK := 30.0
+const BATTERY_RUN := 16.0
 ## Guardia rotta: si resta storditi per questo tempo.
 const GUARD_BREAK_TIME := 0.8
 ## Bere una pozione richiede tempo: ci si muove piano e non si può fare
@@ -370,7 +372,15 @@ const SAW_CHAIN_FAST := 140.0
 ## Sangue perso quando si viene colpiti (gocce).
 const BLEED_DROPS := 26
 
-const COLOR_BODY := Color(1.0, 0.55, 0.74)
+const COLOR_BODY := Color(0.98, 0.74, 0.66)
+## Macchie di sangue: ogni nemico ucciso sporca il corpo di BLOOD_PER_KILL
+## (fino a 1), che poi si pulisce piano (BLOOD_CLEAN al secondo: da sporco
+## del tutto a pulito in circa 4 minuti). Il corpo si tinge di rosso e
+## compaiono via via fino a BLOOD_SPOTS chiazze.
+const BLOOD_PER_KILL := 0.15
+const BLOOD_CLEAN := 0.004
+const BLOOD_SPOTS := 9
+const COLOR_BLOOD_STAIN := Color(0.55, 0.02, 0.03)
 ## Burroni: cadendoci si precipita per FALL_TIME secondi, poi si riappare
 ## sul bordo (l'ultimo punto sicuro) perdendo vita (data/world.json). Si
 ## cade quando si scende sotto il bordo di FALL_DEPTH pixel.
@@ -398,7 +408,7 @@ var max_mana := START_MANA
 var _base_max_mana := START_MANA
 ## Pozioni nella cintura: non hanno limite.
 var mana_potions := START_MANA_POTIONS
-var stamina_potions := START_STAMINA_POTIONS
+var battery_potions := START_BATTERY_POTIONS
 ## Bonus ai danni dei missili dai potenziamenti (0.2 = +20%).
 var spell_bonus := 0.0
 var inventory := Inventory.new()
@@ -441,13 +451,13 @@ var _queued_attack := ""
 var _attack_resolved := false
 ## Velocità dell'attacco in corso: resta quella con cui è iniziato.
 var _attack_speed := 1.0
-var stamina := MAX_STAMINA
-## Stamina massima: si ricalcola dai potenziamenti presi (non si salva).
-var max_stamina := MAX_STAMINA
-var _stamina_delay := 0.0
-## Si sta correndo (consuma vigore).
+var battery := MAX_BATTERY
+## Batteria massima: si ricalcola dai potenziamenti presi (non si salva).
+var max_battery := MAX_BATTERY
+var _battery_delay := 0.0
+## Si sta correndo (consuma batteria).
 var _running := false
-## Pozione che si sta bevendo ("potion", "mana_potion" o "stamina_potion").
+## Pozione che si sta bevendo ("potion", "mana_potion" o "batteria_potion").
 var _drinking := ""
 ## Corsa accesa (si alterna premendo "run").
 var _run_on := false
@@ -505,6 +515,9 @@ var _lock_marker := LockMarker.new()
 ## Catena della motosega (pixel percorsi) e mani nell'ultimo disegno:
 ## impugnatura della motosega e l'altra mano (maniglia, torcia, scorta).
 var _saw_phase := 0.0
+## Quanto è sporco di sangue (0-1) e chiazze sul corpo (x, y, raggio).
+var blood_stain := 0.0
+var _blood_spots: Array[Vector3] = []
 var _grip := Vector2.ZERO
 var _off_hand := Vector2.ZERO
 ## Carica del colpo potente (0-1) e se il tasto è ancora tenuto premuto.
@@ -525,6 +538,12 @@ var ground_elevation := 0.0
 
 
 func _ready() -> void:
+	if _blood_spots.is_empty():
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 7
+		for k in BLOOD_SPOTS:
+			var at := Vector2.from_angle(rng.randf() * TAU) * RADIUS * rng.randf_range(0.1, 0.7)
+			_blood_spots.append(Vector3(at.x, at.y, RADIUS * rng.randf_range(0.18, 0.38)))
 	# In modalità focus il giocatore resta a colori, con un'aura bianca.
 	add_to_group(LowHealthVignette.FOCUS_GROUP)
 	if not _lock_marker.is_inside_tree():
@@ -558,10 +577,10 @@ func _physics_process(delta: float) -> void:
 	_combo_timer = maxf(_combo_timer - delta, 0.0)
 	shield_cooldown = maxf(shield_cooldown - delta, 0.0)
 	_spell_cooldown = maxf(_spell_cooldown - delta, 0.0)
-	_stamina_delay = maxf(_stamina_delay - delta, 0.0)
-	if _stamina_delay == 0.0 and not _running and _state != State.DEAD:
-		var regen := STAMINA_REGEN * (STAMINA_PARRY_REGEN_FACTOR if _state == State.PARRY else 1.0)
-		stamina = minf(stamina + regen * delta, max_stamina)
+	_battery_delay = maxf(_battery_delay - delta, 0.0)
+	if _battery_delay == 0.0 and not _running and _state != State.DEAD:
+		var regen := BATTERY_REGEN * (BATTERY_PARRY_REGEN_FACTOR if _state == State.PARRY else 1.0)
+		battery = minf(battery + regen * delta, max_battery)
 	if _state != State.DEAD:
 		mana = minf(mana + MANA_REGEN * delta, max_mana)
 
@@ -578,8 +597,8 @@ func _physics_process(delta: float) -> void:
 			_raise_shield()
 		if UiNav.game_pressed("mana_potion"):
 			_start_drink("mana_potion")
-		if UiNav.game_pressed("stamina_potion"):
-			_start_drink("stamina_potion")
+		if UiNav.game_pressed("battery_potion"):
+			_start_drink("battery_potion")
 		if UiNav.game_pressed("spell"):
 			_fire_missile(input)
 	if _state != State.DEAD:
@@ -596,10 +615,10 @@ func _physics_process(delta: float) -> void:
 			State.SLIDE, State.SLAM, State.RECOIL, State.DRINK]:
 		_start_parry(input)
 	# Allo stesso modo schivata e salto annullano subito attacchi (anche in
-	# carica), attacchi a terra, parata, rinculo e il bere (se c'è vigore; in
+	# carica), attacchi a terra, parata, rinculo e il bere (se c'è batteria; in
 	# NORMAL, DODGE e SLIDE si gestiscono più sotto).
 	elif _state in [State.ATTACK, State.SLAM, State.PARRY, State.RECOIL, State.DRINK]:
-		if UiNav.game_pressed("dodge") and stamina > 0.0:
+		if UiNav.game_pressed("dodge") and battery > 0.0:
 			_interrupt_action()
 			_start_dodge(dodge_input)
 		elif _jump_pressed() and _can_jump():
@@ -616,11 +635,11 @@ func _physics_process(delta: float) -> void:
 			# _update_run_button); si spegne da sola fermandosi.
 			if input == Vector2.ZERO:
 				_run_on = false
-			var running := _run_on and stamina > 0.0 and not is_airborne()
+			var running := _run_on and battery > 0.0 and not is_airborne()
 			_running = running
 			if running:
-				stamina = maxf(stamina - STAMINA_RUN * delta, 0.0)
-				_stamina_delay = STAMINA_REGEN_DELAY
+				battery = maxf(battery - BATTERY_RUN * delta, 0.0)
+				_battery_delay = BATTERY_REGEN_DELAY
 			# In aria si avanza un po' più piano: il salto porta meno lontano.
 			var air := AIR_SPEED_FACTOR if is_airborne() else 1.0
 			_velocity = _accelerate(_velocity, input * (run_speed() if running else walk_speed()) * air, delta)
@@ -754,6 +773,7 @@ func _physics_process(delta: float) -> void:
 	_update_height(delta)
 	_move(delta)
 	_walk_phase += _velocity.length() * delta * WALK_CYCLE
+	blood_stain = move_toward(blood_stain, 0.0, BLOOD_CLEAN * delta)
 	_saw_phase += delta * (SAW_CHAIN_FAST if _state in [State.ATTACK, State.SLAM] else SAW_CHAIN_IDLE)
 	if torch_on:
 		# La luce è un'ellisse a terra centrata sotto il personaggio.
@@ -996,11 +1016,11 @@ func receive_hit(from: Vector2, damage: int, projectile := false) -> String:
 			_empowered_time = EMPOWER_TIME
 			Sfx.play("perfect", global_position)
 			return "parried"
-		stamina -= STAMINA_BLOCK
-		_stamina_delay = STAMINA_REGEN_DELAY
-		if stamina < 0.0:
-			# Senza vigore la guardia si rompe: si resta storditi, esposti.
-			stamina = 0.0
+		battery -= BATTERY_BLOCK
+		_battery_delay = BATTERY_REGEN_DELAY
+		if battery < 0.0:
+			# Senza batteria la guardia si rompe: si resta storditi, esposti.
+			battery = 0.0
 			_hurt_time = GUARD_BREAK_TIME
 			_change_state(State.HURT)
 			_velocity = -to_attacker * HURT_KNOCKBACK * 0.6
@@ -1037,6 +1057,11 @@ func receive_hit(from: Vector2, damage: int, projectile := false) -> String:
 
 func is_dead() -> bool:
 	return _state == State.DEAD
+
+
+## Un nemico ucciso: il corpo si sporca ancora un po' di sangue.
+func stain_with_blood() -> void:
+	blood_stain = minf(blood_stain + BLOOD_PER_KILL, 1.0)
 
 
 ## Risata di Ciccio, per esempio dopo aver sconfitto un boss.
@@ -1190,7 +1215,7 @@ func save_state() -> Dictionary:
 	return {
 		"level": level, "experience": experience, "xp_curve": XP_CURVE_VERSION, "health": health, "base_max_health": _base_max_health,
 		"mana": mana, "base_max_mana": _base_max_mana, "potions": potions,
-		"mana_potions": mana_potions, "stamina_potions": stamina_potions, "spell_bonus": spell_bonus,
+		"mana_potions": mana_potions, "battery_potions": battery_potions, "spell_bonus": spell_bonus,
 		"max_combo_hits": max_combo_hits, "max_heavy_chain": max_heavy_chain,
 		"max_chained_dodges": max_chained_dodges, "max_jumps": max_jumps, "run_speed_bonus": run_speed_bonus,
 		"shield_cooldown_max": shield_cooldown_max, "torch_on": torch_on, "upgrades_taken": upgrades_taken,
@@ -1221,7 +1246,8 @@ func load_state(data: Dictionary) -> void:
 	potions = int(data.get("potions", potions))
 	mana_potions = int(data.get("mana_potions", mana_potions))
 	# Salvataggi precedenti alle pozioni verdi: si parte con la scorta iniziale.
-	stamina_potions = int(data.get("stamina_potions", stamina_potions))
+	# Salvataggi precedenti al nome "batteria": i campi si chiamavano "stamina".
+	battery_potions = int(data.get("battery_potions", data.get("stamina_potions", battery_potions)))
 	spell_bonus = float(data.get("spell_bonus", spell_bonus))
 	max_combo_hits = int(data.get("max_combo_hits", max_combo_hits))
 	max_heavy_chain = int(data.get("max_heavy_chain", max_heavy_chain))
@@ -1234,13 +1260,13 @@ func load_state(data: Dictionary) -> void:
 	upgrades_taken.clear()
 	var taken: Dictionary = data.get("upgrades_taken", {})
 	for key: String in taken:
-		upgrades_taken[key] = int(taken[key])
+		upgrades_taken[LEGACY_UPGRADES.get(key, key)] = int(taken[key])
 	# Le schivate di partenza sono cambiate (da 2 a 1): si ricalcolano dai
 	# potenziamenti scelti, se il salvataggio li ha.
 	if data.has("upgrades_taken"):
 		max_chained_dodges = START_CHAINED_DODGES + int(upgrades_taken.get("dodge", 0))
-	_refresh_stamina()
-	stamina = max_stamina
+	_refresh_battery()
+	battery = max_battery
 	# Oggetti che questa versione non conosce più vengono scartati.
 	inventory.items.clear()
 	var known: Dictionary = Items.DATA.data["items"]
@@ -1252,8 +1278,8 @@ func load_state(data: Dictionary) -> void:
 			potions += 1
 		elif saved_items[k] == "potion_mana":
 			mana_potions += 1
-		elif saved_items[k] == "potion_stamina":
-			stamina_potions += 1
+		elif saved_items[k] in ["potion_battery", "potion_stamina"]:
+			battery_potions += 1
 		elif known.has(saved_items[k]):
 			kept[k] = inventory.items.size()
 			inventory.items.append(saved_items[k])
@@ -1390,14 +1416,14 @@ func apply_upgrade(upgrade: String) -> void:
 			_refresh_stats()
 		"spell":
 			spell_bonus += SPELL_UPGRADE
-		"stamina":
-			_refresh_stamina()
-			stamina = max_stamina
+		"battery":
+			_refresh_battery()
+			battery = max_battery
 
 
-func _refresh_stamina() -> void:
-	max_stamina = MAX_STAMINA * (1.0 + STAMINA_UPGRADE * int(upgrades_taken.get("stamina", 0)))
-	stamina = minf(stamina, max_stamina)
+func _refresh_battery() -> void:
+	max_battery = MAX_BATTERY * (1.0 + BATTERY_UPGRADE * int(upgrades_taken.get("battery", 0)))
+	battery = minf(battery, max_battery)
 
 
 func _change_state(new_state: State) -> void:
@@ -1439,7 +1465,7 @@ func _attack_recovery() -> float:
 
 
 func _start_attack(step: int, input: Vector2) -> void:
-	if not _use_stamina(STAMINA_ATTACK):
+	if not _use_battery(BATTERY_ATTACK):
 		return
 	_combo_step = clampi(step, 1, max_combo_hits)
 	_heavy_step = 0
@@ -1450,7 +1476,7 @@ func _start_attack(step: int, input: Vector2) -> void:
 
 ## held: concatenato tenendo premuto il tasto (non si carica).
 func _start_heavy(input: Vector2, held := false) -> void:
-	if not _use_stamina(STAMINA_HEAVY):
+	if not _use_battery(BATTERY_HEAVY):
 		return
 	# In aria il colpo potente fa piombare a terra.
 	if is_airborne():
@@ -1514,7 +1540,7 @@ func _next_combo_step() -> int:
 ## Inizia un attacco a terra: sosta in aria prima di piombare giù (plunge, dash).
 func _start_slam(kind: String, input: Vector2) -> void:
 	# Il colpo dallo scatto in aria paga qui; gli altri lo pagano come colpo potente.
-	if kind == "dash" and not _use_stamina(STAMINA_HEAVY):
+	if kind == "dash" and not _use_battery(BATTERY_HEAVY):
 		return
 	_slam_kind = kind
 	_slam_landed = false
@@ -1525,8 +1551,8 @@ func _start_slam(kind: String, input: Vector2) -> void:
 	_charge = 0.0
 	_charge_time = 0.0
 	# Tenendo premuto il colpo potente la picchiata si carica a mezz'aria
-	# (serve un po' di mana e di vigore).
-	_charging = kind == "plunge" and UiNav.game_held("heavy_attack") and mana > 0.0 and stamina > 0.0
+	# (serve un po' di mana e di batteria).
+	_charging = kind == "plunge" and UiNav.game_held("heavy_attack") and mana > 0.0 and battery > 0.0
 	_queued_attack = ""
 	_combo_timer = 0.0
 	_carry_velocity = Vector2.ZERO
@@ -1550,7 +1576,7 @@ func _update_slam(input: Vector2, aim: Vector2, delta: float) -> void:
 		# A mezz'aria si fluttua salendo piano (sempre più piano con la carica):
 		# ci si gira con la levetta (o verso il bersaglio) finché
 		# si tiene premuto; a carica piena la picchiata parte da sola, e anche
-		# quando finiscono mana o vigore.
+		# quando finiscono mana o batteria.
 		_height_velocity = AIR_SLAM_RISE_SPEED * (1.0 - 0.6 * _charge)
 		_velocity = _velocity.move_toward(Vector2.ZERO, DECELERATION * 2.0 * delta)
 		if aim != Vector2.ZERO:
@@ -1642,11 +1668,11 @@ func _slam_damage() -> int:
 
 
 func _can_jump() -> bool:
-	return _jumps_used < max_jumps and stamina > 0.0
+	return _jumps_used < max_jumps and battery > 0.0
 
 
 func _jump() -> void:
-	if _jumps_used >= max_jumps or not _use_stamina(STAMINA_JUMP):
+	if _jumps_used >= max_jumps or not _use_battery(BATTERY_JUMP):
 		return
 	_jumps_used += 1
 	_height_velocity = JUMP_SPEED
@@ -1656,7 +1682,7 @@ func _jump() -> void:
 ## La scivolata parte almeno alla velocità di corsa, così funziona anche
 ## subito dopo un attacco, quando non si è ancora ripresa velocità.
 func _start_slide(input: Vector2) -> void:
-	if not _use_stamina(STAMINA_DODGE):
+	if not _use_battery(BATTERY_DODGE):
 		return
 	_slide_direction = input.normalized()
 	_slide_speed = maxf(_velocity.length(), run_speed()) * SLIDE_SPEED_FACTOR
@@ -1666,7 +1692,7 @@ func _start_slide(input: Vector2) -> void:
 
 
 func _start_dodge(input: Vector2) -> void:
-	if not _use_stamina(STAMINA_DODGE):
+	if not _use_battery(BATTERY_DODGE):
 		return
 	# Senza direzione a terra si rotola all'indietro; in aria si scatta in avanti.
 	_set_air_dash()
@@ -1717,7 +1743,7 @@ func _set_air_dash() -> void:
 
 ## Schivata concatenata: riparte a piena velocità, nella nuova direzione.
 func _chain_dodge(input: Vector2) -> void:
-	if not _use_stamina(STAMINA_DODGE):
+	if not _use_battery(BATTERY_DODGE):
 		return
 	_dodges_used += 1
 	_set_air_dash()
@@ -1737,10 +1763,10 @@ func _start_drink(kind: String) -> void:
 		if potions == 0 or health >= max_health:
 			return
 		potions -= 1
-	elif kind == "stamina_potion":
-		if stamina_potions == 0 or stamina >= max_stamina:
+	elif kind == "battery_potion":
+		if battery_potions == 0 or battery >= max_battery:
 			return
-		stamina_potions -= 1
+		battery_potions -= 1
 	else:
 		if mana_potions == 0 or mana >= max_mana:
 			return
@@ -1756,9 +1782,9 @@ func _apply_drink() -> void:
 		health = mini(health + potion_heal(), max_health)
 		health_changed.emit(health, max_health)
 		Sfx.play("potion", global_position)
-	elif _drinking == "stamina_potion":
-		stamina = minf(stamina + stamina_potion_restore(), max_stamina)
-		Sfx.play("stamina_potion", global_position)
+	elif _drinking == "battery_potion":
+		battery = minf(battery + battery_potion_restore(), max_battery)
+		Sfx.play("battery_potion", global_position)
 	else:
 		mana = minf(mana + mana_potion_restore(), max_mana)
 		Sfx.play("mana_potion", global_position)
@@ -1774,25 +1800,25 @@ func is_healing() -> bool:
 	return _state == State.DRINK
 
 
-## Consuma vigore per un'azione; senza vigore l'azione non parte.
-func _use_stamina(cost: float) -> bool:
-	if stamina <= 0.0:
+## Consuma batteria per un'azione; senza batteria l'azione non parte.
+func _use_battery(cost: float) -> bool:
+	if battery <= 0.0:
 		_queued_attack = ""
 		return false
-	stamina = maxf(stamina - cost, 0.0)
-	_stamina_delay = STAMINA_REGEN_DELAY
+	battery = maxf(battery - cost, 0.0)
+	_battery_delay = BATTERY_REGEN_DELAY
 	return true
 
 
 ## Consumo della carica del colpo potente per un passo: mana (vedi
-## HEAVY_CHARGE_MANA) e, nello slam aereo (air), anche vigore. Restituisce
+## HEAVY_CHARGE_MANA) e, nello slam aereo (air), anche batteria. Restituisce
 ## false se una delle due risorse è finita: la carica va interrotta.
 func _drain_charge(delta: float, air: bool) -> bool:
 	mana = maxf(mana - HEAVY_CHARGE_MANA * delta, 0.0)
 	if air:
-		stamina = maxf(stamina - AIR_SLAM_STAMINA_DRAIN * delta, 0.0)
-		_stamina_delay = STAMINA_REGEN_DELAY
-	return mana > 0.0 and (not air or stamina > 0.0)
+		battery = maxf(battery - AIR_SLAM_BATTERY_DRAIN * delta, 0.0)
+		_battery_delay = BATTERY_REGEN_DELAY
+	return mana > 0.0 and (not air or battery > 0.0)
 
 
 ## Missile del bazooka verso dove si guarda (o si punta la levetta): poi
@@ -1831,9 +1857,9 @@ func mana_potion_restore() -> float:
 	return MANA_POTION_RESTORE * (1.0 + MANA_RESTORE_UPGRADE * int(upgrades_taken.get("mana_restore", 0)))
 
 
-## Vigore ridato dalla pozione verde.
-func stamina_potion_restore() -> float:
-	return max_stamina * Items.stat("potion_stamina", "restore_stamina")
+## Batteria ridato dalla pozione verde.
+func battery_potion_restore() -> float:
+	return max_battery * Items.stat("potion_battery", "restore_battery")
 
 
 ## Si può prendere l'oggetto: le pozioni solo finché la cintura non è piena.
@@ -1843,13 +1869,13 @@ func can_pick_up(id: String) -> bool:
 			return potions < potion_capacity()
 		"potion_mana":
 			return mana_potions < potion_capacity()
-		"potion_stamina":
-			return stamina_potions < potion_capacity()
+		"potion_battery":
+			return battery_potions < potion_capacity()
 	return true
 
 
 ## Raccoglie un oggetto: le monete vanno nel borsello, le pozioni di vita,
-## di mana e di vigore nella cintura (fino a potion_capacity, mai nell'inventario), il
+## di mana e di batteria nella cintura (fino a potion_capacity, mai nell'inventario), il
 ## resto nell'inventario. Restituisce false se la cintura è piena.
 func pickup(id: String, amount := 1) -> bool:
 	if not can_pick_up(id):
@@ -1867,8 +1893,8 @@ func pickup(id: String, amount := 1) -> bool:
 			mana_potions = mini(mana_potions + amount, potion_capacity())
 			Sfx.play("pickup", global_position)
 			return true
-		"potion_stamina":
-			stamina_potions = mini(stamina_potions + amount, potion_capacity())
+		"potion_battery":
+			battery_potions = mini(battery_potions + amount, potion_capacity())
 			Sfx.play("pickup", global_position)
 			return true
 	inventory.add(id)
@@ -2090,7 +2116,10 @@ func _draw() -> void:
 		var pulse := 0.5 + 0.5 * sin(_empowered_time * 10.0)
 		Shapes.disc(self, Vector2.ZERO, RADIUS + 8.0 + pulse * 4.0, Color(COLOR_EMPOWERED, 0.25))
 		draw_arc(Vector2.ZERO, RADIUS + 8.0 + pulse * 4.0, 0.0, TAU, 32, Color(COLOR_EMPOWERED, 0.8), 2.0)
+	if blood_stain > 0.0 and _state != State.DEAD:
+		body = Color(body.lerp(COLOR_BLOOD_STAIN, blood_stain * 0.4), body.a)
 	Shapes.disc(self, Vector2.ZERO, RADIUS, body)
+	_draw_blood_spots(body.a)
 	var tip := facing * (RADIUS + 12.0)
 	var side := facing.orthogonal() * 9.0
 	draw_primitive(PackedVector2Array([tip, facing * RADIUS * 0.6 + side, facing * RADIUS * 0.6 - side]), PackedColorArray([body.darkened(0.3)]), PackedVector2Array())
@@ -2129,7 +2158,7 @@ func _draw_flask() -> void:
 			draw_rect(Rect2(at - Vector2(8, 6), Vector2(16, 12)), COLOR_MEDKIT)
 			draw_line(at - Vector2(4, 0), at + Vector2(4, 0), COLOR_HURT, 3.0)
 			draw_line(at - Vector2(0, 4), at + Vector2(0, 4), COLOR_HURT, 3.0)
-		"stamina_potion":
+		"battery_potion":
 			draw_rect(Rect2(at - Vector2(5, 8), Vector2(10, 16)), Color(0, 0, 0, 0.6))
 			draw_rect(Rect2(at - Vector2(4, 7), Vector2(8, 14)), COLOR_ENERGY_CAN)
 			draw_line(at - Vector2(4, 6), at + Vector2(4, -6), Color(0.85, 0.85, 0.85), 2.0)
@@ -2140,6 +2169,17 @@ func _draw_flask() -> void:
 			draw_line(at + Vector2(-7, -8), at + Vector2(7, 8), COLOR_FUEL_CAN.darkened(0.3), 2.0)
 			draw_line(at + Vector2(4, -8), at + Vector2(8, -13), Color(0.3, 0.3, 0.3), 3.0)
 	_off_hand = at
+
+
+## Chiazze di sangue sul corpo: più è sporco, più chiazze si vedono (le
+## ultime comparse sono le prime a sparire pulendosi).
+func _draw_blood_spots(alpha: float) -> void:
+	for k in _blood_spots.size():
+		var amount := clampf(blood_stain * BLOOD_SPOTS - k, 0.0, 1.0)
+		if amount <= 0.0:
+			break
+		var spot := _blood_spots[k]
+		Shapes.disc(self, Vector2(spot.x, spot.y), spot.z, Color(COLOR_BLOOD_STAIN, 0.85 * amount * alpha))
 
 
 ## Braccia: linee nere sottili dalle spalle alle mani (vedi _grip e

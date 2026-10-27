@@ -1,10 +1,9 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="Script" path="res://scripts/world.gd" id="2_world"]
 [ext_resource type="Script" path="res://scripts/player.gd" id="3_player"]
 [ext_resource type="Script" path="res://scripts/hud.gd" id="4_hud"]
-[ext_resource type="Script" path="res://scripts/touch_controls.gd" id="5_touch"]
 [ext_resource type="Script" path="res://scripts/day_night.gd" id="6_day_night"]
 [ext_resource type="Script" path="res://scripts/minimap.gd" id="7_minimap"]
 
@@ -91,16 +90,6 @@ theme_override_constants/outline_size = 8
 theme_override_font_sizes/font_size = 72
 horizontal_alignment = 1
 vertical_alignment = 1
-
-[node name="TouchControls" type="Control" parent="HUD"]
-process_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-script = ExtResource("5_touch")
 
 [node name="LevelUp" type="Control" parent="HUD"]
 unique_name_in_owner = true
@@ -205,7 +194,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(222, 176)
 layout_mode = 2
 
-[node name="UpgradeStamina" type="Button" parent="HUD/LevelUp/Center/VBox/Upgrades"]
+[node name="UpgradeBattery" type="Button" parent="HUD/LevelUp/Center/VBox/Upgrades"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(222, 176)
 layout_mode = 2

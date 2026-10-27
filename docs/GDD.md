@@ -20,8 +20,8 @@ Documento vivo: da compilare e aggiornare. Le sezioni vuote sono da definire.
 
 ## 3. Protagonista e personaggi
 
-- **Protagonista**: Ciccio, un sopravvissuto rosa e rotondo con braccia e gambe sottili, armato di una motosega (corpo a corpo) e di un bazooka (missili a ricerca). Non parla e ride grasso quando abbatte un boss
-- **Nemici**: bande di predoni con armi improvvisate (manganelli, mazze da baseball, tubi, mazze da demolizione) e armi da fuoco (pistole, fucili); il signore della guerra di ogni edificio
+- **Protagonista**: Ciccio, un sopravvissuto rosa carne e rotondo, che si sporca di sangue a ogni uccisione (le macchie se ne vanno piano) con braccia e gambe sottili, armato di una motosega (corpo a corpo) e di un bazooka (missili a ricerca). Non parla e ride grasso quando abbatte un boss
+- **Nemici**: bande di predoni tondi come Ciccio, ognuno con taglia, colore della pelle e accessori (capelli, bandane, berretti, occhiali, maschere) casuali, con armi improvvisate (manganelli, mazze da baseball, tubi, mazze da demolizione) e armi da fuoco (pistole, fucili); il signore della guerra di ogni edificio
 - **Personaggi chiave**: personaggi incontrati nella città che introducono nuove quest (per ora solo i commercianti). Elenco _da definire_
 - **Fazioni**: _da definire_
 
@@ -42,11 +42,11 @@ Priorità di design indicata: il cuore del gioco sono sistema di gioco, inventar
 
 | Sistema | Descrizione | Stato |
 |---|---|---|
-| Movimento | Isometrico, 8 direzioni, col controller (o i controlli touch). Nel prototipo il movimento segue le direzioni dello schermo, con accelerazione e frenata | prototipo |
-| Comandi | Solo controller (e touch); tastiera e mouse non sono supportati e i comandi non si rimappano | prototipo |
+| Movimento | Isometrico, 8 direzioni, col controller. Nel prototipo il movimento segue le direzioni dello schermo, con accelerazione e frenata | prototipo |
+| Comandi | Solo controller; tastiera, mouse e touch non sono supportati e i comandi non si rimappano | prototipo |
 | Sfide | Nel prototipo: sirene d'allarme al centro di piazze piane che avviano una sfida di sopravvivenza di 30 secondi a ondate, tarata sul livello del giocatore | prototipo |
-| Mondo | Nel prototipo: città distrutta isometrica 3D a blocchi generata a caso, con piattaforme a gradini su più livelli (si sale saltando, si scende cadendo), rampe, strade, grattacieli in rovina, fessure dei terremoti e pochi ostacoli (rovine, macerie, cumuli di rottami che rallentano) | prototipo |
-| Combattimento | Tempo reale: combo di motosega (R1), colpo potente (L2), parata (L1), schivate concatenate e orientabili (B), salto (A), corsa e scivolata (L3), bazooka con missile a ricerca (X), scudo (Y), kit medici, taniche di carburante ed energetici (croce sinistra, destra e giù), torcia elettrica accesa e spenta tenendo premuto L3, inventario (croce su); colpo potente caricabile (consuma carburante; a mezz'aria si fluttua e consuma anche vigore, esposti agli spari), fermo all'impatto, sangue abbondante; nove tipi di nemici, pistoleri e fucilieri compresi | prototipo |
+| Mondo | Nel prototipo: città distrutta isometrica 3D generata a caso, tutta in piano, con una griglia ordinata di strade dritte e isolati, grandi palazzi in rovina con le porte degli edifici abbandonati, fessure dei terremoti e pochi ostacoli (rovine, macerie, cumuli di rottami che rallentano) | prototipo |
+| Combattimento | Tempo reale: combo di motosega (R1), colpo potente (L2), parata (L1), schivate concatenate e orientabili (B), salto (A), corsa e scivolata (L3), bazooka con missile a ricerca (X), scudo (Y), kit medici, taniche di carburante ed batterie di ricambio (croce sinistra, destra e giù), torcia elettrica accesa e spenta tenendo premuto L3, inventario (croce su); colpo potente caricabile (consuma carburante; a mezz'aria si fluttua e consuma anche batteria, esposti agli spari), fermo all'impatto, sangue abbondante; nove tipi di nemici, pistoleri e fucilieri compresi | prototipo |
 | Progressione | Esperienza, livelli e potenziamenti a scelta | prototipo |
 | Inventario | Nel prototipo: oggetti dalle casse (catene per la motosega, giubbotti, scarpe, serbatoi, mirini, manuali, scorte, rottami), un oggetto indossato per tipo. Limite di peso e deposito _da definire_ | prototipo |
 | Dialoghi | _da definire_ | da fare |
@@ -76,7 +76,7 @@ Priorità di design indicata: il cuore del gioco sono sistema di gioco, inventar
 
 - **Motore**: Godot 4.4, GDScript, renderer Compatibility
 - **Isometrico**: terreno a blocchi disegnato in codice, ordinamento per profondità con Y-sort, movimento convertito dagli assi di input agli assi isometrici
-- **Input**: solo controller (e touch) tramite Input Map; UI utilizzabile solo col controller
-- **Lingue**: per ora solo inglese; traduzioni in `data/translations.csv`
+- **Input**: solo controller tramite Input Map; UI utilizzabile solo col controller
+- **Lingue**: italiano; traduzioni in `data/translations.csv` (colonna `it`, la colonna `en` resta pronta)
 - **Dati**: contenuti di gioco in `data/` (JSON o risorse), separati dal codice
 - **Repository**: ramo unico `main`, CI su GitHub Actions

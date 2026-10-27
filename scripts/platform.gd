@@ -22,11 +22,6 @@ const STEAM_VIRTUAL_GAMEPAD_LAYOUT := "a:b0,b:b1,x:b2,y:b3,leftshoulder:b4,right
 ## Comandi integrati dello Steam Deck letti direttamente (senza Steam).
 const STEAM_DECK_LAYOUT := "a:b3,b:b4,x:b5,y:b6,leftshoulder:b7,rightshoulder:b8,back:b11,start:b12,guide:b13,leftstick:b14,rightstick:b15,leftx:a0,lefty:a1,rightx:a2,righty:a3,lefttrigger:a9,righttrigger:a8,dpup:b16,dpdown:b17,dpleft:b18,dpright:b19,platform:Linux"
 
-## Sui PC con schermo touch i controlli a schermo compaiono solo dopo aver
-## toccato lo schermo e spariscono appena si usa il controller.
-var _touch_active := false
-
-
 ## Frame al secondo: fissi a 60 (anche sullo Steam Deck in modalità gioco,
 ## dove senza limite il gioco oscilla e perde colpi). La fisica va a 60 passi
 ## al secondo con l'interpolazione attiva (project.godot), così il
@@ -86,7 +81,7 @@ func _fix_joypad_mapping(device: int) -> void:
 	Input.add_joy_mapping("%s,%s,%s" % [Input.get_joy_guid(device), name, layout], true)
 
 
-## Il gioco si usa solo col controller (e col touch): tastiera e mouse
+## Il gioco si usa solo col controller: tastiera, mouse e touch
 ## non fanno niente. L'Input Map del progetto non ha tasti né clic, ma le
 ## azioni ui_* predefinite di Godot sì (frecce, Invio, Tab...): si tolgono
 ## all'avvio.
@@ -121,23 +116,8 @@ func _read_first_line(path: String) -> String:
 	return file.get_line().strip_edges()
 
 
-## Tastiera e mouse vengono fermati prima che arrivino ai menù (anche
-## clic e rotellina sui pulsanti). I clic emulati dai tocchi sullo schermo
-## restano: servono ai controlli touch e ai pulsanti dei menù.
+## Tastiera, mouse e tocchi sullo schermo vengono fermati prima che
+## arrivino ai menù (anche clic, rotellina e tocchi sui pulsanti).
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey or (event is InputEventMouse and event.device != InputEvent.DEVICE_ID_EMULATION):
+	if event is InputEventKey or event is InputEventMouse or event is InputEventScreenTouch or event is InputEventScreenDrag:
 		get_viewport().set_input_as_handled()
-		return
-	if is_mobile:
-		return
-	if event is InputEventScreenTouch:
-		_touch_active = true
-	elif event is InputEventJoypadButton \
-			or (event is InputEventJoypadMotion and absf((event as InputEventJoypadMotion).axis_value) > 0.5):
-		_touch_active = false
-
-
-## True se vanno mostrati i controlli touch a schermo: sempre sui telefoni,
-## sui PC con schermo touch solo dopo averlo toccato (vedi _input).
-func use_touch_controls() -> bool:
-	return is_mobile or (_touch_active and DisplayServer.is_touchscreen_available())

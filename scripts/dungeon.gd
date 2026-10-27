@@ -1,19 +1,20 @@
 class_name Dungeon
 extends RefCounted
-## Sotterraneo sotto una caverna delle montagne: caverne collegate da
-## gallerie, generate a caso ma sempre uguali per la stessa caverna e lo
-## stesso piano, in una griglia piccola di rombi. Si arriva davanti a un
+## Interno di un edificio abbandonato (nel codice "sotterraneo"): ogni
+## piano è una pianta regolare di stanze quadrate su una griglia, separate
+## da muri dritti con porte larghe due rombi (a volte il muro manca e due
+## stanze formano un salone), generata a caso ma sempre uguale per lo
+## stesso edificio e lo stesso piano. Si arriva davanti a un
 ## passaggio nella parete che riporta in superficie e si cerca quello che
 ## scende al piano sotto (i passaggi sono sempre in una parete, mai a terra);
-## all'ultimo piano, nella caverna più lontana, c'è l'arena del boss.
+## all'ultimo piano, nella zona più lontana, c'è l'arena del boss: un
+## salone di 2 × 2 stanze.
 ## Parametri in data/world.json ("dungeon").
 ##
 ## Il terreno lo disegna World come la superficie: il pavimento è al
 ## livello 0, la roccia è un blocco alto che non si scala.
 
 const DATA := preload("res://data/world.json")
-## Caverne non più vicine di così (in rombi), così restano separate.
-const ROOM_SPACING := 9
 ## Ostacoli e nemici stanno ad almeno questa distanza (in rombi) da scale e arena.
 const KEEP_CLEAR := 3
 ## Due passaggi nelle pareti non stanno mai più vicini di così (in rombi).
@@ -26,7 +27,7 @@ var width := 0
 var height := 0
 var seed_value := 0
 var wall_level := 4
-## Caverne: {"center": Vector2i, "radius": int}; la prima è quella d'arrivo.
+## Stanze: {"center": Vector2i, "radius": int}; la prima è quella d'arrivo.
 var rooms: Array[Dictionary] = []
 var arrival := Vector2i.ZERO
 ## Lato del rombo in cui si apre il passaggio nella parete (vedi _wall_spot).
@@ -122,72 +123,116 @@ func _generate() -> void:
 	width = int(size[0]) + int(size[1]) * (depth - 1)
 	height = width
 	wall_level = data["wall_level"]
+	arena_radius = data["arena_radius"]
 	_floor.resize(width * height)
 	_floor.fill(0)
-	var room_count: Array = data["rooms"]
-	var count := int(room_count[0]) + int(room_count[1]) * (depth - 1)
-	var radius_range: Array = data["room_radius"]
-	arena_radius = data["arena_radius"]
-	var margin: int = (arena_radius if is_last() else int(radius_range[1])) + 2
-	# Caverne sparse, lontane tra loro.
-	for attempt in 300:
-		if rooms.size() >= count:
-			break
-		var center := Vector2i(rng.randi_range(margin, width - 1 - margin), rng.randi_range(margin, height - 1 - margin))
-		var free := true
-		for room in rooms:
-			if (room["center"] as Vector2i).distance_to(center) < ROOM_SPACING:
-				free = false
-				break
-		if free:
-			rooms.append({"center": center, "radius": rng.randi_range(radius_range[0], radius_range[1])})
-	if rooms.size() < 2:
-		# Non dovrebbe succedere, ma due caverne agli angoli opposti bastano.
-		rooms = [{"center": Vector2i(margin, margin), "radius": radius_range[0]},
-				{"center": Vector2i(width - 1 - margin, height - 1 - margin), "radius": radius_range[0]}]
-	for room in rooms:
-		_carve_room(room["center"], room["radius"], rng)
-	# Gallerie: ogni caverna si collega alla più vicina tra quelle già
-	# collegate, più qualche giro in più.
-	for i in range(1, rooms.size()):
-		var best := 0
-		for j in i:
-			if _room_distance(j, i) < _room_distance(best, i):
-				best = j
-		_carve_tunnel(rooms[best]["center"], rooms[i]["center"], rng)
-	for k in floori(rooms.size() / 3.0):
-		_carve_tunnel(rooms[rng.randi() % rooms.size()]["center"], rooms[rng.randi() % rooms.size()]["center"], rng)
-	var arrival_spot := _wall_spot(rooms[0]["center"], int(rooms[0]["radius"]) + 2)
+	# Griglia di stanze: ognuna ha room_size rombi di lato, con un muro di un
+	# rombo tra una e l'altra.
+	var pitch := int(data["room_size"]) + 1
+	var count := maxi((width - 1) / pitch, 2)
+	for i in count:
+		for j in count:
+			_fill(Vector2i(i * pitch + 1, j * pitch + 1), Vector2i(i * pitch + pitch - 1, j * pitch + pitch - 1))
+	# Collegamenti: un albero che tocca tutte le stanze (porte o muri
+	# abbattuti), più qualche porta in più per fare dei giri.
+	var linked := {}
+	var stack: Array[Vector2i] = [Vector2i(rng.randi() % count, rng.randi() % count)]
+	var visited := {stack[0]: true}
+	var steps: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+	while not stack.is_empty():
+		var room: Vector2i = stack.back()
+		var options: Array[Vector2i] = []
+		for step in steps:
+			var next := room + step
+			if next.x >= 0 and next.y >= 0 and next.x < count and next.y < count and not visited.has(next):
+				options.append(next)
+		if options.is_empty():
+			stack.pop_back()
+			continue
+		var next := options[rng.randi() % options.size()]
+		visited[next] = true
+		_open_wall(room, next, pitch, rng.randf() < float(data["merge_chance"]))
+		linked[[room, next]] = true
+		linked[[next, room]] = true
+		stack.append(next)
+	for i in count:
+		for j in count:
+			for step: Vector2i in [Vector2i(1, 0), Vector2i(0, 1)]:
+				var room := Vector2i(i, j)
+				var next := room + step
+				if next.x < count and next.y < count and not linked.has([room, next]) and rng.randf() < float(data["extra_doors"]):
+					_open_wall(room, next, pitch, false)
+	# Stanza d'arrivo a caso; la più lontana a piedi ha la scala, o l'arena del boss.
+	var start := Vector2i(rng.randi() % count, rng.randi() % count)
+	var half := pitch / 2
+	var arrival_room := start * pitch + Vector2i(half, half)
+	var arrival_spot := _wall_spot(arrival_room, half + 2)
 	arrival = arrival_spot[0]
 	arrival_side = arrival_spot[1]
-	# La caverna più lontana a piedi dall'arrivo ha la scala, o l'arena del boss.
 	var distances := _distances_from(arrival)
-	var far_room := 1
-	for i in range(1, rooms.size()):
-		if distances.get(rooms[i]["center"], 0) > distances.get(rooms[far_room]["center"], 0):
-			far_room = i
+	var far := start
+	for i in count:
+		for j in count:
+			if distances.get(Vector2i(i, j) * pitch + Vector2i(half, half), 0) > distances.get(far * pitch + Vector2i(half, half), 0):
+				far = Vector2i(i, j)
+	# Arena: il salone di 2 × 2 stanze che contiene quella più lontana (senza
+	# quella d'arrivo).
+	var arena_block := Rect2i()
 	if is_last():
-		arena = rooms[far_room]["center"]
-		rooms[far_room]["radius"] = arena_radius
-		_carve_room(arena, arena_radius, rng, false)
+		for a in [Vector2i(mini(far.x, count - 2), mini(far.y, count - 2)), Vector2i(maxi(far.x - 1, 0), maxi(far.y - 1, 0)),
+				Vector2i(mini(far.x, count - 2), maxi(far.y - 1, 0)), Vector2i(maxi(far.x - 1, 0), mini(far.y, count - 2))]:
+			arena_block = Rect2i(a, Vector2i(2, 2))
+			if not arena_block.has_point(start):
+				break
+		_fill(arena_block.position * pitch + Vector2i(1, 1), arena_block.end * pitch - Vector2i(1, 1))
+		arena = arena_block.position * pitch + Vector2i(pitch, pitch)
+	rooms = [{"center": arrival_room, "radius": half - 1}]
+	var others: Array[Dictionary] = []
+	for i in count:
+		for j in count:
+			var room := Vector2i(i, j)
+			if room != start and not (is_last() and arena_block.has_point(room)):
+				others.append({"center": room * pitch + Vector2i(half, half), "radius": half - 1, "far": room == far})
+	rooms.append_array(others)
+	if is_last():
+		rooms.append({"center": arena, "radius": arena_radius})
 		var exit_spot := _wall_spot(arena, arena_radius + 2, [arrival])
 		arena_exit = exit_spot[0]
 		arena_exit_side = exit_spot[1]
 	else:
-		var stairs_spot := _wall_spot(rooms[far_room]["center"], int(rooms[far_room]["radius"]) + 2, [arrival])
+		var stairs_spot := _wall_spot(far * pitch + Vector2i(half, half), half + 2, [arrival])
 		stairs = stairs_spot[0]
 		stairs_side = stairs_spot[1]
-	# Casse nelle altre caverne.
+	# Casse nelle altre stanze.
 	var chest_range: Array = data["chests"]
-	var candidates: Array[int] = []
-	for i in range(1, rooms.size()):
-		if i != far_room:
-			candidates.append(i)
+	var candidates: Array[Dictionary] = []
+	for room in others:
+		if not room["far"]:
+			candidates.append(room)
 	for k in mini(rng.randi_range(chest_range[0], chest_range[1]), candidates.size()):
-		var room: Dictionary = rooms[candidates.pop_at(rng.randi() % candidates.size())]
+		var room: Dictionary = candidates.pop_at(rng.randi() % candidates.size())
 		var spot: Vector2i = room["center"] + Vector2i(rng.randi_range(-1, 1), rng.randi_range(-1, 1))
 		if is_floor(spot):
 			chests.append(spot)
+
+
+## Pavimento in tutto il rettangolo da first a last (compresi).
+func _fill(first: Vector2i, last: Vector2i) -> void:
+	for x in range(first.x, last.x + 1):
+		for y in range(first.y, last.y + 1):
+			_set_floor(Vector2i(x, y))
+
+
+## Apre il muro tra due stanze vicine della griglia: tutto (merge, un
+## salone) o una porta larga due rombi nel mezzo.
+func _open_wall(a: Vector2i, b: Vector2i, pitch: int, merge: bool) -> void:
+	var low := Vector2i(mini(a.x, b.x), mini(a.y, b.y))
+	var wall := (low + (b - a).abs()) * pitch
+	var along := Vector2i(0, 1) if a.x != b.x else Vector2i(1, 0)
+	var first := 1 if merge else pitch / 2 - 1
+	var last := pitch - 1 if merge else pitch / 2
+	for k in range(first, last + 1):
+		_set_floor(wall + along * k)
 
 
 ## Passaggio in una parete vicino al punto: un rombo di pavimento con
@@ -226,44 +271,6 @@ func _find_wall_spot(near: Vector2i, max_distance: int, avoid: Array[Vector2i], 
 					best = [cell, side]
 					best_distance = distance
 	return best
-
-
-func _room_distance(a: int, b: int) -> float:
-	return (rooms[a]["center"] as Vector2i).distance_to(rooms[b]["center"])
-
-
-## Caverna tondeggiante dai bordi irregolari (rough = false: cerchio pieno).
-func _carve_room(center: Vector2i, radius: int, rng: RandomNumberGenerator, rough := true) -> void:
-	for i in range(-radius - 1, radius + 2):
-		for j in range(-radius - 1, radius + 2):
-			var limit := radius + (rng.randf_range(-0.7, 0.6) if rough else 0.3)
-			if Vector2(i, j).length() <= limit:
-				_set_floor(center + Vector2i(i, j))
-
-
-## Galleria larga due rombi che va da a a b con qualche svolta.
-func _carve_tunnel(from: Vector2i, to: Vector2i, rng: RandomNumberGenerator) -> void:
-	var at := from
-	var guard := 0
-	while at != to and guard < 400:
-		guard += 1
-		var step := Vector2i.ZERO
-		var horizontal := rng.randf() < 0.5
-		if at.x == to.x:
-			horizontal = false
-		elif at.y == to.y:
-			horizontal = true
-		if rng.randf() < 0.15:
-			# Una piccola deviazione, per gallerie meno dritte.
-			step = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)][rng.randi() % 4]
-		elif horizontal:
-			step = Vector2i(signi(to.x - at.x), 0)
-		else:
-			step = Vector2i(0, signi(to.y - at.y))
-		at = (at + step).clamp(Vector2i(1, 1), Vector2i(width - 3, height - 3))
-		_set_floor(at)
-		_set_floor(at + Vector2i(1, 0))
-		_set_floor(at + Vector2i(0, 1))
 
 
 func _set_floor(cell: Vector2i) -> void:
