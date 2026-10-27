@@ -43,6 +43,7 @@ const UPGRADE_NAMES := {
 	"h_bomb": "UPGRADE_H_BOMB",
 	"potion_heal": "UPGRADE_POTION_HEAL",
 	"mana_restore": "UPGRADE_MANA_RESTORE",
+	"frenzy": "UPGRADE_FRENZY",
 	"choice": "UPGRADE_CHOICE",
 }
 
@@ -80,6 +81,7 @@ var pause_menu := PauseMenu.new()
 	"h_bomb": %UpgradeHBomb as Button,
 	"potion_heal": %UpgradePotionHeal as Button,
 	"mana_restore": %UpgradeManaRestore as Button,
+	"frenzy": %UpgradeFrenzy as Button,
 	"choice": %UpgradeChoice as Button,
 }
 ## Potenziamenti proposti in questo passaggio di livello.
@@ -274,6 +276,8 @@ func _upgrade_value(upgrade: String) -> String:
 			return str(player.potion_heal())
 		"mana_restore":
 			return str(roundi(player.mana_potion_restore()))
+		"frenzy":
+			return str(player.max_special_hits)
 		"choice":
 			return str(upgrade_choices())
 	return ""
@@ -351,6 +355,11 @@ func set_health(_current: int, _maximum: int) -> void:
 
 
 func set_experience(_current: int, _needed: int, _level: int) -> void:
+	_status.queue_redraw()
+
+
+## La Frenesia è cambiata: la barra si ridisegna subito.
+func set_frenzy(_current: float, _maximum: float) -> void:
 	_status.queue_redraw()
 
 
@@ -436,6 +445,7 @@ func show_level_up(level: int, damage_before: int, damage_after: int) -> void:
 	_card_values["h_bomb"].text = tr("UPGRADE_VALUE") % [player.h_bomb_capacity(), player.h_bomb_capacity() + 1]
 	_card_values["potion_heal"].text = tr("UPGRADE_VALUE") % [player.potion_heal(), player.potion_heal() + Player.POTION_HEAL_UPGRADE]
 	_card_values["mana_restore"].text = tr("UPGRADE_VALUE") % [roundi(player.mana_potion_restore()), roundi(player.mana_potion_restore() + Player.MANA_POTION_RESTORE * Player.MANA_RESTORE_UPGRADE)]
+	_card_values["frenzy"].text = tr("UPGRADE_VALUE") % [player.max_special_hits, player.max_special_hits + Player.SPECIAL_HITS_UPGRADE]
 	_card_values["choice"].text = tr("UPGRADE_VALUE") % [upgrade_choices(), mini(upgrade_choices() + 1, UPGRADE_NAMES.size())]
 	# Solo alcuni potenziamenti, presi a caso, nell'ordine della griglia.
 	var choices := upgrade_choices()
@@ -460,6 +470,11 @@ func show_level_up(level: int, damage_before: int, damage_after: int) -> void:
 	for button: Button in _upgrade_buttons.values():
 		button.disabled = false
 	_upgrade_buttons[_offered[0]].grab_focus()
+
+
+## La scelta del potenziamento è aperta.
+func is_level_up_open() -> bool:
+	return _level_up.visible
 
 
 func _on_upgrade_pressed(upgrade: String) -> void:

@@ -139,6 +139,18 @@ func _build_sounds() -> void:
 		return _noise() * 0.5 * _env(t, d, 0.02))
 	_streams["xp"] = _render(0.08, func(t: float, d: float) -> float:
 		return sin(TAU * lerpf(1200.0, 1600.0, t / d) * t) * 0.25 * _env(t, d, 0.005))
+	# Urlo della Frenesia: un ruggito a onda quadra che sale e trema, con il
+	# rombo della motosega sotto, come i versi 8 bit ma più lungo.
+	_streams["frenzy_roar"] = _render_filtered(0.9, Vector2(0.8, 0.35), func(t: float, d: float) -> float:
+		var pitch := lerpf(110.0, 190.0, minf(t / 0.3, 1.0)) * (1.0 + 0.06 * sin(TAU * 9.0 * t))
+		var growl := (1.0 if fmod(pitch * t, 1.0) < 0.35 else -1.0) * 0.35
+		var rev := _saw(lerpf(70.0, 140.0, t / d) * t) * 0.3
+		return (growl + rev + _noise() * 0.25) * (0.75 + 0.25 * absf(sin(TAU * 18.0 * t))) * _env(t, d, 0.03))
+	# Frenesia piena: due note che salgono, squillanti.
+	_streams["frenzy_ready"] = _render(0.3, func(t: float, _d: float) -> float:
+		var note := 660.0 if t < 0.1 else 990.0
+		var local := t if t < 0.1 else t - 0.1
+		return (1.0 if fmod(note * t, 1.0) < 0.5 else -1.0) * 0.18 * exp(-local * 10.0))
 	_streams["charge_full"] = _render(0.25, func(t: float, d: float) -> float:
 		return (sin(TAU * 1500.0 * t) + sin(TAU * 2250.0 * t) * 0.5) * 0.18 * _env(t, d, 0.003))
 	# Tanica: il carburante gorgoglia nel serbatoio.

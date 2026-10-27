@@ -1,10 +1,12 @@
 extends Node
 ## Genera copertina e screenshot per la pagina itch.io (store/itch/), in
-## italiano (la lingua del gioco), componendo scene di gioco reali. Va rilanciato a
-## ogni modifica visibile del gioco. Serve una finestra (non --headless):
+## italiano (la lingua del gioco), componendo scene di gioco reali, e le
+## immagini delle pagine del tutorial (assets/tutorial/, vedi TutorialPanel).
+## Va rilanciato a ogni modifica visibile del gioco. Serve una finestra (non --headless):
 ##
 ##   godot --path . --resolution 1280x720 res://tools/store_capture.tscn -- screenshots
 ##   godot --path . --resolution 1260x1000 res://tools/store_capture.tscn -- cover
+##   godot --path . --resolution 1280x720 res://tools/store_capture.tscn -- tutorial
 ##
 ## Non fa parte del gioco: la cartella tools/ è esclusa dagli export.
 
@@ -12,11 +14,24 @@ const OUTPUT := "res://store/itch/"
 const LANGUAGES := ["it"]
 const SUBTITLE := {"it": "Action RPG · prototipo"}
 const COVER_SIZE := Vector2i(630, 500)
+## Immagini del tutorial: più piccole, e quali scene diventano quale pagina
+## (nome dello screenshot senza la lingua -> immagine del tutorial).
+const TUTORIAL_OUTPUT := "res://assets/tutorial/"
+const TUTORIAL_SIZE := Vector2i(640, 360)
+const TUTORIAL_IMAGES := {
+	"move.png": "move.png", "1_combat.png": "combo.png", "2_parry.png": "parry.png",
+	"dodge.png": "dodge.png", "frenzy_bar.png": "frenzy_bar.png", "16_frenzy.png": "frenzy_special.png",
+	"supplies.png": "supplies.png", "15_h_bomb.png": "arsenal.png", "enemies.png": "enemies.png",
+	"6_inventory.png": "loot.png", "13_map.png": "world.png", "12_dungeon.png": "buildings.png",
+	"3_level_up.png": "progress.png",
+}
 ## Seme del mondo usato per le immagini, così il terreno è sempre lo stesso.
 const WORLD_SEED := 1234
 
 var _game: Node2D
 var _player: Player
+## Si stanno catturando le immagini del tutorial (vedi _save).
+var _tutorial := false
 
 
 func _ready() -> void:
@@ -30,6 +45,13 @@ func _ready() -> void:
 		TranslationServer.set_locale(language)
 		if mode == "cover":
 			await _capture_cover(language)
+		elif mode == "tutorial":
+			_tutorial = true
+			DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(TUTORIAL_OUTPUT))
+			for capture: Callable in [_capture_move, _capture_combat, _capture_parry, _capture_dodge, _capture_frenzy_bar,
+					_capture_frenzy, _capture_supplies, _capture_h_bomb, _capture_enemies, _capture_inventory, _capture_cave,
+					_capture_dungeon, _capture_level_up]:
+				await capture.call(language)
 		else:
 			await _capture_menu(language)
 			await _capture_combat(language)
@@ -41,6 +63,7 @@ func _ready() -> void:
 			await _capture_slam(language)
 			await _capture_air_charge(language)
 			await _capture_h_bomb(language)
+			await _capture_frenzy(language)
 			await _capture_cave(language)
 			await _capture_dungeon(language)
 	get_tree().quit()
@@ -80,6 +103,7 @@ func _capture_combat(language: String) -> void:
 	_player.blood_stain = 0.6
 	_player.queue_redraw()
 	_player.potions = 1
+	_player.frenzy = 70.0
 	_player.apply_upgrade("combo")
 	_player.apply_upgrade("dodge")
 	_hud_stats()
@@ -366,6 +390,121 @@ func _capture_h_bomb(language: String) -> void:
 	_end_game()
 
 
+## Frenesia: Ciccio scatena l'attacco speciale. I nemici sono fermi, lo
+## sfondo è scuro tranne attorno a lui, che urla avvolto dal bagliore rosso;
+## la telecamera è avvicinata.
+func _capture_frenzy(language: String) -> void:
+	await _start_game(Vector2(0, -10), 1.0 * Player.SPECIAL_ZOOM)
+	_player.level = 5
+	_hud_stats()
+	var origin := _player.position
+	_player._set_lock_target(_enemy("warrior", origin + Vector2(120, 20), Enemy.State.WINDUP, 0.5))
+	_enemy("brute", origin + Vector2(-150, 70), Enemy.State.CHASE, 0.0)
+	_enemy("scout", origin + Vector2(60, -120), Enemy.State.CHASE, 0.0)
+	_enemy("lancer", origin + Vector2(-110, -90), Enemy.State.WINDUP, 0.3)
+	Enemy.frozen = true
+	_player.facing = Vector2(1, 0.15).normalized()
+	_player._state = Player.State.SPECIAL
+	_player._state_time = 0.45
+	_player._special_dark = 1.0
+	_player.frenzy = Player.FRENZY_MAX
+	_player.queue_redraw()
+	await _frames(4)
+	await _save("%s_16_frenzy.png" % language)
+	_end_game()
+
+
+## Tutorial: corsa di notte con la torcia elettrica accesa.
+func _capture_move(_language: String) -> void:
+	await _start_game(Vector2(0, -20), 1.3)
+	_player.level = 2
+	_hud_stats()
+	(_game.get_node("DayNight") as DayNight).time = 0.7
+	_player.facing = Vector2(1, 0.25).normalized()
+	_player._velocity = _player.facing * _player.run_speed()
+	_player._run_on = true
+	_player._walk_phase = 1.3
+	_player.torch_on = true
+	_player._torch.enabled = true
+	_player._torch.position = Vector2(0, -_player.ground_elevation + Player.RADIUS * 0.6)
+	_player._torch.aim(_player.facing)
+	_player.queue_redraw()
+	_enemy("scout", _player.position + Vector2(330, 60), Enemy.State.CHASE, 0.0)
+	await _save("t_move.png")
+	_end_game()
+
+
+## Tutorial: capriola sotto il colpo di un bruto.
+func _capture_dodge(_language: String) -> void:
+	await _start_game(Vector2(0, 0), 1.4)
+	_player.level = 3
+	_hud_stats()
+	var origin := _player.position
+	_enemy("brute", origin + Vector2(110, -20), Enemy.State.STRIKE, 0.12)
+	_player._state = Player.State.DODGE
+	_player._state_time = Player.DODGE_TIME * 0.45
+	_player._dodge_direction = Vector2(-1, 0.3).normalized()
+	_player.facing = Vector2(-1, 0.3).normalized()
+	_player.queue_redraw()
+	await _save("t_dodge.png")
+	_end_game()
+
+
+## Tutorial: la barra della Frenesia piena (pulsa e mostra L1 + R1) e
+## l'anello rosso attorno a Ciccio, in mezzo alla mischia.
+func _capture_frenzy_bar(_language: String) -> void:
+	await _start_game(Vector2(0, 20), 1.2)
+	_player.level = 4
+	_hud_stats()
+	_player.frenzy = Player.FRENZY_MAX
+	_player.facing = Vector2(1, -0.1).normalized()
+	_player._combo_step = 2
+	_player._state = Player.State.ATTACK
+	_player._state_time = Player.ATTACK_WINDUP + 0.05
+	_player.queue_redraw()
+	_player._set_lock_target(_enemy("warrior", _player.position + Vector2(95, -15), Enemy.State.GUARD, 0.1))
+	_enemy("scout", _player.position + Vector2(-180, 80), Enemy.State.CHASE, 0.0)
+	_enemy("caster", _player.position + Vector2(260, -150), Enemy.State.WINDUP, 0.5)
+	await _save("t_frenzy_bar.png")
+	_end_game()
+
+
+## Tutorial: Ciccio usa un kit medico con poca vita e poca batteria, un
+## predone gli corre addosso.
+func _capture_supplies(_language: String) -> void:
+	await _start_game(Vector2(0, 0), 1.3)
+	_player.level = 3
+	_hud_stats()
+	_player.health = 1
+	_player.battery = _player.max_battery * 0.15
+	_player._state = Player.State.DRINK
+	_player._drinking = "potion"
+	_player._state_time = 0.35
+	_player.facing = Vector2(1, 0.2).normalized()
+	_player.queue_redraw()
+	(_game.get_node("HUD") as Hud).set_health(_player.health, _player.max_health)
+	_enemy("warrior", _player.position + Vector2(170, 40), Enemy.State.CHASE, 0.0)
+	await _frames(30)
+	await _save("t_supplies.png")
+	_end_game()
+
+
+## Tutorial: predoni che caricano l'attacco (bagliore rosso, laser del
+## fuciliere) e uno con la guardia alzata.
+func _capture_enemies(_language: String) -> void:
+	await _start_game(Vector2(0, 0), 1.15)
+	_player.level = 4
+	_hud_stats()
+	var origin := _player.position
+	_player.facing = Vector2(1, 0).normalized()
+	_player._set_lock_target(_enemy("warrior", origin + Vector2(100, 10), Enemy.State.GUARD, 0.1))
+	_enemy("brute", origin + Vector2(-140, 60), Enemy.State.WINDUP, 0.7)
+	_enemy("archer", origin + Vector2(300, -140), Enemy.State.WINDUP, 0.7)
+	_enemy("golem", origin + Vector2(-260, -130), Enemy.State.CHASE, 0.0)
+	await _save("t_enemies.png")
+	_end_game()
+
+
 ## Porta di un edificio abbandonato nella parete di un palazzo.
 func _capture_cave(language: String) -> void:
 	await _start_game(Vector2(0, -60), 1.0)
@@ -561,7 +700,16 @@ func _label(text: String, size: int, color: Color, width: float, y: float) -> La
 
 func _save(file: String) -> void:
 	await _frames(6)
-	get_viewport().get_texture().get_image().save_png(OUTPUT + file)
+	var image := get_viewport().get_texture().get_image()
+	if not _tutorial:
+		image.save_png(OUTPUT + file)
+		return
+	# Per il tutorial servono solo alcune scene, rimpicciolite.
+	var page: String = TUTORIAL_IMAGES.get(file.substr(file.find("_") + 1), "")
+	if page == "":
+		return
+	image.resize(TUTORIAL_SIZE.x, TUTORIAL_SIZE.y, Image.INTERPOLATE_LANCZOS)
+	image.save_png(TUTORIAL_OUTPUT + page)
 
 
 func _frames(count: int) -> void:
