@@ -264,9 +264,9 @@ const SQUASH_AMOUNT := 0.22
 const SQUASH_RECOVERY := 5.0
 const START_JUMPS := 1
 
-## Mana: serve per le magie e si ricarica piano da solo.
+## Mana (carburante): serve per missili e colpi potenti e non si ricarica
+## da solo, solo con le taniche.
 const START_MANA := 60.0
-const MANA_REGEN := 2.0
 const MANA_UPGRADE := 20.0
 const MANA_POTION_RESTORE := 40.0
 const START_MANA_POTIONS := 1
@@ -631,8 +631,6 @@ func _physics_process(delta: float) -> void:
 	if _battery_delay == 0.0 and not _running and _state != State.DEAD:
 		var regen := BATTERY_REGEN * (BATTERY_PARRY_REGEN_FACTOR if _state == State.PARRY else 1.0)
 		battery = minf(battery + regen * delta, max_battery)
-	if _state != State.DEAD:
-		mana = minf(mana + MANA_REGEN * delta, max_mana)
 
 	# I tasti si leggono con UiNav.game_pressed / game_held: quello che ha
 	# appena chiuso un menù (A su Riprendi, B) non conta finché non si rilascia.
