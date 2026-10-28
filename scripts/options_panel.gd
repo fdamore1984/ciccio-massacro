@@ -7,7 +7,10 @@ extends Control
 ## LISTEN_TIME secondi), che prende il posto dei precedenti e si salva
 ## subito. Un tasto di un altro dispositivo, o il tempo che scade, annulla.
 ## Se il nuovo tasto è già usato da altre azioni lo si dice (alcune lo
-## condividono apposta, come salto e interazione). In fondo si torna ai
+## condividono apposta, come salto e interazione). Con ui_clear (X, Canc,
+## Backspace) o il clic destro sul pulsante l'azione resta senza tasti per
+## quel dispositivo (non il menù di pausa su tutti: vedi
+## Keybinds.can_clear). In fondo si torna ai
 ## comandi predefiniti. Funziona con mouse, touch, tastiera e controller;
 ## si chiude con B, Esc o il pulsante Indietro (non mentre si aspetta un
 ## tasto: lì ogni tasto va assegnato).
@@ -26,6 +29,7 @@ const COLOR_WAITING := Color(1.0, 0.85, 0.4)
 
 var _grid := GridContainer.new()
 var _scroll := ScrollContainer.new()
+var _intro := Label.new()
 var _status := Label.new()
 var _reset := Button.new()
 var _back := Button.new()
@@ -53,7 +57,11 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 10)
 	center.add_child(box)
 	box.add_child(_label("OPTIONS_TITLE", 34, COLOR_TITLE))
-	box.add_child(_label("OPTIONS_CONTROLS", 18, COLOR_TEXT))
+	_intro.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_intro.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_intro.add_theme_font_size_override("font_size", 18)
+	_intro.add_theme_color_override("font_color", COLOR_TEXT)
+	box.add_child(_intro)
 	var header := GridContainer.new()
 	header.columns = 4
 	header.add_theme_constant_override("h_separation", 12)
@@ -89,6 +97,7 @@ func _ready() -> void:
 			button.clip_text = true
 			button.focus_entered.connect(Sfx.play_ui.bind("ui_move"))
 			button.pressed.connect(_listen.bind(action, device))
+			button.gui_input.connect(_on_cell_input.bind(action, device))
 			_grid.add_child(button)
 			_cells[action + ":" + device] = button
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -128,6 +137,7 @@ func _label(text: String, font_size: int, color: Color) -> Label:
 func open() -> void:
 	_stop_listening()
 	_refresh()
+	_intro.text = tr("OPTIONS_CONTROLS") % Keybinds.hint("ui_clear")
 	_status.text = ""
 	visible = true
 	_scroll.scroll_vertical = 0
@@ -243,6 +253,35 @@ func _shared_with(action: String, event: InputEvent) -> Array[String]:
 	return names
 
 
+## Clic destro su un pulsante: l'azione resta senza tasti per quel dispositivo.
+func _on_cell_input(event: InputEvent, action: String, device: String) -> void:
+	var mouse := event as InputEventMouseButton
+	if mouse and mouse.pressed and mouse.button_index == MOUSE_BUTTON_RIGHT and _listen_action == "":
+		accept_event()
+		_clear(action, device)
+
+
+func _clear(action: String, device: String) -> void:
+	var action_name := tr("BIND_ACTION_" + action.to_upper())
+	if not Keybinds.can_clear(action, device):
+		_status.text = tr("OPTIONS_CLEAR_REQUIRED") % action_name
+		Sfx.play_ui("ui_move")
+		return
+	Keybinds.clear(action, device)
+	_refresh()
+	_status.text = tr("OPTIONS_CLEARED") % [action_name, tr("OPTIONS_DEVICE_" + device.to_upper())]
+	Sfx.play_ui("ui_confirm")
+
+
+## Pulsante di un'azione selezionato: "azione:dispositivo" ("" se è un altro).
+func _focused_cell() -> String:
+	var focused := get_viewport().gui_get_focus_owner()
+	for cell: String in _cells:
+		if _cells[cell] == focused:
+			return cell
+	return ""
+
+
 func _on_reset_pressed() -> void:
 	_stop_listening()
 	Keybinds.reset()
@@ -257,6 +296,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("menu") or event.is_action_pressed("dodge"):
 		UiNav.consume(event)
 		close()
+	elif event.is_action_pressed("ui_clear") and _focused_cell() != "":
+		UiNav.consume(event)
+		var cell := _focused_cell().split(":")
+		_clear(cell[0], cell[1])
 	elif not UiNav.handle(event, get_viewport(), _back):
 		return
 	get_viewport().set_input_as_handled()

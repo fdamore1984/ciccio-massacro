@@ -148,6 +148,9 @@ SLOT_PLAYTIME_HOURS,%d h %02d min,%d h %02d min
 SLOT_PLAYTIME_UNKNOWN,—,—
 SLOT_SAVED_AT,Saved %s,Salvato il %s
 SLOT_OVERWRITE,Press again to replace this save,Premi di nuovo per sostituire questo salvataggio
+SLOT_DELETE,Delete,Elimina
+SLOT_DELETE_SURE,Press again to delete,Premi di nuovo per eliminare
+SLOT_DELETE_CONFIRM,This save will be deleted for good,Questo salvataggio verrà eliminato per sempre
 PAUSE_TITLE,Paused,Pausa
 PAUSE_RESUME,Resume,Riprendi
 PAUSE_SAVE,Save game,Salva la partita
@@ -292,7 +295,7 @@ OPTIONS_TITLE,Options,Opzioni
 OPTIONS_BACK,Back,Indietro
 OPTIONS_BOUND,"""%s"" set to %s","""%s"" impostato su %s"
 OPTIONS_CANCELLED,Cancelled: nothing changed,Annullato: nessuna modifica
-OPTIONS_CONTROLS,"Controls: select a binding, then press the new key, mouse button or controller button","Comandi: scegli un tasto, poi premi il nuovo tasto della tastiera, del mouse o del controller"
+OPTIONS_CONTROLS,"Controls: select a binding, then press the new key, mouse button or controller button (%s or right click: leave it empty)","Comandi: scegli un tasto, poi premi il nuovo tasto della tastiera, del mouse o del controller (%s o clic destro: lascialo vuoto)"
 OPTIONS_DEVICE_CONTROLLER,controller button or stick,tasto o levetta del controller
 OPTIONS_DEVICE_KEYBOARD,key,tasto della tastiera
 OPTIONS_DEVICE_MOUSE,mouse button,tasto del mouse
@@ -304,3 +307,5 @@ OPTIONS_LISTEN,"Press the new %s for ""%s"" (%d s, another device cancels)","Pre
 OPTIONS_RESET,Reset to defaults,Ripristina i predefiniti
 OPTIONS_RESET_DONE,All controls are back to their defaults,Tutti i comandi sono tornati quelli predefiniti
 OPTIONS_SHARED,also used by: %s,usato anche da: %s
+OPTIONS_CLEARED,"""%s"" now has no %s","""%s"" ora non ha nessun %s"
+OPTIONS_CLEAR_REQUIRED,"""%s"" needs at least one key: set another one first","""%s"" deve avere almeno un tasto: assegnane prima un altro"

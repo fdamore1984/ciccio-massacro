@@ -43,7 +43,7 @@ Priorità di design indicata: il cuore del gioco sono sistema di gioco, inventar
 | Sistema | Descrizione | Stato |
 |---|---|---|
 | Movimento | Isometrico, 8 direzioni, col controller. Nel prototipo il movimento segue le direzioni dello schermo, con accelerazione e frenata | prototipo |
-| Comandi | Controller, tastiera e mouse (camminata verso il cursore, attacchi verso il cursore), comandi rimappabili da Opzioni; touch non supportato. Tutorial a pagine con immagini dal menù iniziale e di pausa | prototipo |
+| Comandi | Controller, tastiera e mouse (camminata verso il cursore, attacchi verso il cursore), comandi rimappabili da Opzioni (anche lasciati vuoti); touch non supportato. Tutorial a pagine con immagini dal menù iniziale e di pausa | prototipo |
 | Sfide | Nel prototipo: sirene d'allarme al centro di piazze piane che avviano una sfida di sopravvivenza di 30 secondi a ondate, tarata sul livello del giocatore | prototipo |
 | Mondo | Nel prototipo: città distrutta isometrica 3D generata a caso, tutta in piano, con una griglia ordinata di strade dritte e isolati, grandi palazzi in rovina con le porte degli edifici abbandonati, fessure dei terremoti e pochi ostacoli (rovine, macerie, cumuli di rottami che rallentano) | prototipo |
 | Combattimento | Tempo reale: combo di motosega (R1, colpi istantanei), colpo potente (L2), parata (L1), Frenesia con attacco speciale (L1 + R1 a barra piena), schivate concatenate e orientabili (B), salto (A), corsa e scivolata (L3), bazooka con missile a ricerca (X), scudo (Y), kit medici, taniche di carburante ed batterie di ricambio (croce sinistra, destra e giù), torcia elettrica accesa e spenta tenendo premuto L3, inventario (croce su); colpo potente caricabile (consuma carburante; a mezz'aria si fluttua e consuma anche batteria, esposti agli spari), fermo all'impatto, sangue abbondante; nove tipi di nemici, pistoleri e fucilieri compresi | prototipo |
@@ -51,7 +51,7 @@ Priorità di design indicata: il cuore del gioco sono sistema di gioco, inventar
 | Inventario | Nel prototipo: oggetti dalle casse (catene per la motosega, giubbotti, scarpe, serbatoi, mirini, manuali, scorte, rottami), un oggetto indossato per tipo. Limite di peso e deposito _da definire_ | prototipo |
 | Dialoghi | _da definire_ | da fare |
 | Quest | _da definire_ | da fare |
-| Salvataggi | Nel prototipo: tre slot, salvataggio automatico e manuale dalla pausa (senza nemici vicini); Continua riprende il salvataggio più recente | prototipo |
+| Salvataggi | Nel prototipo: tre slot, salvataggio automatico e manuale dalla pausa (senza nemici vicini); Continua riprende il salvataggio più recente; i salvataggi si possono eliminare | prototipo |
 
 ## 6. Storia
 
