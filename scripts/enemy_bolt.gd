@@ -14,7 +14,10 @@ const HIT_HEIGHT_REACH := 50.0
 
 var direction := Vector2.RIGHT
 var speed := 260.0
+## Punti di danno per il fuoco amico (vedi Enemy.hurt_enemy) e punti vita
+## tolti al giocatore (vedi EnemyTypes.player_damage).
 var damage := 1
+var player_damage := 1
 var max_distance := 600.0
 var altitude := 0.0
 ## Colore del tracciante.
@@ -56,7 +59,7 @@ func _physics_process(delta: float) -> void:
 			and position.distance_to(player.position) < radius + Player.RADIUS:
 		# Il colpo arriva da dove si trova il dardo: la parata frontale funziona,
 		# anche appena alzata (la parata è istantanea e gira subito il giocatore).
-		var result := player.receive_hit(position - direction * 40.0, damage, true)
+		var result := player.receive_hit(position - direction * 40.0, player_damage, true)
 		if result != "ignored":
 			if result in ["blocked", "parried", "broken"]:
 				# Parato: il proiettile rimbalza sulla motosega con un lampo.

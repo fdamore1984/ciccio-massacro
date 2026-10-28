@@ -1,14 +1,16 @@
 class_name Dungeon
 extends RefCounted
 ## Interno di un edificio abbandonato (nel codice "sotterraneo"): ogni
-## piano è una pianta regolare di stanze quadrate su una griglia, separate
-## da muri dritti con porte larghe due rombi (a volte il muro manca e due
-## stanze formano un salone), generata a caso ma sempre uguale per lo
+## piano è diviso a caso in stanze di misure diverse (uffici, corridoi
+## lunghi e stretti, saloni), tagliando lo spazio più volte con muri dritti
+## che si incontrano a T e a croce; ogni muro ha almeno una porta (a volte
+## due, a volte manca del tutto e due stanze formano un salone) e nei saloni
+## più grandi ci sono pilastri. Generato a caso ma sempre uguale per lo
 ## stesso edificio e lo stesso piano. Si arriva davanti a un
 ## passaggio nella parete che riporta in superficie e si cerca quello che
 ## scende al piano sotto (i passaggi sono sempre in una parete, mai a terra);
 ## all'ultimo piano, nella zona più lontana, c'è l'arena del boss: un
-## salone di 2 × 2 stanze.
+## salone quadrato largo il doppio di "arena_radius" rombi.
 ## Parametri in data/world.json ("dungeon").
 ##
 ## Il terreno lo disegna World come la superficie: il pavimento è al
@@ -27,7 +29,8 @@ var width := 0
 var height := 0
 var seed_value := 0
 var wall_level := 4
-## Stanze: {"center": Vector2i, "radius": int}; la prima è quella d'arrivo.
+## Stanze: {"center": Vector2i, "radius": int, "rect": Rect2i}; la prima è
+## quella d'arrivo.
 var rooms: Array[Dictionary] = []
 var arrival := Vector2i.ZERO
 ## Lato del rombo in cui si apre il passaggio nella parete (vedi _wall_spot).
@@ -102,14 +105,15 @@ func chunk_rect() -> Rect2i:
 	return Rect2i(Vector2i(-1, -1), last + Vector2i(3, 3))
 
 
-## Rombi del pavimento di una caverna, per farci comparire i nemici.
+## Rombi del pavimento di una stanza, per farci comparire i nemici.
 func room_cells(room: Dictionary) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
 	var center: Vector2i = room["center"]
 	var radius: int = room["radius"]
-	for i in range(-radius, radius + 1):
-		for j in range(-radius, radius + 1):
-			var cell := center + Vector2i(i, j)
+	var rect: Rect2i = room.get("rect", Rect2i(center - Vector2i(radius, radius), Vector2i(radius, radius) * 2 + Vector2i.ONE))
+	for x in range(rect.position.x, rect.end.x):
+		for y in range(rect.position.y, rect.end.y):
+			var cell := Vector2i(x, y)
 			if is_open(cell):
 				result.append(cell)
 	return result
@@ -126,73 +130,53 @@ func _generate() -> void:
 	arena_radius = data["arena_radius"]
 	_floor.resize(width * height)
 	_floor.fill(0)
-	# Griglia di stanze: ognuna ha room_size rombi di lato, con un muro di un
-	# rombo tra una e l'altra.
-	var pitch := int(data["room_size"]) + 1
-	var count := maxi((width - 1) / pitch, 2)
-	for i in count:
-		for j in count:
-			_fill(Vector2i(i * pitch + 1, j * pitch + 1), Vector2i(i * pitch + pitch - 1, j * pitch + pitch - 1))
-	# Collegamenti: un albero che tocca tutte le stanze (porte o muri
-	# abbattuti), più qualche porta in più per fare dei giri.
-	var linked := {}
-	var stack: Array[Vector2i] = [Vector2i(rng.randi() % count, rng.randi() % count)]
-	var visited := {stack[0]: true}
-	var steps: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
-	while not stack.is_empty():
-		var room: Vector2i = stack.back()
-		var options: Array[Vector2i] = []
-		for step in steps:
-			var next := room + step
-			if next.x >= 0 and next.y >= 0 and next.x < count and next.y < count and not visited.has(next):
-				options.append(next)
-		if options.is_empty():
-			stack.pop_back()
+	# Lo spazio si taglia più volte con muri dritti: le stanze sono i pezzi
+	# rimasti, i muri si incontrano a T e a croce.
+	var leaves: Array[Rect2i] = []
+	var walls: Array[Dictionary] = []
+	_split(Rect2i(1, 1, width - 2, height - 2), rng, leaves, walls, data)
+	for leaf in leaves:
+		_fill(leaf.position, leaf.end - Vector2i.ONE)
+	# Ogni muro ha una porta (così tutte le stanze sono collegate), a volte
+	# due, a volte sparisce del tutto (un salone); nei saloni grandi i pilastri.
+	for wall in walls:
+		if rng.randf() < float(data["merge_chance"]) and wall["cells"].size() <= int(data["merge_max"]):
+			for cell: Vector2i in wall["cells"]:
+				_set_floor(cell)
 			continue
-		var next := options[rng.randi() % options.size()]
-		visited[next] = true
-		_open_wall(room, next, pitch, rng.randf() < float(data["merge_chance"]))
-		linked[[room, next]] = true
-		linked[[next, room]] = true
-		stack.append(next)
-	for i in count:
-		for j in count:
-			for step: Vector2i in [Vector2i(1, 0), Vector2i(0, 1)]:
-				var room := Vector2i(i, j)
-				var next := room + step
-				if next.x < count and next.y < count and not linked.has([room, next]) and rng.randf() < float(data["extra_doors"]):
-					_open_wall(room, next, pitch, false)
+		_open_door(wall, rng)
+		if rng.randf() < float(data["extra_doors"]):
+			_open_door(wall, rng)
+	for leaf in leaves:
+		_add_pillars(leaf, rng, data)
 	# Stanza d'arrivo a caso; la più lontana a piedi ha la scala, o l'arena del boss.
-	var start := Vector2i(rng.randi() % count, rng.randi() % count)
-	var half := pitch / 2
-	var arrival_room := start * pitch + Vector2i(half, half)
-	var arrival_spot := _wall_spot(arrival_room, half + 2)
+	var start_leaf := leaves[rng.randi() % leaves.size()]
+	var arrival_room := _center(start_leaf)
+	var arrival_spot := _wall_spot(arrival_room, maxi(start_leaf.size.x, start_leaf.size.y) / 2 + 2)
 	arrival = arrival_spot[0]
 	arrival_side = arrival_spot[1]
 	var distances := _distances_from(arrival)
-	var far := start
-	for i in count:
-		for j in count:
-			if distances.get(Vector2i(i, j) * pitch + Vector2i(half, half), 0) > distances.get(far * pitch + Vector2i(half, half), 0):
-				far = Vector2i(i, j)
-	# Arena: il salone di 2 × 2 stanze che contiene quella più lontana (senza
-	# quella d'arrivo).
-	var arena_block := Rect2i()
+	var far := start_leaf
+	for leaf in leaves:
+		if distances.get(_center(leaf), 0) > distances.get(_center(far), 0):
+			far = leaf
 	if is_last():
-		for a in [Vector2i(mini(far.x, count - 2), mini(far.y, count - 2)), Vector2i(maxi(far.x - 1, 0), maxi(far.y - 1, 0)),
-				Vector2i(mini(far.x, count - 2), maxi(far.y - 1, 0)), Vector2i(maxi(far.x - 1, 0), mini(far.y, count - 2))]:
-			arena_block = Rect2i(a, Vector2i(2, 2))
-			if not arena_block.has_point(start):
-				break
-		_fill(arena_block.position * pitch + Vector2i(1, 1), arena_block.end * pitch - Vector2i(1, 1))
-		arena = arena_block.position * pitch + Vector2i(pitch, pitch)
-	rooms = [{"center": arrival_room, "radius": half - 1}]
+		# Arena: un salone quadrato attorno alla stanza più lontana, dentro la pianta.
+		var low := arena_radius + 2
+		var high := width - arena_radius - 3
+		arena = _center(far).clamp(Vector2i(low, low), Vector2i(high, high))
+		if arena.distance_to(arrival) < arena_radius + 4:
+			arena = Vector2i(width - 1, height - 1) - arena
+			arena = arena.clamp(Vector2i(low, low), Vector2i(high, high))
+		_fill(arena - Vector2i(arena_radius, arena_radius), arena + Vector2i(arena_radius, arena_radius))
+	var arena_rect := Rect2i(arena - Vector2i(arena_radius + 1, arena_radius + 1), Vector2i(arena_radius, arena_radius) * 2 + Vector2i(3, 3))
+	rooms = [_room(start_leaf, false)]
 	var others: Array[Dictionary] = []
-	for i in count:
-		for j in count:
-			var room := Vector2i(i, j)
-			if room != start and not (is_last() and arena_block.has_point(room)):
-				others.append({"center": room * pitch + Vector2i(half, half), "radius": half - 1, "far": room == far})
+	for leaf in leaves:
+		if leaf == start_leaf or (is_last() and arena_rect.intersects(leaf)):
+			continue
+		var room := _room(leaf, leaf == far)
+		others.append(room)
 	rooms.append_array(others)
 	if is_last():
 		rooms.append({"center": arena, "radius": arena_radius})
@@ -200,7 +184,7 @@ func _generate() -> void:
 		arena_exit = exit_spot[0]
 		arena_exit_side = exit_spot[1]
 	else:
-		var stairs_spot := _wall_spot(far * pitch + Vector2i(half, half), half + 2, [arrival])
+		var stairs_spot := _wall_spot(_center(far), maxi(far.size.x, far.size.y) / 2 + 2, [arrival])
 		stairs = stairs_spot[0]
 		stairs_side = stairs_spot[1]
 	# Casse nelle altre stanze.
@@ -216,23 +200,90 @@ func _generate() -> void:
 			chests.append(spot)
 
 
+## Taglia il rettangolo con un muro dritto (lungo il lato più lungo, in un
+## punto a caso) e poi i due pezzi, finché sono abbastanza piccoli: i pezzi
+## finali sono le stanze (leaves), i muri si ricordano in walls con i loro
+## rombi. Più o meno a caso restano anche stanze grandi (saloni) e strette
+## (corridoi).
+func _split(rect: Rect2i, rng: RandomNumberGenerator, leaves: Array[Rect2i], walls: Array[Dictionary], data: Dictionary) -> void:
+	var room: Array = data["room_size"]
+	var smallest := int(room[0])
+	var largest := int(room[1])
+	var can_x := rect.size.x >= 2 * smallest + 1
+	var can_y := rect.size.y >= 2 * smallest + 1
+	var fits := rect.size.x <= largest and rect.size.y <= largest
+	if not (can_x or can_y) or (fits and rng.randf() < float(data["stop_chance"])):
+		leaves.append(rect)
+		return
+	var along_x := can_x and (not can_y or rect.size.x > rect.size.y or (rect.size.x == rect.size.y and rng.randf() < 0.5))
+	var length := rect.size.x if along_x else rect.size.y
+	# A volte un corridoio stretto lungo il muro.
+	var cut := rng.randi_range(smallest, length - smallest - 1)
+	if rng.randf() < float(data["corridor_chance"]) and length >= 2 * smallest + 4:
+		cut = 2 if rng.randf() < 0.5 else length - 3
+	var cells: Array[Vector2i] = []
+	if along_x:
+		for y in range(rect.position.y, rect.end.y):
+			cells.append(Vector2i(rect.position.x + cut, y))
+		_split(Rect2i(rect.position, Vector2i(cut, rect.size.y)), rng, leaves, walls, data)
+		_split(Rect2i(rect.position + Vector2i(cut + 1, 0), Vector2i(rect.size.x - cut - 1, rect.size.y)), rng, leaves, walls, data)
+	else:
+		for x in range(rect.position.x, rect.end.x):
+			cells.append(Vector2i(x, rect.position.y + cut))
+		_split(Rect2i(rect.position, Vector2i(rect.size.x, cut)), rng, leaves, walls, data)
+		_split(Rect2i(rect.position + Vector2i(0, cut + 1), Vector2i(rect.size.x, rect.size.y - cut - 1)), rng, leaves, walls, data)
+	walls.append({"cells": cells, "across": Vector2i(1, 0) if along_x else Vector2i(0, 1)})
+
+
+## Porta larga due rombi nel muro, dove da tutte e due le parti c'è
+## pavimento (non contro un altro muro che arriva a T).
+func _open_door(wall: Dictionary, rng: RandomNumberGenerator) -> void:
+	var cells: Array = wall["cells"]
+	var across: Vector2i = wall["across"]
+	var options: Array[int] = []
+	for k in cells.size() - 1:
+		var ok := true
+		for cell: Vector2i in [cells[k], cells[k + 1]]:
+			if not is_floor(cell + across) or not is_floor(cell - across):
+				ok = false
+		if ok:
+			options.append(k)
+	if options.is_empty():
+		# Muro corto o tutto contro altri muri: basta un rombo dove si passa.
+		for k in cells.size():
+			if is_floor(cells[k] + across) and is_floor(cells[k] - across):
+				options.append(k)
+		if options.is_empty():
+			return
+		_set_floor(cells[options[rng.randi() % options.size()]])
+		return
+	var at := options[rng.randi() % options.size()]
+	_set_floor(cells[at])
+	_set_floor(cells[at + 1])
+
+
+## Pilastri nei saloni più grandi: un rombo di muro ogni tre, lontano dai muri.
+func _add_pillars(leaf: Rect2i, rng: RandomNumberGenerator, data: Dictionary) -> void:
+	if leaf.size.x < int(data["pillar_room"]) or leaf.size.y < int(data["pillar_room"]) or rng.randf() >= float(data["pillar_chance"]):
+		return
+	for x in range(leaf.position.x + 2, leaf.end.x - 2, 3):
+		for y in range(leaf.position.y + 2, leaf.end.y - 2, 3):
+			_floor[y * width + x] = 0
+
+
+static func _center(rect: Rect2i) -> Vector2i:
+	return rect.position + rect.size / 2
+
+
+func _room(rect: Rect2i, far: bool) -> Dictionary:
+	return {"center": _center(rect), "radius": maxi(mini(rect.size.x, rect.size.y) / 2 - 1, 0), "rect": rect, "far": far}
+
+
 ## Pavimento in tutto il rettangolo da first a last (compresi).
 func _fill(first: Vector2i, last: Vector2i) -> void:
 	for x in range(first.x, last.x + 1):
 		for y in range(first.y, last.y + 1):
 			_set_floor(Vector2i(x, y))
-
-
-## Apre il muro tra due stanze vicine della griglia: tutto (merge, un
-## salone) o una porta larga due rombi nel mezzo.
-func _open_wall(a: Vector2i, b: Vector2i, pitch: int, merge: bool) -> void:
-	var low := Vector2i(mini(a.x, b.x), mini(a.y, b.y))
-	var wall := (low + (b - a).abs()) * pitch
-	var along := Vector2i(0, 1) if a.x != b.x else Vector2i(1, 0)
-	var first := 1 if merge else pitch / 2 - 1
-	var last := pitch - 1 if merge else pitch / 2
-	for k in range(first, last + 1):
-		_set_floor(wall + along * k)
 
 
 ## Passaggio in una parete vicino al punto: un rombo di pavimento con

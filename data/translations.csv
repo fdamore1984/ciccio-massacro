@@ -177,6 +177,7 @@ MENU_CREDITS,Created by fdamore1984 with Claude Code,Creato da fdamore1984 con C
 MAP_TITLE,Map,Mappa
 MAP_HINT,%s / B: close,%s / B: chiudi
 CONTROLS_MAP,Map,Mappa
+CONTROLS_LOCK,"Lock on the nearest enemy you can see and keep it (manual lock); press again to switch to the nearest one. Without it the lock is automatic",Aggancia il nemico più vicino che vedi e lo tiene (aggancio manuale); premi di nuovo per passare al più vicino. Senza aggancio manuale l'aggancio è automatico
 ITEM_BLADE_GUARDIAN,Warlord's chain,Catena del Signore della Guerra
 ITEM_ARMOR_GUARDIAN,Warlord's armor,Armatura del Signore della Guerra
 ITEM_BOOTS_GUARDIAN,Warlord's boots,Stivali del Signore della Guerra

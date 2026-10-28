@@ -179,16 +179,24 @@ const H_BOMB_HELD := Vector2(0, -RADIUS - 20.0)
 const H_BOMB_LENGTH := 74.0
 const H_BOMB_GRIP := Vector2(16.0, -RADIUS - 7.0)
 const DASH_SLAM_DAMAGE_FACTOR := 2.4
-## Aggancio automatico del bersaglio (nessun tasto): sempre il nemico vivo
-## più vicino entro LOCK_RANGE, anche dietro muri e ostacoli. Si passa a un
-## altro nemico quando è più vicino di almeno LOCK_SWITCH_MARGIN pixel, così
-## con due nemici quasi alla stessa distanza l'aggancio non salta avanti e
-## indietro. Il nemico agganciato si colora di rosso (Enemy.set_locked). La
-## telecamera si sposta verso il bersaglio di questa parte della distanza,
-## fino a LOCK_CAMERA_MAX.
+## Aggancio del bersaglio (vedi _update_lock). Automatico: il nemico vivo
+## più vicino entro LOCK_RANGE che si vede, mai uno oltre un muro, un
+## palazzo o un ostacolo solido (World.clear_line, ricontrollato ogni
+## LOCK_SIGHT_INTERVAL secondi); si passa a un altro nemico quando è più
+## vicino di almeno LOCK_SWITCH_MARGIN pixel, così con due nemici quasi
+## alla stessa distanza l'aggancio non salta avanti e indietro. Manuale: R3
+## aggancia il nemico più vicino che si vede e lo tiene, senza cambiare da
+## solo (anche dietro un muro), finché non muore o va oltre
+## LOCK_BREAK_RANGE; allora l'aggancio torna automatico. Il nemico
+## agganciato si colora di rosso (Enemy.set_locked) e ha un anello rosso ai
+## piedi (LockMarker). La telecamera si sposta verso il bersaglio di
+## questa parte della distanza, fino a LOCK_CAMERA_MAX.
 const LOCK_RANGE := 480.0
+const LOCK_BREAK_RANGE := 900.0
 const LOCK_SWITCH_MARGIN := 40.0
+const LOCK_SIGHT_INTERVAL := 0.1
 const LOCK_CAMERA_SHARE := 0.3
+const LOCK_CAMERA_MAX := 170.0
 ## Porte nelle pareti (edifici, scale, uscite): chi ci passa davanti le
 ## sovrappone, ma l'ordine per altezza sullo schermo a volte le metterebbe
 ## davanti al giocatore; così, entro PASSAGE_REACH pixel da una porta, il
@@ -196,7 +204,6 @@ const LOCK_CAMERA_SHARE := 0.3
 const PASSAGES := ["cave", "stairs", "exit"]
 const PASSAGE_REACH := 40.0
 const PASSAGE_Z := 1
-const LOCK_CAMERA_MAX := 170.0
 ## All'impatto la telecamera trema, sempre meno.
 const CAMERA_SHAKE := 9.0
 const CAMERA_SHAKE_DECAY := 4.0
@@ -306,9 +313,9 @@ const SQUASH_AMOUNT := 0.22
 const SQUASH_RECOVERY := 5.0
 const START_JUMPS := 1
 
-## Mana: serve per le magie e si ricarica piano da solo.
+## Mana (carburante): serve per missili e colpi potenti e non si ricarica
+## da solo, solo con le taniche.
 const START_MANA := 60.0
-const MANA_REGEN := 2.0
 const MANA_UPGRADE := 20.0
 const MANA_POTION_RESTORE := 40.0
 const START_MANA_POTIONS := 1
@@ -334,7 +341,6 @@ const COLOR_CHARGE_GLOW := Color(1.0, 0.55, 0.15)
 ## Torcia elettrica: un fascio a cono nella direzione dello sguardo (vedi
 ## Flashlight), acceso e spento tenendo premuto L3 per TORCH_HOLD_TIME
 ## secondi; un tocco più breve è la corsa.
-const TORCH_COLOR := Flashlight.COLOR
 const TORCH_HOLD_TIME := 0.45
 
 ## Ogni pozione cura questi punti vita.
@@ -419,7 +425,12 @@ const DRINK_SPEED_FACTOR := 0.3
 
 const HURT_TIME := 0.25
 const HURT_KNOCKBACK := 420.0
+## Dopo un colpo si resta invulnerabili per HURT_INVULNERABLE_TIME secondi
+## (vedi _start_invulnerability), lampeggiando: un'opacità ogni
+## INVULNERABLE_BLINK secondi, che scende fino a INVULNERABLE_ALPHA.
 const HURT_INVULNERABLE_TIME := 0.8
+const INVULNERABLE_BLINK := 0.08
+const INVULNERABLE_ALPHA := 0.35
 
 ## Gambe: il corpo sta sopra di LEG_LENGTH; i passi seguono la velocità.
 ## Corte e larghe: le gambe sono distanti LEG_SPACING dal centro e spesse LEG_WIDTH.
@@ -518,7 +529,10 @@ var _dodges_used := 0
 var _dodge_cooldown := 0.0
 ## Dopo una schivata resta un attimo per concatenarne un'altra.
 var _dodge_chain_grace := 0.0
-var _invulnerable_time := 0.0
+## Invulnerabilità dopo un colpo: finché il timer corre si ignorano altri
+## danni e il personaggio lampeggia (_invulnerable_blink).
+var _invulnerable_timer := Timer.new()
+var _invulnerable_blink: Tween
 ## Colpi normali e colpi potenti della combo in corso, e tempo rimasto per continuarla.
 var _combo_step := 0
 var _heavy_step := 0
@@ -585,8 +599,12 @@ var _shake := 0.0
 ## Ultimo punto a terra fuori dai burroni e la sua altezza: si riappare lì.
 var _safe_position := Vector2.ZERO
 var _safe_altitude := 0.0
-## Nemico agganciato (null se nessuno, vedi _update_lock).
+## Nemico agganciato (null se nessuno, vedi _update_lock), se l'ha scelto
+## il giocatore con R3 (manuale) e il suo anello rosso.
 var lock_target: Enemy
+var lock_manual := false
+var _lock_marker := LockMarker.new()
+var _lock_sight_time := 0.0
 ## Catena della motosega (pixel percorsi) e mani nell'ultimo disegno:
 ## impugnatura della motosega e l'altra mano (maniglia, torcia, scorta).
 var _saw_phase := 0.0
@@ -638,6 +656,8 @@ var ground_elevation := 0.0
 func _ready() -> void:
 	# In modalità focus il giocatore resta a colori, con un'aura bianca.
 	add_to_group(LowHealthVignette.FOCUS_GROUP)
+	if not _lock_marker.is_inside_tree():
+		add_child(_lock_marker)
 	if not _torch.is_inside_tree():
 		_torch.enabled = torch_on
 		_torch.aim(facing)
@@ -645,6 +665,11 @@ func _ready() -> void:
 	if not _voice.is_inside_tree():
 		_voice.tone = VOICE_TONE
 		add_child(_voice)
+	if not _invulnerable_timer.is_inside_tree():
+		_invulnerable_timer.one_shot = true
+		_invulnerable_timer.process_callback = Timer.TIMER_PROCESS_PHYSICS
+		_invulnerable_timer.timeout.connect(_end_invulnerability)
+		add_child(_invulnerable_timer)
 	if World.current:
 		ground_elevation = World.current.elevation_at(position)
 	_safe_position = position
@@ -661,7 +686,6 @@ func _physics_process(delta: float) -> void:
 	_state_time += delta
 	_dodge_cooldown = maxf(_dodge_cooldown - delta, 0.0)
 	_dodge_chain_grace = maxf(_dodge_chain_grace - delta, 0.0)
-	_invulnerable_time = maxf(_invulnerable_time - delta, 0.0)
 	_empowered_time = maxf(_empowered_time - delta, 0.0)
 	_block_flash = maxf(_block_flash - delta, 0.0)
 	soot = maxf(soot - delta / SOOT_CLEAN_TIME, 0.0)
@@ -672,8 +696,6 @@ func _physics_process(delta: float) -> void:
 	if _battery_delay == 0.0 and not _running and _state != State.DEAD:
 		var regen := BATTERY_REGEN * (BATTERY_PARRY_REGEN_FACTOR if _state == State.PARRY else 1.0)
 		battery = minf(battery + regen * delta, max_battery)
-	if _state != State.DEAD:
-		mana = minf(mana + MANA_REGEN * delta, max_mana)
 	# Senza attaccare per un po' la Frenesia cala.
 	if _state != State.SPECIAL:
 		_frenzy_idle += delta
@@ -698,7 +720,9 @@ func _physics_process(delta: float) -> void:
 		if UiNav.game_pressed("spell"):
 			_fire_missile(input)
 	if _state != State.DEAD:
-		_update_lock()
+		if UiNav.game_pressed("lock_on"):
+			_lock_manually()
+		_update_lock(delta)
 		_update_passage_z()
 		_update_run_button(delta)
 
@@ -1098,7 +1122,7 @@ func _end_combo() -> void:
 ## fluttua a mezz'aria caricando lo slam aereo.
 func receive_hit(from: Vector2, damage: int, projectile := false) -> String:
 	# Durante l'attacco speciale niente può colpire Ciccio.
-	if _state in [State.DEAD, State.FALL, State.SPECIAL] or _invulnerable_time > 0.0:
+	if _state in [State.DEAD, State.FALL, State.SPECIAL] or is_invulnerable():
 		return "ignored"
 	if (_state == State.DODGE and _state_time <= DODGE_INVULNERABLE_TIME) \
 			or (_state == State.SLIDE and _state_time <= SLIDE_INVULNERABLE_TIME):
@@ -1137,7 +1161,7 @@ func receive_hit(from: Vector2, damage: int, projectile := false) -> String:
 	if shield_active:
 		# Lo scudo assorbe un colpo da qualsiasi direzione e poi si rompe.
 		shield_active = false
-		_invulnerable_time = 0.3
+		_start_invulnerability(0.3)
 		Sfx.play("shield_break", global_position)
 		return "shielded"
 
@@ -1153,7 +1177,7 @@ func receive_hit(from: Vector2, damage: int, projectile := false) -> String:
 	else:
 		_change_state(State.HURT)
 		_velocity = -to_attacker * HURT_KNOCKBACK
-		_invulnerable_time = HURT_INVULNERABLE_TIME
+		_start_invulnerability(HURT_INVULNERABLE_TIME)
 		Sfx.play("hurt", global_position)
 		_voice.pain()
 	return "hit"
@@ -1161,6 +1185,29 @@ func receive_hit(from: Vector2, damage: int, projectile := false) -> String:
 
 func is_dead() -> bool:
 	return _state == State.DEAD
+
+
+## Invulnerabile dopo un colpo: gli altri colpi vengono ignorati.
+func is_invulnerable() -> bool:
+	return not _invulnerable_timer.is_stopped()
+
+
+## Invulnerabilità per time secondi, con il personaggio che lampeggia.
+func _start_invulnerability(time: float) -> void:
+	_invulnerable_timer.start(time)
+	if _invulnerable_blink:
+		_invulnerable_blink.kill()
+	modulate.a = 1.0
+	_invulnerable_blink = create_tween().set_loops()
+	_invulnerable_blink.tween_property(self, "modulate:a", INVULNERABLE_ALPHA, INVULNERABLE_BLINK / 2.0)
+	_invulnerable_blink.tween_property(self, "modulate:a", 1.0, INVULNERABLE_BLINK / 2.0)
+
+
+func _end_invulnerability() -> void:
+	if _invulnerable_blink:
+		_invulnerable_blink.kill()
+		_invulnerable_blink = null
+	modulate.a = 1.0
 
 
 ## Una ferita (from: da dove arriva il colpo): lo squarcio sul corpo che
@@ -1238,6 +1285,7 @@ func save_position() -> Vector2:
 
 func _fall_into_ravine() -> void:
 	_end_combo()
+	lock_manual = false
 	_set_lock_target(null)
 	_change_state(State.FALL)
 	Sfx.play("jump", global_position, 0.5, -4.0)
@@ -1254,7 +1302,7 @@ func _climb_out_of_ravine() -> void:
 	if health == 0:
 		_die()
 	else:
-		_invulnerable_time = HURT_INVULNERABLE_TIME
+		_start_invulnerability(HURT_INVULNERABLE_TIME)
 		Sfx.play("hurt", global_position)
 		_voice.pain()
 
@@ -1284,33 +1332,65 @@ func teleport(at: Vector2) -> void:
 		_camera.reset_smoothing()
 
 
-## Il nemico vivo più vicino entro LOCK_RANGE (null se nessuno), anche
-## dietro muri e ostacoli; quello già agganciato conta come più vicino di
-## LOCK_SWITCH_MARGIN.
-func _lock_nearest() -> Enemy:
-	var nearest: Enemy = null
-	var best := LOCK_RANGE
+## Il nemico vivo più vicino entro LOCK_RANGE che si vede (null se
+## nessuno): mai uno oltre un muro, un palazzo o un ostacolo solido. Con
+## sticky quello già agganciato conta come più vicino di LOCK_SWITCH_MARGIN.
+func _lock_nearest(sticky: bool) -> Enemy:
+	var candidates: Array = []
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as Enemy
 		if enemy == null or enemy.is_dead():
 			continue
 		var distance := enemy.global_position.distance_to(global_position)
-		if enemy == lock_target:
+		if sticky and enemy == lock_target:
 			distance -= LOCK_SWITCH_MARGIN
-		if distance <= best:
-			best = distance
-			nearest = enemy
-	return nearest
+		if distance <= LOCK_RANGE:
+			candidates.append([distance, enemy])
+	# Dal più vicino: la linea di vista si controlla solo finché serve.
+	candidates.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	for candidate: Array in candidates:
+		var enemy: Enemy = candidate[1]
+		if World.current == null or World.current.clear_line(global_position, enemy.global_position, ground_elevation):
+			return enemy
+	return null
 
 
-## A ogni passo si aggancia da soli il nemico più vicino (vedi LOCK_RANGE);
-## se non ce n'è nessuno a tiro l'aggancio si toglie. Da morti o mentre si
-## cade in una fessura non si aggancia niente.
-func _update_lock() -> void:
+## R3: aggancio manuale del nemico più vicino che si vede (premendo di
+## nuovo, di quello che ora è più vicino); se non se ne vede nessuno non
+## cambia niente.
+func _lock_manually() -> void:
+	var nearest := _lock_nearest(false)
+	if nearest == null:
+		return
+	_set_lock_target(nearest)
+	lock_manual = true
+	Sfx.play_ui("ui_move")
+
+
+## Aggancio manuale: resta sul bersaglio scelto finché è vivo ed entro
+## LOCK_BREAK_RANGE, poi torna automatico. Automatico: ogni
+## LOCK_SIGHT_INTERVAL secondi (e subito se il bersaglio muore) si aggancia
+## il nemico più vicino che si vede, o nessuno. Mentre si cade in una
+## fessura non si aggancia niente.
+func _update_lock(delta: float) -> void:
 	if _state == State.FALL:
+		lock_manual = false
 		_set_lock_target(null)
 		return
-	_set_lock_target(_lock_nearest())
+	if not is_instance_valid(lock_target):
+		lock_target = null
+		_lock_marker.target = null
+	var alive := lock_target != null and not lock_target.is_dead()
+	if lock_manual:
+		if alive and lock_target.global_position.distance_to(global_position) <= LOCK_BREAK_RANGE:
+			return
+		lock_manual = false
+		alive = false
+	_lock_sight_time -= delta
+	if _lock_sight_time > 0.0 and (alive or lock_target == null):
+		return
+	_lock_sight_time = LOCK_SIGHT_INTERVAL
+	_set_lock_target(_lock_nearest(true))
 
 
 ## Vicino a una porta nella parete il giocatore è disegnato sempre davanti
@@ -1336,6 +1416,7 @@ func _set_lock_target(target: Enemy) -> void:
 	lock_target = target
 	if lock_target:
 		lock_target.set_locked(true)
+	_lock_marker.target = lock_target
 
 
 ## Con un bersaglio agganciato si guarda verso di lui. Restituisce true se
@@ -1989,7 +2070,7 @@ func _finish_special() -> void:
 	_special_from = Vector2.ZERO
 	_set_frenzy(0.0)
 	_frenzy_idle = 0.0
-	_invulnerable_time = SPECIAL_END_INVULNERABLE
+	_start_invulnerability(SPECIAL_END_INVULNERABLE)
 	_change_state(State.NORMAL)
 	special_finished.emit()
 
@@ -2438,9 +2519,6 @@ func _draw() -> void:
 		body = COLOR_DEAD
 	elif _state == State.HURT:
 		body = COLOR_HURT
-	# Lampeggia mentre è invulnerabile dopo un colpo.
-	if _invulnerable_time > 0.0 and int(_invulnerable_time * 12.0) % 2 == 0:
-		body.a = 0.35
 	# Precipitando in un burrone svanisce nel buio.
 	self_modulate.a = 1.0 - clampf(_state_time / FALL_TIME, 0.0, 1.0) if _state == State.FALL else 1.0
 
@@ -2898,13 +2976,10 @@ func _draw_charge_heat(hand: Vector2, angle: float, length: float) -> void:
 		draw_line(tip - Vector2(0, flash), tip + Vector2(0, flash), Color(1, 1, 1, 0.9), 2.0)
 
 
-## Torcia elettrica nell'altra mano, con il fascio di luce in avanti.
+## Torcia elettrica nell'altra mano (il fascio è solo la luce, vedi Flashlight).
 func _draw_torch() -> void:
 	var hand := -facing.orthogonal() * RADIUS * 0.9
 	var lens := hand + facing * 12.0
-	var across := facing.orthogonal()
-	draw_primitive(PackedVector2Array([lens + across * 3.0, lens + facing * 42.0 + across * 20.0, lens + facing * 42.0 - across * 20.0, lens - across * 3.0]),
-			PackedColorArray([Color(TORCH_COLOR, 0.16)]), PackedVector2Array())
 	draw_line(hand, lens, COLOR_FLASHLIGHT, 5.0)
 	Shapes.disc(self, lens, 3.5, Color(1.0, 1.0, 0.85))
 	_off_hand = hand + facing * 3.0

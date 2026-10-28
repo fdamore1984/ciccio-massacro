@@ -60,6 +60,9 @@ const PASSAGE_HINT_DISTANCE := 200.0
 const SAVE_SAFE_DISTANCE := 700.0
 ## Arrivando su un piano si compare a questa distanza dal passaggio nella parete.
 const ARRIVAL_DISTANCE := 70.0
+## Rombi liberi di una stanza "media" per i nemici degli interni (vedi
+## _spawn_dungeon_enemies): le stanze più piccole ne hanno meno.
+const ROOM_AREA := 40.0
 
 ## Partita da riprendere al prossimo avvio della scena (la imposta il menù).
 static var pending_save := {}
@@ -405,7 +408,7 @@ func _clear_level() -> void:
 	_hud.show_boss(null)
 
 
-## Nemici nelle caverne del piano (non in quella d'arrivo né nell'arena),
+## Nemici nelle stanze del piano (non in quella d'arrivo né nell'arena),
 ## più forti scendendo.
 func _spawn_dungeon_enemies(dungeon: Dungeon) -> void:
 	var per_room: Array = _dungeon_data["enemies_per_room"]
@@ -414,7 +417,10 @@ func _spawn_dungeon_enemies(dungeon: Dungeon) -> void:
 		if room["center"] == dungeon.arena:
 			continue
 		var cells := dungeon.room_cells(room)
-		for k in mini(randi_range(per_room[0], per_room[1]), cells.size()):
+		# Le stanze hanno misure diverse: i nemici sono in proporzione
+		# (per_room vale per una stanza di ROOM_AREA rombi liberi).
+		var count := roundi(randf_range(per_room[0], per_room[1]) * minf(cells.size() / ROOM_AREA, 2.0))
+		for k in mini(count, cells.size()):
 			var cell: Vector2i = cells.pop_at(randi() % cells.size())
 			var threat := _player.level + dungeon.depth - 1
 			_spawn_enemy(EnemyTypes.pick_random(threat), World.cell_center(cell), threat)

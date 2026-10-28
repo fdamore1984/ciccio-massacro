@@ -454,6 +454,9 @@ func show_level_up(level: int, damage_before: int, damage_after: int) -> void:
 	if choices >= UPGRADE_NAMES.size() - 1:
 		picks.erase("choice")
 	picks.shuffle()
+	# Il punto vita in più è raro: compare solo ogni tanto.
+	if randf() >= float(World.DATA.data["level_up"]["health_offer_chance"]):
+		picks.erase("health")
 	picks = picks.slice(0, choices)
 	(_upgrade_buttons["combo"].get_parent() as GridContainer).columns = mini(picks.size(), UPGRADE_COLUMNS)
 	_offered.clear()

@@ -61,6 +61,13 @@ static func max_simultaneous_attacks() -> int:
 	return maxi(int(data["max_simultaneous"]), 1)
 
 
+## Punti vita tolti al giocatore da un colpo qualsiasi (fendente, slam,
+## proiettile), uguali per tutti i nemici e a ogni livello; di più per i boss.
+static func player_damage(boss: bool) -> int:
+	var data: Dictionary = WORLD_DATA.data["enemy_attacks"]
+	return int(data["boss_player_damage"] if boss else data["player_damage"])
+
+
 ## Fuoco amico: danni a un altro nemico per ogni punto di danno del colpo
 ## (i punti contano per la vita del giocatore, molto più bassa), cresce con
 ## il livello di minaccia come la vita dei nemici, così pesa sempre allo
