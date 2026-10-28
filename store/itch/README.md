@@ -13,11 +13,13 @@ Project URL, per esempio `cicciomassacro`). Se cambia l'indirizzo, va aggiornata
 anche la variabile `ITCH_GAME` del repository GitHub, che la CI usa per caricare le build.
 
 Le immagini si rigenerano con lo strumento di cattura (serve una finestra;
-senza schermo si può usare `xvfb-run -a`):
+senza schermo si può usare `xvfb-run -a`); l'ultimo comando rigenera le
+immagini del tutorial del gioco (`assets/tutorial/`, non vanno sulla pagina):
 
 ```bash
 godot --path . --resolution 1280x720 res://tools/store_capture.tscn -- screenshots
 godot --path . --resolution 1260x1000 res://tools/store_capture.tscn -- cover
+godot --path . --resolution 1280x720 res://tools/store_capture.tscn -- tutorial
 ```
 
 ---
@@ -37,7 +39,7 @@ godot --path . --resolution 1260x1000 res://tools/store_capture.tscn -- cover
 | Languages | Italian |
 | Inputs | Xbox controller, Playstation controller (togliere Keyboard, Mouse e Touchscreen) |
 | Cover image | `cover_it.png` (630×500) |
-| Screenshots | `it_1_combat.png`, `it_2_parry.png`, `it_5_challenge.png`, `it_6_inventory.png`, `it_9_slam.png`, `it_14_air_charge.png`, `it_15_h_bomb.png`, `it_11_cave.png`, `it_13_map.png`, `it_12_dungeon.png`, `it_7_merchant.png`, `it_8_shop.png`, `it_3_level_up.png`, `it_4_menu.png`, `it_10_controls.png` (il gioco è in italiano: le immagini `en_*` e `cover_en.png` vanno sostituite da queste) |
+| Screenshots | `it_1_combat.png`, `it_16_frenzy.png`, `it_2_parry.png`, `it_5_challenge.png`, `it_6_inventory.png`, `it_9_slam.png`, `it_14_air_charge.png`, `it_15_h_bomb.png`, `it_11_cave.png`, `it_13_map.png`, `it_12_dungeon.png`, `it_7_merchant.png`, `it_8_shop.png`, `it_3_level_up.png`, `it_4_menu.png`, `it_10_controls.png` (il gioco è in italiano: le immagini `en_*` e `cover_en.png` vanno sostituite da queste) |
 
 ### Tags
 
@@ -75,7 +77,8 @@ IN THIS PROTOTYPE
 - Blood everywhere: every hit, yours or theirs, sprays gushes of blood that land as jagged splatters on the ground and opens a bleeding wound on the body that fades in a moment; fighters get splattered with blood that wears off quickly. Whoever dies, Ciccio or a raider, leaves a large pool of blood that stays on the ground, and fallen raiders lie in theirs for a while
 - Short, snappy 8-bit square-wave blips when someone gets hit or goes down, every fighter with a pitch of their own
 - Battery: attacking, dodging, jumping, blocking and running all drain it. Empty it and you can't swing or roll, and a block can break your guard. Spare batteries (D-pad down) recharge it in a hurry. Using a supply takes a moment, and enemies rush in to punish you when you heal or back away
-- Chainsaw combat: chain up to 3 attacks in a combo, each hit stronger than the last, and finish it with a power strike for a big bonus (a mixed combo multiplies the power strike's damage). Strikes are deliberate and sweep a wide arc, power strikes an even wider one; hold the attack button to keep swinging
+- FRENZY: every chainsaw hit that lands fills the Frenzy bar, even when a raider blocks it with his guard; stop attacking for a few seconds and it drains. When it's full, press L1 + R1 together to unleash the special attack: time stops, the enemies freeze, the world goes dark around Ciccio as he roars in a red glow and the camera zooms in, then he teleports from raider to raider striking in a flurry, up to 10 hits (2 more with each "Frenzy strikes" upgrade). The flurry ends early when no one is left in reach
+- Chainsaw combat: chain up to 3 instant attacks in a combo, each hit stronger than the last, and finish it with a power strike for a big bonus (a mixed combo multiplies the power strike's damage). Strikes land instantly and sweep a wide arc, power strikes an even wider one; hold the attack button to keep swinging
 - Parry with your chainsaw across your body: the enemy's strike is cut short and the enemy is pushed back, and bullets bounce off. Time it right before the hit for a perfect parry: the enemy is stunned and your attacks are empowered for a few seconds (double damage, faster swings)
 - Dodge with a roll on the ground or an air dash mid-jump, steer it while dodging, and unlock upgrades to chain more dodges in a row. Parrying, dodging or jumping instantly cancels whatever you are doing, even mid-strike; attacking during an air dash turns it into an immediate strike. You can keep moving while attacking and every swing carries you well forward: every strike is different from the last (slash, backhand, overhead chop, thrust) and always hits the same area in front of you
 - Jump over enemy attacks (unlock multiple jumps in mid-air) and combine jumps with dodges
@@ -101,13 +104,14 @@ IN THIS PROTOTYPE
 - Automatic lock-on: you are locked on the nearest enemy you can see (never one behind a wall). Press R3 to lock on manually: the lock stays on that raider, even behind walls, until it falls or gets far away, then it goes back to automatic (press R3 again to switch to whoever is nearest now). The locked raider glows red with a red ring at its feet. You always face it, your strikes and missiles go its way and the camera keeps it in view
 - Tall walls, skyscrapers and ledges that hide your character turn fully transparent around you, showing the ground behind them, so you always see what is happening. When you close a menu with A or B, the button doesn't also make you jump, dodge or open the crate next to you
 - Alarm sirens stand in the middle of wide open squares: interact with one to start a 30-second survival challenge with waves of raiders matched to your level, and earn experience and a medkit
-- Earn experience to level up: the first ten levels come quickly, then each one takes a little longer. Every level raises your base damage and lets you choose an upgrade: one more combo hit, one more chained power strike, one more chained dodge, one more jump, one more health point (rare), a faster shield recharge (5%), a faster run (5%), more battery (10%), more fuel, stronger missiles, one more supply of each kind carried, one more H-bomb carried, stronger medkits, fuller fuel cans (5%) or one more card to choose from at the next level-ups: three of them (more with that upgrade), picked at random, are offered on cards with icons. Your skill levels are always shown on screen, and the active power-ups are shown as small icons in the bottom-right corner
+- Earn experience to level up: the first ten levels come quickly, then each one takes a little longer. Every level raises your base damage and lets you choose an upgrade: one more combo hit, one more chained power strike, one more chained dodge, one more jump, one more health point (rare), a faster shield recharge (5%), a faster run (5%), more battery (10%), more fuel, stronger missiles, one more supply of each kind carried, one more H-bomb carried, stronger medkits, fuller fuel cans (5%), two more Frenzy strikes or one more card to choose from at the next level-ups: three of them (more with that upgrade), picked at random, are offered on cards with icons. Your skill levels are always shown on screen, and the active power-ups are shown as small icons in the bottom-right corner
 
 CONTROLS (controller only)
 - Move: left stick
 - Chainsaw attack (combo; hold to keep attacking): R1
 - Power strike (ends the combo; hold to charge, burns fuel; keep holding to chain; in mid-air, only with an H-bomb: smash it on the ground): L2
 - Parry (hold): L1
+- Frenzy special attack (full Frenzy bar): L1 + R1 together
 - Dodge (press again to chain; cancels any action): B
 - Jump (cancels any action): A
 - Run on/off (dodge while running = slide): tap L3
@@ -122,10 +126,10 @@ CONTROLS (controller only)
 - Inventory: D-pad up (R3 to sort)
 - Map: Select
 - Manual lock-on (press again to switch to the nearest enemy; otherwise the lock-on is automatic): R3
-- Pause menu (save, controls, quit to title with confirmation): Start
+- Pause menu (save, controls, tutorial, quit to title with confirmation): Start
 - Special attacks: power strike right after a combo = mixed combo with bonus damage; charged first power strike = stronger chained power strikes; attack in mid-air = aerial slashes; power strike in mid-air = H-bomb (only if you have one; hold to float and widen the blast); power strike during an air dash = dash strike
 
-Play with a controller (Steam Deck and MSI Claw built-in controls included): keyboard, mouse and touch screens are not supported. The full list of controls is in the main menu. The game is in Italian.
+Play with a controller (Steam Deck and MSI Claw built-in controls included): keyboard, mouse and touch screens are not supported. The full list of controls is in the main menu, next to a paged, illustrated tutorial that explains every mechanic (Frenzy included; it is in the pause menu too). The game is in Italian.
 
 PLATFORMS
 Windows (handheld gaming PCs like the MSI Claw 8 included), Linux and SteamOS (Steam Deck). Capped at a steady 60 FPS. On Linux it renders with Vulkan, falling back to OpenGL 3.3 when Vulkan is not available.

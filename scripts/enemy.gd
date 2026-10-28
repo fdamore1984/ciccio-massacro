@@ -37,6 +37,11 @@ extends Node2D
 ## nei burroni non entrano mai. Il boss resta sempre dentro la sua arena
 ## (vedi confine).
 
+## Tutti i nemici sono fermi (attacco speciale della Frenesia, vedi
+## Player._start_special): niente decisioni, movimenti, attacchi né
+## proiettili (vedi EnemyBolt), ma si possono colpire e chi muore cade.
+static var frozen := false
+
 signal died(enemy: Enemy)
 ## Chiede alla scena di gioco di creare i nemici evocati.
 signal summon_requested(summoner: Enemy, type_id: String, positions: Array[Vector2])
@@ -432,6 +437,15 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if frozen and _state != State.DEAD:
+		# Fermi come statue: i colpi li fanno sanguinare ma non li spostano.
+		_knockback = Vector2.ZERO
+		_hit_flash = maxf(_hit_flash - delta, 0.0)
+		_blood.update(delta)
+		_wounds.update(delta)
+		if _on_screen():
+			queue_redraw()
+		return
 	# Lontano dal giocatore ci si aggiorna un passo sì e uno no (molto lontano
 	# uno su quattro), con il tempo di quelli saltati: non si vede e costa meno.
 	if player and _state != State.DEAD:

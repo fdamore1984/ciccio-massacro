@@ -117,6 +117,8 @@ func _ready() -> void:
 	_player.experience_changed.connect(_hud.set_experience)
 	_player.leveled_up.connect(_on_player_leveled_up)
 	_player.died.connect(_on_player_died)
+	_player.frenzy_changed.connect(_hud.set_frenzy)
+	_player.special_finished.connect(_on_special_finished)
 	_hud.upgrade_chosen.connect(_on_upgrade_chosen)
 	_hud.interact_pressed.connect(_interact)
 	_hud.player = _player
@@ -232,7 +234,7 @@ func _update_interaction() -> void:
 
 
 func _find_interactable() -> Dictionary:
-	if _player.is_dead() or _challenge_arena != Vector2.INF:
+	if _player.is_dead() or _player.is_special_active() or _challenge_arena != Vector2.INF:
 		return {}
 	var at := _player.position
 	var reach := Player.RADIUS + INTERACT_REACH
@@ -689,7 +691,14 @@ func _on_enemy_died(enemy: Enemy) -> void:
 
 func _on_player_leveled_up(_level: int) -> void:
 	_pending_level_ups += 1
-	if _pending_level_ups == 1:
+	# Durante l'attacco speciale la scelta aspetta la fine della raffica.
+	if _pending_level_ups == 1 and not _player.is_special_active():
+		_show_level_up()
+
+
+## Finito l'attacco speciale si scelgono i potenziamenti guadagnati nel frattempo.
+func _on_special_finished() -> void:
+	if _pending_level_ups > 0 and not _hud.is_level_up_open():
 		_show_level_up()
 
 
@@ -721,9 +730,12 @@ func _on_player_died() -> void:
 
 func _exit_tree() -> void:
 	HitFeedback.reset()
+	# I nemici della prossima partita non devono restare fermi.
+	Enemy.frozen = false
 
 
 func _back_to_menu() -> void:
 	get_tree().paused = false
 	HitFeedback.reset()
+	Enemy.frozen = false
 	get_tree().change_scene_to_file(MENU_SCENE)

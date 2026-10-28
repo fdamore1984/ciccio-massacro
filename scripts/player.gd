@@ -46,13 +46,26 @@ extends Node2D
 ## ai proiettili.
 ## Sconfiggere nemici dà esperienza; a ogni livello aumentano i danni
 ## base e si sceglie un potenziamento.
+## Frenesia (da 0 a FRENZY_MAX): cresce a ogni colpo di motosega a segno,
+## anche se la guardia del nemico lo para, e cala da sola se si smette di
+## attaccare per FRENZY_DECAY_DELAY secondi. Piena, L1 + R1 insieme (parata
+## e attacco) scatenano l'attacco speciale (stato SPECIAL, vedi
+## _start_special): i nemici si fermano, lo sfondo si scurisce attorno a
+## Ciccio che urla avvolto da un bagliore e la telecamera si avvicina; poi
+## Ciccio si teletrasporta da un nemico all'altro colpendo a raffica (fino a
+## max_special_hits colpi, +2 a ogni potenziamento "frenzy").
 
 signal health_changed(current: int, maximum: int)
 signal experience_changed(current: int, needed: int, level: int)
 signal leveled_up(level: int)
 signal died
+## La Frenesia è cambiata (per l'HUD).
+signal frenzy_changed(current: float, maximum: float)
+## Inizio e fine dell'attacco speciale della Frenesia.
+signal special_started
+signal special_finished
 
-enum State { NORMAL, ATTACK, PARRY, DODGE, SLIDE, HURT, DEAD, SLAM, FALL, RECOIL, DRINK }
+enum State { NORMAL, ATTACK, PARRY, DODGE, SLIDE, HURT, DEAD, SLAM, FALL, RECOIL, DRINK, SPECIAL }
 
 const RADIUS := 22.0
 const START_HEALTH := 5
@@ -77,8 +90,9 @@ const COMBO_DAMAGE_STEP := 0.5
 const START_COMBO_HITS := 3
 ## Dopo un attacco c'è questo tempo per continuare la combo.
 const COMBO_WINDOW := 0.35
-## Colpi normali più lenti ma ampi.
-const ATTACK_WINDUP := 0.19
+## Colpi normali ampi e istantanei: la carica dura appena due frame, il
+## colpo arriva subito.
+const ATTACK_WINDUP := 0.03
 const ATTACK_ACTIVE := 0.18
 const ATTACK_RECOVERY := 0.34
 ## Il colpo finale della combo ha un recupero più lungo.
@@ -193,6 +207,41 @@ const PASSAGE_Z := 1
 ## All'impatto la telecamera trema, sempre meno.
 const CAMERA_SHAKE := 9.0
 const CAMERA_SHAKE_DECAY := 4.0
+
+## Frenesia: punti per ogni colpo di motosega a segno (anche parato dalla
+## guardia), di più per il colpo potente e gli attacchi a terra. Dopo
+## FRENZY_DECAY_DELAY secondi senza attaccare cala di FRENZY_DECAY al secondo.
+const FRENZY_MAX := 100.0
+const FRENZY_PER_HIT := 8.0
+const FRENZY_PER_HEAVY := 14.0
+const FRENZY_DECAY_DELAY := 4.0
+const FRENZY_DECAY := 12.0
+## Attacco speciale della Frenesia (L1 + R1 a Frenesia piena, con almeno un
+## nemico entro SPECIAL_RANGE). Cinematica: per SPECIAL_INTRO_TIME secondi i
+## nemici sono fermi, lo sfondo si scurisce (in SPECIAL_DARK_IN secondi,
+## poi torna normale in SPECIAL_DARK_OUT) e la telecamera si avvicina di
+## SPECIAL_ZOOM in SPECIAL_ZOOM_IN_TIME secondi. Poi un colpo ogni
+## SPECIAL_HIT_INTERVAL secondi: ci si teletrasporta accanto al nemico più
+## vicino entro SPECIAL_RANGE e lo si colpisce finché non muore, poi si passa
+## al successivo; senza nemici a tiro la raffica finisce. Alla fine la
+## telecamera torna com'era in SPECIAL_ZOOM_OUT_TIME e si resta
+## invulnerabili per SPECIAL_END_INVULNERABLE secondi.
+const START_SPECIAL_HITS := 10
+const SPECIAL_HITS_UPGRADE := 2
+const SPECIAL_RANGE := 520.0
+const SPECIAL_DAMAGE_FACTOR := 1.6
+const SPECIAL_INTRO_TIME := 1.1
+const SPECIAL_DARK_IN := 0.15
+const SPECIAL_DARK_HOLD := 0.65
+const SPECIAL_DARK_OUT := 0.3
+const SPECIAL_ZOOM := 1.4
+const SPECIAL_ZOOM_IN_TIME := 0.6
+const SPECIAL_ZOOM_OUT_TIME := 0.45
+const SPECIAL_HIT_INTERVAL := 0.13
+## Distanza tra il bordo del nemico e quello di Ciccio dopo il teletrasporto.
+const SPECIAL_GAP := 6.0
+const SPECIAL_END_INVULNERABLE := 0.6
+const COLOR_FRENZY := Color(1.0, 0.18, 0.12)
 
 ## Mentre si para ci si muove più lentamente.
 const PARRY_SPEED_FACTOR := 0.35
@@ -584,6 +633,22 @@ var _charge_time := 0.0
 var _torch := Flashlight.new()
 ## Potenziamento -> quante volte è stato scelto, nell'ordine di scelta.
 var upgrades_taken := {}
+## Frenesia (0-FRENZY_MAX, non si salva) e da quanto non si attacca.
+var frenzy := 0.0
+var _frenzy_idle := 0.0
+## Colpi dell'attacco speciale (si ricalcola dai potenziamenti "frenzy").
+var max_special_hits := START_SPECIAL_HITS
+## Attacco speciale in corso: colpi già dati, nemico che si sta colpendo,
+## da dove ci si è teletrasportati all'ultimo colpo (rispetto alla posizione
+## attuale, per la scia), buio dello sfondo (0-1, vedi special_darkness) e
+## zoom della telecamera da ripristinare alla fine.
+var _special_hits := 0
+var _special_target: Enemy
+var _special_from := Vector2.ZERO
+var _special_last_hit := 0.0
+var _special_dark := 0.0
+var _special_zoom := Vector2.ONE
+var _zoom_tween: Tween
 ## Altezza del terreno sotto il personaggio (vedi World.elevation_at).
 var ground_elevation := 0.0
 
@@ -631,6 +696,11 @@ func _physics_process(delta: float) -> void:
 	if _battery_delay == 0.0 and not _running and _state != State.DEAD:
 		var regen := BATTERY_REGEN * (BATTERY_PARRY_REGEN_FACTOR if _state == State.PARRY else 1.0)
 		battery = minf(battery + regen * delta, max_battery)
+	# Senza attaccare per un po' la Frenesia cala.
+	if _state != State.SPECIAL:
+		_frenzy_idle += delta
+		if _frenzy_idle >= FRENZY_DECAY_DELAY and frenzy > 0.0:
+			_set_frenzy(frenzy - FRENZY_DECAY * delta)
 
 	# I tasti si leggono con UiNav.game_pressed / game_held: quello che ha
 	# appena chiuso un menù (A su Riprendi, B) non conta finché non si rilascia.
@@ -638,7 +708,7 @@ func _physics_process(delta: float) -> void:
 	var dodge_input := Input.get_vector("move_left", "move_right", "move_up", "move_down", DODGE_STICK_DEADZONE)
 	var attack_input := input
 
-	if _state not in [State.DEAD, State.HURT]:
+	if _state not in [State.DEAD, State.HURT, State.SPECIAL]:
 		if UiNav.game_pressed("potion"):
 			_start_drink("potion")
 		if UiNav.game_pressed("shield"):
@@ -656,9 +726,13 @@ func _physics_process(delta: float) -> void:
 		_update_passage_z()
 		_update_run_button(delta)
 
+	# Frenesia piena: L1 + R1 insieme (parata e attacco, in qualsiasi ordine)
+	# scatenano l'attacco speciale, annullando l'azione in corso.
+	if UiNav.game_chord("parry", "attack") and _can_start_special():
+		_start_special()
 	# La parata è istantanea: annulla subito attacchi (anche in carica),
 	# schivate, scivolate, attacchi a terra, rinculo e il bere.
-	if UiNav.game_pressed("parry") and _state in [State.NORMAL, State.ATTACK, State.DODGE,
+	elif UiNav.game_pressed("parry") and _state in [State.NORMAL, State.ATTACK, State.DODGE,
 			State.SLIDE, State.SLAM, State.RECOIL, State.DRINK]:
 		_start_parry(input)
 	# Allo stesso modo schivata e salto annullano subito attacchi (anche in
@@ -781,6 +855,10 @@ func _physics_process(delta: float) -> void:
 		State.SLAM:
 			_update_slam(input, attack_input, delta)
 
+		State.SPECIAL:
+			_running = false
+			_update_special()
+
 		State.RECOIL:
 			_velocity = _velocity.move_toward(Vector2.ZERO, DECELERATION * 1.5 * delta)
 			if _state_time >= REPEL_TIME:
@@ -822,7 +900,7 @@ func _physics_process(delta: float) -> void:
 	_walk_phase += _velocity.length() * delta * WALK_CYCLE
 	_blood.update(delta)
 	_wounds.update(delta)
-	_saw_phase += delta * (SAW_CHAIN_FAST if _state in [State.ATTACK, State.SLAM] else SAW_CHAIN_IDLE)
+	_saw_phase += delta * (SAW_CHAIN_FAST if _state in [State.ATTACK, State.SLAM, State.SPECIAL] else SAW_CHAIN_IDLE)
 	if torch_on:
 		# Il fascio parte da terra, sotto il personaggio, verso lo sguardo.
 		_torch.position = Vector2(0, -ground_elevation + RADIUS * 0.6)
@@ -899,9 +977,9 @@ func _bounce(blocked: Vector2, delta: float) -> void:
 
 ## Spinge fuori dai nemici vivi alla stessa quota, senza danni: la parte
 ## della velocità diretta contro il nemico si annulla. Durante gli attacchi a
-## terra si passa attraverso i nemici.
+## terra e l'attacco speciale si passa attraverso i nemici.
 func _collide_enemies(world: World) -> void:
-	if _state in [State.DEAD, State.FALL, State.SLAM]:
+	if _state in [State.DEAD, State.FALL, State.SLAM, State.SPECIAL]:
 		return
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as Enemy
@@ -1043,7 +1121,8 @@ func _end_combo() -> void:
 ## projectile: colpo a distanza (dardi, frecce), che raggiunge anche chi
 ## fluttua a mezz'aria caricando lo slam aereo.
 func receive_hit(from: Vector2, damage: int, projectile := false) -> String:
-	if _state in [State.DEAD, State.FALL] or is_invulnerable():
+	# Durante l'attacco speciale niente può colpire Ciccio.
+	if _state in [State.DEAD, State.FALL, State.SPECIAL] or is_invulnerable():
 		return "ignored"
 	if (_state == State.DODGE and _state_time <= DODGE_INVULNERABLE_TIME) \
 			or (_state == State.SLIDE and _state_time <= SLIDE_INVULNERABLE_TIME):
@@ -1231,6 +1310,9 @@ func _climb_out_of_ravine() -> void:
 ## Spostamento istantaneo (entrando o uscendo da una caverna, caricando una
 ## partita): niente scie, slanci o telecamera che insegue da lontano.
 func teleport(at: Vector2) -> void:
+	# Un cambio di posto chiude l'attacco speciale (nemici di nuovo liberi).
+	if _state == State.SPECIAL:
+		_finish_special()
 	position = at
 	_velocity = Vector2.ZERO
 	_walk_velocity = Vector2.ZERO
@@ -1403,6 +1485,9 @@ func load_state(data: Dictionary) -> void:
 	# potenziamenti scelti, se il salvataggio li ha.
 	if data.has("upgrades_taken"):
 		max_chained_dodges = START_CHAINED_DODGES + int(upgrades_taken.get("dodge", 0))
+	# I colpi dell'attacco speciale non si salvano: si ricalcolano dai
+	# potenziamenti (nei salvataggi precedenti nessuno).
+	max_special_hits = START_SPECIAL_HITS + SPECIAL_HITS_UPGRADE * int(upgrades_taken.get("frenzy", 0))
 	_refresh_battery()
 	battery = max_battery
 	# Salvataggi precedenti alle bombe H: nessuna bomba.
@@ -1559,6 +1644,8 @@ func apply_upgrade(upgrade: String) -> void:
 		"battery":
 			_refresh_battery()
 			battery = max_battery
+		"frenzy":
+			max_special_hits += SPECIAL_HITS_UPGRADE
 
 
 func _refresh_battery() -> void:
@@ -1648,6 +1735,7 @@ func _begin_attack(input: Vector2) -> void:
 	_heavy_swing_played = false
 	_air_attack = is_airborne()
 	attack_serial += 1
+	_frenzy_idle = 0.0
 	if _state != State.ATTACK:
 		_walk_velocity = _velocity.limit_length(walk_speed() * ATTACK_MOVE_FACTOR)
 		# In aria lo slancio del salto (o dello scatto) continua e si esaurisce piano.
@@ -1686,6 +1774,7 @@ func _start_slam(kind: String, input: Vector2) -> void:
 	_slam_kind = kind
 	_slam_landed = false
 	_attack_heavy = false
+	_frenzy_idle = 0.0
 	_attack_speed = EMPOWER_ATTACK_SPEED if is_empowered() else 1.0
 	_charge = 0.0
 	_charge_time = 0.0
@@ -1788,6 +1877,7 @@ func _slam_impact() -> void:
 	if landed:
 		Sfx.play("hit", global_position, 0.7)
 		HitFeedback.hit(get_tree(), 0.14)
+		_add_frenzy(FRENZY_PER_HEAVY)
 
 
 ## La bomba H si spacca sul terreno: i nemici attorno muoiono (il boss
@@ -1835,6 +1925,195 @@ func _slam_damage() -> int:
 	if _attack_speed > 1.0:
 		multiplier *= EMPOWER_DAMAGE_FACTOR
 	return roundi(base_damage() * multiplier * (1.0 + inventory.bonus("damage")))
+
+
+# --- Frenesia e attacco speciale ---------------------------------------
+
+## Frenesia piena (Ciccio si accende di rosso, vedi _draw).
+func is_frenzy_full() -> bool:
+	return frenzy >= FRENZY_MAX
+
+
+## Attacco speciale in corso (Game rimanda la scelta dei potenziamenti).
+func is_special_active() -> bool:
+	return _state == State.SPECIAL
+
+
+## Buio dello sfondo durante la cinematica dell'attacco speciale (0-1):
+## LowHealthVignette scurisce tutto lo schermo tranne Ciccio.
+func special_darkness() -> float:
+	return _special_dark
+
+
+func _set_frenzy(value: float) -> void:
+	value = clampf(value, 0.0, FRENZY_MAX)
+	if value == frenzy:
+		return
+	var was_full := is_frenzy_full()
+	frenzy = value
+	if is_frenzy_full() and not was_full:
+		Sfx.play("frenzy_ready", global_position)
+	frenzy_changed.emit(frenzy, FRENZY_MAX)
+
+
+## Un colpo a segno: la Frenesia cresce e il calo riparte da capo.
+func _add_frenzy(amount: float) -> void:
+	_frenzy_idle = 0.0
+	_set_frenzy(frenzy + amount)
+
+
+## Si può scatenare l'attacco speciale: Frenesia piena, nessuno stordimento
+## o caduta in corso e almeno un nemico a tiro.
+func _can_start_special() -> bool:
+	return is_frenzy_full() and _state in [State.NORMAL, State.ATTACK, State.PARRY, State.DODGE, State.SLIDE, State.RECOIL] \
+			and _special_nearest() != null
+
+
+## Cinematica d'inizio: nemici fermi (Enemy.frozen), sfondo scuro, urlo e
+## bagliore attorno a Ciccio, zoom sulla telecamera. Lo sfondo torna
+## normale prima dei colpi, lo zoom resta fino alla fine (vedi _finish_special).
+func _start_special() -> void:
+	_interrupt_action()
+	_queued_attack = ""
+	_velocity = Vector2.ZERO
+	_special_hits = 0
+	_special_target = null
+	_special_from = Vector2.ZERO
+	_special_last_hit = 0.0
+	Enemy.frozen = true
+	_change_state(State.SPECIAL)
+	var dark := create_tween()
+	dark.tween_property(self, "_special_dark", 1.0, SPECIAL_DARK_IN)
+	dark.tween_interval(SPECIAL_DARK_HOLD)
+	dark.tween_property(self, "_special_dark", 0.0, SPECIAL_DARK_OUT)
+	if _camera:
+		_special_zoom = _camera.zoom
+		_tween_zoom(_special_zoom * SPECIAL_ZOOM, SPECIAL_ZOOM_IN_TIME)
+	_shake = maxf(_shake, 0.4)
+	Sfx.play("frenzy_roar", global_position)
+	Sfx.play("heavy_swing", global_position, 0.7)
+	special_started.emit()
+
+
+## Zoom della telecamera verso to in time secondi, con una curva morbida.
+func _tween_zoom(to: Vector2, time: float) -> void:
+	if _zoom_tween:
+		_zoom_tween.kill()
+	_zoom_tween = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_zoom_tween.tween_property(_camera, "zoom", to, time)
+
+
+## Dopo la cinematica un colpo ogni SPECIAL_HIT_INTERVAL secondi, fino a
+## max_special_hits; poi (o se non c'è più nessuno a tiro) si chiude.
+func _update_special() -> void:
+	_velocity = Vector2.ZERO
+	if _state_time < SPECIAL_INTRO_TIME:
+		_face_lock()
+		return
+	var since := _state_time - _special_last_hit
+	if _special_hits >= max_special_hits:
+		if since >= SPECIAL_HIT_INTERVAL:
+			_finish_special()
+		return
+	if _special_hits == 0 or since >= SPECIAL_HIT_INTERVAL:
+		_special_strike()
+
+
+## Un colpo dell'attacco speciale: si resta sul nemico finché non muore,
+## poi si passa al più vicino a tiro; ci si teletrasporta accanto a lui.
+func _special_strike() -> void:
+	var target := _special_target
+	if not is_instance_valid(target) or target.is_dead():
+		target = _special_nearest()
+	if target == null:
+		_finish_special()
+		return
+	_special_target = target
+	var start := position
+	var offset := target.position - position
+	if offset.length() > RADIUS + target.radius + SPECIAL_GAP * 2.0:
+		position = _special_landing(target)
+		_height = 0.0
+		_height_velocity = 0.0
+		ground_elevation = World.current.elevation_at(position) if World.current else ground_elevation
+		reset_physics_interpolation()
+		offset = target.position - position
+	_special_from = start - position
+	var direction := offset.normalized() if offset != Vector2.ZERO else facing
+	facing = direction
+	_target_facing = direction
+	_swing_sign = -_swing_sign
+	_special_hits += 1
+	_special_last_hit = _state_time
+	var damage := roundi(base_damage() * SPECIAL_DAMAGE_FACTOR * (EMPOWER_DAMAGE_FACTOR if is_empowered() else 1.0) \
+			* (1.0 + inventory.bonus("damage")))
+	# I nemici sono fermi: il colpo passa sempre, anche la guardia.
+	target.take_damage(damage, direction, _special_hits == max_special_hits)
+	HitSpark.spawn(get_parent(), target.global_position - direction * target.radius * 0.8,
+			target.ground_elevation + target.radius * 0.9, 44.0, COLOR_FRENZY)
+	Sfx.play("swing", global_position, 1.1 + 0.05 * _special_hits)
+	Sfx.play("hit", global_position, 1.0 + 0.04 * _special_hits)
+	HitFeedback.hit(get_tree(), 0.05)
+	_shake = maxf(_shake, 0.35)
+	# La barra si svuota man mano che si colpisce.
+	_set_frenzy(FRENZY_MAX * (1.0 - float(_special_hits) / max_special_hits))
+
+
+## Fine dell'attacco speciale: la telecamera torna allo zoom di prima, i
+## nemici ripartono, la Frenesia si azzera e Ciccio torna normale (con un
+## attimo di invulnerabilità).
+func _finish_special() -> void:
+	if _camera:
+		_tween_zoom(_special_zoom, SPECIAL_ZOOM_OUT_TIME)
+	Enemy.frozen = false
+	_special_target = null
+	_special_from = Vector2.ZERO
+	_set_frenzy(0.0)
+	_frenzy_idle = 0.0
+	_start_invulnerability(SPECIAL_END_INVULNERABLE)
+	_change_state(State.NORMAL)
+	special_finished.emit()
+
+
+## Il nemico vivo più vicino entro SPECIAL_RANGE alla stessa quota (null se nessuno).
+func _special_nearest() -> Enemy:
+	var nearest: Enemy = null
+	var best := SPECIAL_RANGE
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as Enemy
+		if enemy == null or enemy.is_dead() or absf(enemy.ground_elevation - ground_elevation) > HIT_HEIGHT_REACH:
+			continue
+		var distance := enemy.position.distance_to(position)
+		if distance <= best:
+			best = distance
+			nearest = enemy
+	return nearest
+
+
+## Punto accanto al nemico dove comparire: dal lato da cui si arriva, se
+## no girandogli attorno; se non c'è posto si resta dove si è.
+func _special_landing(enemy: Enemy) -> Vector2:
+	var reach := RADIUS + enemy.radius + SPECIAL_GAP
+	var side := (position - enemy.position).normalized() if position != enemy.position else -facing
+	for k in 9:
+		var turn := ceilf(k / 2.0) * 0.7 * (1.0 if k % 2 == 1 else -1.0)
+		var candidate := enemy.position + side.rotated(turn) * reach
+		if _can_stand(candidate, enemy.ground_elevation):
+			return candidate
+	return position
+
+
+## Ci si può stare: terreno percorribile alla quota data, niente ostacoli solidi.
+func _can_stand(point: Vector2, elevation: float) -> bool:
+	var world := World.current
+	if world == null:
+		return true
+	if world.is_barrier(World.cell_at(point)) or absf(world.elevation_at(point) - elevation) > World.STEP_TOLERANCE:
+		return false
+	for obstacle: Dictionary in world.obstacles_close(point):
+		if obstacle["solid"] and point.distance_to(obstacle["position"]) < RADIUS * 0.8 + float(obstacle["collision"]):
+			return false
+	return true
 
 
 func _can_jump() -> bool:
@@ -2220,6 +2499,9 @@ func _resolve_attack() -> void:
 			var contact := enemy.global_position - offset.normalized() * enemy.radius * 0.8
 			HitSpark.spawn(get_parent(), contact, enemy.ground_elevation + enemy.radius * 0.9,
 					40.0 if _attack_heavy else 28.0, COLOR_HEAVY if _attack_heavy else COLOR_SLASH)
+	# Ogni colpo a segno carica la Frenesia, anche se la guardia l'ha parato.
+	if landed or blocked_by:
+		_add_frenzy(FRENZY_PER_HEAVY if _attack_heavy else FRENZY_PER_HIT)
 	if blocked_by:
 		_repel(blocked_by.global_position)
 	if landed:
@@ -2260,6 +2542,8 @@ func _draw() -> void:
 		# Scatto in aria: immagini che restano indietro lungo la traiettoria.
 		for k in range(AIR_DASH_TRAIL, 0, -1):
 			Shapes.disc(self, -_dodge_direction * k * 16.0 + Vector2(0, -LEG_LENGTH), RADIUS * (1.0 - 0.15 * k), Color(body, 0.35 / k))
+	if _state == State.SPECIAL:
+		_draw_special_streak(body)
 	if _state != State.SLIDE and not rolling:
 		var foot_y := RADIUS * 0.85 - (6.0 if is_airborne() else 0.0)
 		BodyParts.draw_legs(self, -LEG_LENGTH + RADIUS * 0.55, foot_y, LEG_SPACING, LEG_WIDTH, _walk_phase,
@@ -2291,6 +2575,12 @@ func _draw() -> void:
 		var pulse := 0.5 + 0.5 * sin(_empowered_time * 10.0)
 		Shapes.disc(self, Vector2.ZERO, RADIUS + 8.0 + pulse * 4.0, Color(COLOR_EMPOWERED, 0.25))
 		draw_arc(Vector2.ZERO, RADIUS + 8.0 + pulse * 4.0, 0.0, TAU, 32, Color(COLOR_EMPOWERED, 0.8), 2.0)
+	if _state == State.SPECIAL:
+		_draw_special_aura()
+	elif is_frenzy_full() and _state != State.DEAD:
+		# Frenesia piena: un anello rosso che pulsa, pronto per L1 + R1.
+		var beat := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.012)
+		draw_arc(Vector2.ZERO, RADIUS + 5.0 + beat * 3.0, 0.0, TAU, 32, Color(COLOR_FRENZY, 0.45 + 0.35 * beat), 2.5)
 	if _state != State.DEAD:
 		body = _blood.tint(body)
 		if soot > 0.0:
@@ -2414,6 +2704,9 @@ func _draw_weapon() -> void:
 		return
 	if _state == State.SLAM:
 		_draw_slam_saw(tint)
+		return
+	if _state == State.SPECIAL:
+		_draw_special_saw()
 		return
 	if _state == State.PARRY:
 		# In parata la motosega è di traverso davanti al corpo: si illumina
@@ -2600,6 +2893,52 @@ func _draw_slam_saw(tint: Color) -> void:
 	_draw_saw(Vector2.from_angle(angle) * RADIUS * 0.8, angle, HEAVY_SAW_LENGTH, SAW_WIDTH * 1.3, tint)
 	if _charging:
 		_draw_charge_heat(Vector2.from_angle(angle) * RADIUS * 0.8, angle, HEAVY_SAW_LENGTH)
+
+
+## Attacco speciale: nella cinematica un bagliore rosso che cresce e pulsa
+## con i raggi dell'urlo; durante i colpi un alone più piccolo.
+func _draw_special_aura() -> void:
+	var t := _state_time
+	if t >= SPECIAL_INTRO_TIME:
+		Shapes.glow(self, Vector2.ZERO, RADIUS * 1.9, Color(COLOR_FRENZY, 0.35))
+		return
+	var grow := clampf(t / 0.25, 0.0, 1.0)
+	var pulse := 0.5 + 0.5 * sin(t * 30.0)
+	Shapes.glow(self, Vector2.ZERO, RADIUS * (2.0 + 0.8 * grow + 0.3 * pulse), Color(COLOR_FRENZY, 0.6 * grow))
+	for k in 12:
+		var direction := Vector2.from_angle(TAU * k / 12.0 + t * 2.0)
+		var length := RADIUS * (0.5 + 0.6 * grow * (0.6 + 0.4 * sin(t * 24.0 + k * 1.7)))
+		draw_line(direction * (RADIUS + 6.0), direction * (RADIUS + 6.0 + length), Color(1.0, 0.75, 0.35, 0.85 * grow), 3.0)
+
+
+## Scia del teletrasporto: dal punto di partenza a Ciccio, copie del corpo
+## che svaniscono prima del colpo successivo.
+func _draw_special_streak(body: Color) -> void:
+	var fade := 1.0 - clampf((_state_time - _special_last_hit) / SPECIAL_HIT_INTERVAL, 0.0, 1.0)
+	if fade <= 0.0 or _special_from == Vector2.ZERO:
+		return
+	var lift := Vector2(0, -LEG_LENGTH)
+	draw_line(_special_from + lift, lift, Color(COLOR_FRENZY, 0.5 * fade), RADIUS * 1.2 * fade)
+	for k in 4:
+		Shapes.disc(self, _special_from.lerp(Vector2.ZERO, k / 4.0) + lift, RADIUS * (0.7 + 0.075 * k), Color(body, 0.25 * fade * (k + 1) / 4.0))
+
+
+## Motosega dell'attacco speciale: rovente, alzata sopra la testa nella
+## cinematica, poi un fendente ampio con la scia rossa a ogni colpo.
+func _draw_special_saw() -> void:
+	var heat := Color(1.4, 0.75, 0.6)
+	if _state_time < SPECIAL_INTRO_TIME:
+		var raised := -PI / 2.0 - 0.5
+		if facing.x < 0.0:
+			raised = PI - raised
+		_draw_saw(Vector2.from_angle(raised) * RADIUS * 0.8, raised, HEAVY_SAW_LENGTH, SAW_WIDTH * 1.3, heat)
+		return
+	var t := clampf((_state_time - _special_last_hit) / (SPECIAL_HIT_INTERVAL * 0.6), 0.0, 1.0)
+	var start := facing.angle() - _swing_sign * HEAVY_ARC / 2.0
+	var end := facing.angle() + _swing_sign * HEAVY_ARC / 2.0
+	var angle := lerpf(start, end, ease(t, 0.5))
+	BodyParts.draw_trail(self, Vector2.ZERO, start, angle, RADIUS + 6.0, ATTACK_RANGE + RADIUS, Color(COLOR_FRENZY, 0.75 * (1.0 - t * 0.5)))
+	_draw_saw(Vector2.from_angle(angle) * RADIUS * 0.8, angle, HEAVY_SAW_LENGTH, SAW_WIDTH * 1.3, heat)
 
 
 ## Carica del colpo potente: un anello che si riempie e diventa bianco al massimo.

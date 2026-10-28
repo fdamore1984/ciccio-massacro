@@ -40,6 +40,9 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	# Durante l'attacco speciale della Frenesia anche i proiettili restano sospesi.
+	if Enemy.frozen:
+		return
 	_age += delta
 	var step := direction * speed * delta
 	position += step
