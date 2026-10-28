@@ -37,9 +37,9 @@ godot --path . --resolution 1280x720 res://tools/store_capture.tscn -- tutorial
 | Tags | vedi sotto |
 | AI generation disclosure | Sì: codice, testi e grafica provvisoria sono stati prodotti con l'aiuto di un'IA (Claude) |
 | Languages | Italian |
-| Inputs | Xbox controller, Playstation controller (togliere Keyboard, Mouse e Touchscreen) |
+| Inputs | Keyboard, Mouse, Xbox controller, Playstation controller (togliere Touchscreen) |
 | Cover image | `cover_it.png` (630×500) |
-| Screenshots | `it_1_combat.png`, `it_16_frenzy.png`, `it_2_parry.png`, `it_5_challenge.png`, `it_6_inventory.png`, `it_9_slam.png`, `it_14_air_charge.png`, `it_15_h_bomb.png`, `it_11_cave.png`, `it_13_map.png`, `it_12_dungeon.png`, `it_7_merchant.png`, `it_8_shop.png`, `it_3_level_up.png`, `it_4_menu.png`, `it_10_controls.png` (il gioco è in italiano: le immagini `en_*` e `cover_en.png` vanno sostituite da queste) |
+| Screenshots | `it_1_combat.png`, `it_16_frenzy.png`, `it_2_parry.png`, `it_5_challenge.png`, `it_6_inventory.png`, `it_9_slam.png`, `it_14_air_charge.png`, `it_15_h_bomb.png`, `it_11_cave.png`, `it_13_map.png`, `it_12_dungeon.png`, `it_7_merchant.png`, `it_8_shop.png`, `it_3_level_up.png`, `it_4_menu.png`, `it_10_controls.png`, `it_17_options.png` (il gioco è in italiano: le immagini `en_*` e `cover_en.png` vanno sostituite da queste) |
 
 ### Tags
 
@@ -106,30 +106,30 @@ IN THIS PROTOTYPE
 - Alarm sirens stand in the middle of wide open squares: interact with one to start a 30-second survival challenge with waves of raiders matched to your level, and earn experience and a medkit
 - Earn experience to level up: the first ten levels come quickly, then each one takes a little longer. Every level raises your base damage and lets you choose an upgrade: one more combo hit, one more chained power strike, one more chained dodge, one more jump, one more health point (rare), a faster shield recharge (5%), a faster run (5%), more battery (10%), more fuel, stronger missiles, one more supply of each kind carried, one more H-bomb carried, stronger medkits, fuller fuel cans (5%), two more Frenzy strikes or one more card to choose from at the next level-ups: three of them (more with that upgrade), picked at random, are offered on cards with icons. Your skill levels are always shown on screen, and the active power-ups are shown as small icons in the bottom-right corner
 
-CONTROLS (controller only)
-- Move: left stick
-- Chainsaw attack (combo; hold to keep attacking): R1
-- Power strike (ends the combo; hold to charge, burns fuel; keep holding to chain; in mid-air, only with an H-bomb: smash it on the ground): L2
-- Parry (hold): L1
-- Frenzy special attack (full Frenzy bar): L1 + R1 together
-- Dodge (press again to chain; cancels any action): B
-- Jump (cancels any action): A
-- Run on/off (dodge while running = slide): tap L3
-- Flashlight on/off: hold L3
-- Focus (hold: dims the world, highlights you, items, crates and doors): R2
-- Bazooka (homing missile): X
-- Shield: Y
-- Medkit: D-pad left
-- Fuel can: D-pad right
-- Spare battery: D-pad down
-- Interact (crates, traders, sirens, doors, stairs): A
-- Inventory: D-pad up (R3 to sort)
-- Map: Select
-- Manual lock-on (press again to switch to the nearest enemy; otherwise the lock-on is automatic): R3
-- Pause menu (save, controls, tutorial, quit to title with confirmation): Start
+CONTROLS (defaults: change them in Options)
+- Move: left stick / WASD / middle click (walk to the cursor)
+- Chainsaw attack (combo; hold to keep attacking; with the mouse it goes toward the cursor): R1 / J / left click
+- Power strike (ends the combo; hold to charge, burns fuel; keep holding to chain; in mid-air, only with an H-bomb: smash it on the ground): L2 / L / right click
+- Parry (hold): L1 / K
+- Frenzy special attack (full Frenzy bar): L1 + R1 together / K + J together
+- Dodge (press again to chain; cancels any action): B / Space
+- Jump (cancels any action): A / F
+- Run on/off (dodge while running = slide): tap L3 / Shift
+- Flashlight on/off: hold L3 / Shift
+- Focus (hold: dims the world, highlights you, items, crates and doors): R2 / V
+- Bazooka (homing missile): X / U
+- Shield: Y / R
+- Medkit: D-pad left / Q
+- Fuel can: D-pad right / T
+- Spare battery: D-pad down / G
+- Interact (crates, traders, sirens, doors, stairs): A / E
+- Inventory: D-pad up / I (R3 / C to sort)
+- Map: Select / M
+- Manual lock-on (press again to switch to the nearest enemy; otherwise the lock-on is automatic): R3 / C
+- Pause menu (save, controls, tutorial, options, quit to title with confirmation): Start / Esc
 - Special attacks: power strike right after a combo = mixed combo with bonus damage; charged first power strike = stronger chained power strikes; attack in mid-air = aerial slashes; power strike in mid-air = H-bomb (only if you have one; hold to float and widen the blast); power strike during an air dash = dash strike
 
-Play with a controller (Steam Deck and MSI Claw built-in controls included): keyboard, mouse and touch screens are not supported. The full list of controls is in the main menu, next to a paged, illustrated tutorial that explains every mechanic (Frenzy included; it is in the pause menu too). The game is in Italian.
+Play with a controller (Steam Deck and MSI Claw built-in controls included) or with keyboard and mouse; touch screens are not supported. The full list of controls is in the main menu, you can remap every control in Options, next to a paged, illustrated tutorial that explains every mechanic (Frenzy included; it is in the pause menu too). The game is in Italian.
 
 PLATFORMS
 Windows (handheld gaming PCs like the MSI Claw 8 included), Linux and SteamOS (Steam Deck). Capped at a steady 60 FPS. On Linux it renders with Vulkan, falling back to OpenGL 3.3 when Vulkan is not available.
@@ -144,7 +144,7 @@ Campo *Download & install instructions* (sotto la sezione Uploads).
 ```
 HOW TO INSTALL
 
-You need a controller (the Steam Deck and MSI Claw built-in controls work): keyboard and mouse are not supported.
+Play with a controller (the Steam Deck and MSI Claw built-in controls work) or with keyboard and mouse.
 
 Linux / Steam Deck: download the Linux file, extract it and run CiccioMassacro.x86_64 (if needed, make it executable first: right click → Properties → Allow executing, or chmod +x CiccioMassacro.x86_64). On Steam Deck the game always starts in fullscreen, in Desktop Mode too. Do this in Desktop Mode, then add it to Steam as a non-Steam game (Steam → Games → Add a Non-Steam Game) and always launch it from Steam: this way the built-in controller works as a gamepad, both in Game Mode and in Desktop Mode. If you launch it from the itch.io app in Desktop Mode instead, hold the Menu (Start) button for 1 second to switch the built-in controls to controller mode.
 

@@ -1,13 +1,14 @@
 class_name ControlsPanel
 extends Control
-## Elenco dei comandi, aperto dal menù iniziale e da quello di pausa:
-## azioni con i tasti del controller (letti dall'Input Map con PadLabels) e
-## gli attacchi speciali. Si chiude con B o il pulsante Indietro.
+## Elenco dei comandi, aperto dal menù iniziale: azioni con i tasti di
+## tastiera, mouse e controller (quelli scelti dal giocatore, letti
+## dall'Input Map con Keybinds: si aggiornano a ogni apertura) e gli
+## attacchi speciali. Si chiude con B, Esc o il pulsante Indietro.
 
 signal closed
 
 ## Righe: testo e gruppi di azioni; i tasti dei gruppi sono separati da
-## un punto ("↑ · R3"). Il movimento ha una riga a parte (vedi _move_keys).
+## un punto ("I / Tab · C"). Il movimento ha una riga a parte (vedi _move_keys).
 const ROWS := [
 	["CONTROLS_ATTACK", [["attack"]]], ["CONTROLS_HEAVY", [["heavy_attack"]]],
 	["CONTROLS_PARRY", [["parry"]]], ["CONTROLS_DODGE", [["dodge"]]], ["CONTROLS_JUMP", [["jump"], ["interact"]]],
@@ -41,7 +42,7 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 6)
 	center.add_child(box)
 	box.add_child(_label("CONTROLS_TITLE", 34, COLOR_TITLE, true))
-	_grid.columns = 2
+	_grid.columns = 4
 	_grid.add_theme_constant_override("h_separation", 30)
 	_grid.add_theme_constant_override("v_separation", 0)
 	_grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -55,7 +56,7 @@ func _ready() -> void:
 		var label := _label(key, 17, COLOR_TEXT, true)
 		if key == "CONTROLS_SPECIAL_FRENZY":
 			# L'attacco speciale è parata + attacco insieme: tasti dall'Input Map.
-			label.text = tr(key) % [PadLabels.hint("parry"), PadLabels.hint("attack")]
+			label.text = tr(key) % [Keybinds.hint("parry"), Keybinds.hint("attack")]
 			label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 		specials.add_child(label)
 	_back.text = "CONTROLS_BACK"
@@ -66,39 +67,42 @@ func _ready() -> void:
 	box.add_child(_back)
 
 
-## Riempie la tabella con i tasti del controller.
+## Riempie la tabella con i tasti attuali.
 func _fill() -> void:
 	for child in _grid.get_children():
 		_grid.remove_child(child)
 		child.queue_free()
-	_add_row([tr("CONTROLS_HEADER_ACTION"), tr("CONTROLS_HEADER_CONTROLLER")], true)
-	_add_row([tr("CONTROLS_MOVE"), _move_keys()], false)
+	_add_row([tr("CONTROLS_HEADER_ACTION"), tr("OPTIONS_HEADER_KEYBOARD"), tr("OPTIONS_HEADER_MOUSE"), tr("OPTIONS_HEADER_CONTROLLER")], true)
+	_add_row([tr("CONTROLS_MOVE"), _move_keys("keyboard"), Keybinds.describe(["move_click"], "mouse"), _move_keys("controller")], false)
 	for row: Array in ROWS:
-		_add_row([tr(row[0]), _keys(row[1])], false)
+		var cells := [tr(row[0])]
+		for device: String in Keybinds.DEVICES:
+			cells.append(_keys(row[1], device))
+		_add_row(cells, false)
 
 
-## Tasti dei gruppi di azioni di una riga.
-func _keys(groups: Array) -> String:
+## Tasti dei gruppi di azioni di una riga per un dispositivo.
+func _keys(groups: Array, device: String) -> String:
 	var parts: Array[String] = []
 	for group: Array in groups:
-		if PadLabels.events(group[0]).is_empty():
+		if Keybinds.events(group[0], device).is_empty():
 			continue
-		var text := PadLabels.describe(group)
+		var text := Keybinds.describe(group, device)
 		if text not in parts:
 			parts.append(text)
 	return " · ".join(parts) if not parts.is_empty() else tr("BIND_NONE")
 
 
-## Movimento: la levetta se le direzioni sono i suoi due assi, altrimenti
-## i primi tasti delle quattro direzioni.
-func _move_keys() -> String:
+## Movimento: i primi tasti delle quattro direzioni ("W A S D"), o la
+## levetta se le direzioni sono i suoi due assi.
+func _move_keys(device: String) -> String:
 	var labels: Array[String] = []
 	var axes := {}
 	for action: String in MOVE_ACTIONS:
-		var found := PadLabels.events(action)
+		var found := Keybinds.events(action, device)
 		if found.is_empty():
 			continue
-		labels.append(PadLabels.label(found[0]))
+		labels.append(Keybinds.label(found[0]))
 		if found[0] is InputEventJoypadMotion:
 			axes[(found[0] as InputEventJoypadMotion).axis] = true
 	if axes.size() == 2 and axes.has(JOY_AXIS_LEFT_X) and axes.has(JOY_AXIS_LEFT_Y) and labels.size() == 4:
@@ -108,7 +112,7 @@ func _move_keys() -> String:
 	return " ".join(labels) if not labels.is_empty() else tr("BIND_NONE")
 
 
-## Una riga della tabella: descrizione e tasti del controller.
+## Una riga della tabella: descrizione e tasti di tastiera, mouse, controller.
 func _add_row(cells: Array, header: bool) -> void:
 	for i in cells.size():
 		var color := COLOR_HEADER if header else (COLOR_TEXT if i == 0 else COLOR_KEY)

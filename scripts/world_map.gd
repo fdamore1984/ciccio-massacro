@@ -1,10 +1,10 @@
 class_name WorldMap
 extends Control
-## Mappa completa (Select, o il pulsante a schermo): un'area grande
+## Mappa completa (Select / M, o il pulsante a schermo): un'area grande
 ## attorno al giocatore con il terreno, casse, totem, mercanti, ingressi delle
 ## caverne, scale e uscite (vedi Minimap.draw_point). Il terreno si disegna a
 ## righe su qualche frame, così l'apertura non blocca il gioco. Mentre è
-## aperta il gioco è in pausa; Select o B la chiudono.
+## aperta il gioco è in pausa; Select, M, B o Esc la chiudono.
 
 ## Metà del lato dell'area mostrata, in pixel del mondo, e campioni per lato.
 const RANGE := 4800.0
@@ -98,7 +98,7 @@ func _draw() -> void:
 		draw_colored_polygon(PackedVector2Array([center + facing * 10.0, center - facing * 6.0 + facing.orthogonal() * 6.5,
 				center - facing * 6.0 - facing.orthogonal() * 6.5]), Color.WHITE)
 	draw_rect(Rect2(origin, Vector2(MAP_SIZE, MAP_SIZE)), Color(1, 1, 1, 0.5), false, 2.0)
-	draw_string(font, Vector2(0, origin.y + MAP_SIZE + 34), tr("MAP_HINT") % PadLabels.hint("map"), HORIZONTAL_ALIGNMENT_CENTER, size.x, 18, COLOR_HINT)
+	draw_string(font, Vector2(0, origin.y + MAP_SIZE + 34), tr("MAP_HINT") % Keybinds.hint("map"), HORIZONTAL_ALIGNMENT_CENTER, size.x, 18, COLOR_HINT)
 
 
 func _to_map(point: Vector2, origin: Vector2) -> Vector2:

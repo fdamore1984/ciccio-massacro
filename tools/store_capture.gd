@@ -80,6 +80,10 @@ func _capture_menu(language: String) -> void:
 	await _frames(3)
 	await _save("%s_10_controls.png" % language)
 	menu._controls_panel.close()
+	menu._on_options_pressed()
+	await _frames(3)
+	await _save("%s_17_options.png" % language)
+	menu._options_panel.close()
 	menu.queue_free()
 	await _frames(2)
 

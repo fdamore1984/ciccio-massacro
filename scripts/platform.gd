@@ -22,6 +22,11 @@ const STEAM_VIRTUAL_GAMEPAD_LAYOUT := "a:b0,b:b1,x:b2,y:b3,leftshoulder:b4,right
 ## Comandi integrati dello Steam Deck letti direttamente (senza Steam).
 const STEAM_DECK_LAYOUT := "a:b3,b:b4,x:b5,y:b6,leftshoulder:b7,rightshoulder:b8,back:b11,start:b12,guide:b13,leftstick:b14,rightstick:b15,leftx:a0,lefty:a1,rightx:a2,righty:a3,lefttrigger:a9,righttrigger:a8,dpup:b16,dpdown:b17,dpleft:b18,dpright:b19,platform:Linux"
 
+## Tasti e clic tolti dalle azioni mentre sullo Steam Deck c'è un
+## controller, da rimettere quando il controller sparisce.
+var _removed_desktop_events := {}
+
+
 ## Frame al secondo: fissi a 60 (anche sullo Steam Deck in modalità gioco,
 ## dove senza limite il gioco oscilla e perde colpi). La fisica va a 60 passi
 ## al secondo con l'interpolazione attiva (project.godot), così il
@@ -49,15 +54,13 @@ func _ready() -> void:
 	Input.joy_connection_changed.connect(_on_joy_connection_changed)
 	for device in Input.get_connected_joypads():
 		_fix_joypad_mapping(device)
-	_remove_desktop_events()
-	# Niente puntatore del mouse: si gioca solo col controller.
-	if not is_mobile and DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
+	_update_desktop_events()
 
 
 func _on_joy_connection_changed(device: int, connected: bool) -> void:
 	if connected:
 		_fix_joypad_mapping(device)
+	_update_desktop_events()
 
 
 ## Se Godot non conosce la disposizione dei pulsanti di un controller
@@ -81,15 +84,44 @@ func _fix_joypad_mapping(device: int) -> void:
 	Input.add_joy_mapping("%s,%s,%s" % [Input.get_joy_guid(device), name, layout], true)
 
 
-## Il gioco si usa solo col controller: tastiera, mouse e touch
-## non fanno niente. L'Input Map del progetto non ha tasti né clic, ma le
-## azioni ui_* predefinite di Godot sì (frecce, Invio, Tab...): si tolgono
-## all'avvio.
-func _remove_desktop_events() -> void:
-	for action in InputMap.get_actions():
-		for event in InputMap.action_get_events(action):
-			if event is InputEventKey or event is InputEventMouseButton:
-				InputMap.action_erase_event(action, event)
+## Sullo Steam Deck in modalità desktop Steam può continuare a mandare i
+## tasti del layout desktop (per esempio Esc sul tasto B, le frecce sulla
+## croce) anche dopo il passaggio alla modalità controller: finché c'è un
+## controller, le azioni ignorano tastiera e mouse.
+func _update_desktop_events() -> void:
+	if not is_steam_deck:
+		return
+	var has_joypad := not Input.get_connected_joypads().is_empty()
+	if has_joypad and _removed_desktop_events.is_empty():
+		for action in InputMap.get_actions():
+			var removed: Array[InputEvent] = []
+			for event in InputMap.action_get_events(action):
+				if event is InputEventKey or event is InputEventMouseButton:
+					removed.append(event)
+					InputMap.action_erase_event(action, event)
+			if not removed.is_empty():
+				_removed_desktop_events[action] = removed
+	elif not has_joypad and not _removed_desktop_events.is_empty():
+		restore_desktop_events()
+
+
+## Rimette nelle azioni i tasti e i clic tolti: va fatto prima di cambiare
+## i comandi (vedi Keybinds), che poi chiama refresh_desktop_events.
+func restore_desktop_events() -> void:
+	for action: StringName in _removed_desktop_events:
+		for event: InputEvent in _removed_desktop_events[action]:
+			InputMap.action_add_event(action, event)
+	_removed_desktop_events.clear()
+
+
+## Dopo aver cambiato i comandi: si ricontrolla se vanno tolti tastiera e mouse.
+func refresh_desktop_events() -> void:
+	_update_desktop_events()
+
+
+## True se gli eventi di tastiera e mouse vanno ignorati (vedi sopra).
+func ignores_desktop_input() -> bool:
+	return not _removed_desktop_events.is_empty()
 
 
 ## Sullo Steam Deck in modalità desktop, se il gioco non è avviato da
@@ -116,8 +148,9 @@ func _read_first_line(path: String) -> String:
 	return file.get_line().strip_edges()
 
 
-## Tastiera, mouse e tocchi sullo schermo vengono fermati prima che
-## arrivino ai menù (anche clic, rotellina e tocchi sui pulsanti).
+## Il touch non è supportato: i tocchi sullo schermo (per esempio sullo
+## schermo dell'MSI Claw) vengono fermati prima che arrivino al gioco e ai
+## menù (e in project.godot non diventano clic del mouse).
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey or event is InputEventMouse or event is InputEventScreenTouch or event is InputEventScreenDrag:
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
 		get_viewport().set_input_as_handled()

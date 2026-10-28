@@ -1,7 +1,8 @@
 class_name PauseMenu
 extends Control
-## Menù di pausa (Start durante il gioco): riprendi, salva, comandi, tutorial, torna
-## al titolo (dopo una conferma: i progressi non salvati si perdono).
+## Menù di pausa (Start / Esc durante il gioco): riprendi, salva, comandi,
+## tutorial, opzioni (rimappatura dei tasti, OptionsPanel), torna al titolo
+## (dopo una conferma: i progressi non salvati si perdono).
 ## Si salva solo senza nemici vicini (anche in movimento): se non si può, il
 ## pulsante è spento e sotto c'è il motivo. Il tasto che
 ## chiude la pausa (A su Riprendi, B, Start) è consumato (vedi UiNav.consume):
@@ -17,6 +18,8 @@ var _tutorial := Button.new()
 var _quit := Button.new()
 var _reason := Label.new()
 var _controls_panel := ControlsPanel.new()
+var _options := Button.new()
+var _options_panel := OptionsPanel.new()
 var _tutorial_panel := TutorialPanel.new()
 ## Richiesta di conferma prima di tornare al titolo.
 var _confirm := Control.new()
@@ -47,7 +50,7 @@ func _ready() -> void:
 	title.add_theme_font_size_override("font_size", 44)
 	title.add_theme_color_override("font_color", Color(0.85, 0.75, 0.4))
 	box.add_child(title)
-	for pair: Array in [[_resume, "PAUSE_RESUME"], [_save, "PAUSE_SAVE"], [_controls, "PAUSE_CONTROLS"], [_tutorial, "PAUSE_TUTORIAL"], [_quit, "PAUSE_QUIT"]]:
+	for pair: Array in [[_resume, "PAUSE_RESUME"], [_save, "PAUSE_SAVE"], [_controls, "PAUSE_CONTROLS"], [_tutorial, "PAUSE_TUTORIAL"], [_options, "PAUSE_OPTIONS"], [_quit, "PAUSE_QUIT"]]:
 		var button: Button = pair[0]
 		button.text = pair[1]
 		button.custom_minimum_size = Vector2(320, 60)
@@ -68,6 +71,9 @@ func _ready() -> void:
 	add_child(_controls_panel)
 	_controls_panel.process_mode = Node.PROCESS_MODE_ALWAYS
 	_controls_panel.closed.connect(_controls.grab_focus)
+	_options.pressed.connect(_open_options)
+	add_child(_options_panel)
+	_options_panel.closed.connect(_options.grab_focus)
 	add_child(_tutorial_panel)
 	_tutorial_panel.process_mode = Node.PROCESS_MODE_ALWAYS
 	_tutorial_panel.closed.connect(_tutorial.grab_focus)
@@ -75,7 +81,7 @@ func _ready() -> void:
 
 
 ## Finestra di conferma per tornare al titolo: avvisa che i progressi non
-## salvati andranno persi; Annulla (B) torna al menù di pausa.
+## salvati andranno persi; Annulla (B, Esc) torna al menù di pausa.
 func _build_confirm() -> void:
 	_confirm.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_confirm.visible = false
@@ -194,8 +200,13 @@ func _open_tutorial() -> void:
 	_tutorial_panel.open()
 
 
+func _open_options() -> void:
+	Sfx.play_ui("ui_confirm")
+	_options_panel.open()
+
+
 func _unhandled_input(event: InputEvent) -> void:
-	if not visible or _controls_panel.visible or _tutorial_panel.visible:
+	if not visible or _controls_panel.visible or _options_panel.visible or _tutorial_panel.visible:
 		return
 	if _confirm.visible:
 		if event.is_action_pressed("ui_cancel"):

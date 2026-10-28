@@ -6,7 +6,7 @@ Action RPG post-apocalittico 2D sviluppato con **Godot 4**, destinato alla pubbl
 
 - [Godot 4.4](https://godotengine.org/download) (versione standard, non Mono)
 - [Git LFS](https://git-lfs.com/) per gli asset pesanti
-- Un controller: il gioco non si usa con tastiera e mouse
+- Un controller, oppure tastiera e mouse (il touch non è supportato)
 
 ## Primi passi
 
@@ -16,7 +16,7 @@ cd ciccio-massacro
 git lfs install
 ```
 
-Poi apri la cartella da Godot (Importa progetto → `project.godot`) e premi F5 con un controller collegato.
+Poi apri la cartella da Godot (Importa progetto → `project.godot`) e premi F5 (col controller, o con tastiera e mouse).
 
 ## Struttura
 
@@ -42,7 +42,7 @@ Poi apri la cartella da Godot (Importa progetto → `project.godot`) e premi F5 
 Regole di progetto per restare multipiattaforma:
 
 - **Renderer**: Compatibility (OpenGL), il più compatibile per 2D su mobile e PC datati; su Linux Mobile (Vulkan), vedi Build
-- **Input**: solo controller: tastiera, mouse e touch non sono supportati. L'attacco speciale della Frenesia è la combinazione di `parry` e `attack` (L1 + R1) premuti insieme (`UiNav.game_chord`), senza un'azione a parte. L'Input Map (`move_*`, `interact`, `attack`, `heavy_attack`, `parry`, `dodge`, `jump`, `run`, `spell`, `shield`, `potion`, `mana_potion`, `battery_potion`, `inventory`, `inventory_sort`, `map`, `lock_on`, `focus`, `menu`, più `ui_accept` / `ui_cancel` per i menù) ha solo pulsanti, levette e grilletti del controller; all'avvio `Platform` toglie anche i tasti e i clic delle azioni `ui_*` predefinite di Godot e ferma tastiera, mouse e tocchi sullo schermo prima che arrivino ai menù (il puntatore è nascosto). I comandi non si possono rimappare: i nomi dei tasti mostrati (comandi, barra delle azioni, suggerimenti) li legge dall'Input Map `scripts/pad_labels.gd`
+- **Input**: controller, tastiera e mouse (come in Gobelino); il touch non è supportato: `Platform` ferma i tocchi sullo schermo e in `project.godot` non diventano clic (`emulate_mouse_from_touch` spento). L'attacco speciale della Frenesia è la combinazione di `parry` e `attack` (L1 + R1) premuti insieme (`UiNav.game_chord`), senza un'azione a parte. L'Input Map (`move_*`, `interact`, `attack`, `heavy_attack`, `parry`, `dodge`, `jump`, `run`, `spell`, `shield`, `potion`, `mana_potion`, `battery_potion`, `inventory`, `inventory_sort`, `map`, `lock_on`, `focus`, `menu`, più `ui_accept` / `ui_cancel` per i menù) ha tasti della tastiera, del mouse e del controller, mai scritti nel codice; `move_click` (clic centrale) fa camminare verso il cursore e gli attacchi partiti col mouse vanno verso il cursore (`Player._unhandled_input`). I comandi si rimappano dal pannello *Opzioni* (menù iniziale e di pausa, `scripts/options_panel.gd`): `scripts/keybinds.gd` salva solo le azioni cambiate in `user://keybinds.json` e fornisce i nomi dei tasti mostrati (comandi, barra delle azioni, suggerimenti, tutorial). Sullo Steam Deck, finché c'è un controller, `Platform` toglie dalle azioni tasti e clic (Steam può continuare a mandare quelli del layout desktop) e li rimette quando il controller sparisce
 - **UI**: ancoraggi e container, stretch "expand", orientamento landscape
 - **Piattaforma**: il codice chiede a `Platform` (`scripts/platform.gd`) cosa è disponibile (Steam, Deck) invece di controllare il sistema operativo
 - **Salvataggi**: sempre in `user://`
@@ -87,29 +87,32 @@ La cartella dei dati dell'utente prende il nome dal progetto: con il cambio di n
 
 ## Livello di test
 
-All'avvio c'è un menù (Continua / Nuova partita / Comandi / Tutorial / Esci): *Comandi* mostra l'elenco dei comandi del controller e degli attacchi speciali (`scripts/controls_panel.gd`); *Tutorial* (anche nel menù di pausa) spiega le meccaniche a pagine (vedi *Tutorial*); durante il gioco le istruzioni non sono sullo schermo. In basso a sinistra ci sono solo la versione e i crediti (creato da fdamore1984 con Claude Code). Il livello di test è una città distrutta senza limiti generata a caso, con predoni di vari tipi sparsi a caso; il protagonista (Ciccio: un cerchio rosa carne con braccia e gambe come linee nere sottili) e i nemici sono forme geometriche e i suoni sono sintetizzati in `scripts/sfx.gd`, in attesa degli asset definitivi.
+All'avvio c'è un menù (Continua / Nuova partita / Comandi / Tutorial / Opzioni / Esci): *Comandi* mostra l'elenco dei comandi di tastiera, mouse e controller e degli attacchi speciali; *Opzioni* li fa cambiare (`scripts/controls_panel.gd`); *Tutorial* (anche nel menù di pausa) spiega le meccaniche a pagine (vedi *Tutorial*); durante il gioco le istruzioni non sono sullo schermo. In basso a sinistra ci sono solo la versione e i crediti (creato da fdamore1984 con Claude Code). Il livello di test è una città distrutta senza limiti generata a caso, con predoni di vari tipi sparsi a caso; il protagonista (Ciccio: un cerchio rosa carne con braccia e gambe come linee nere sottili) e i nemici sono forme geometriche e i suoni sono sintetizzati in `scripts/sfx.gd`, in attesa degli asset definitivi.
 
-| Azione | Controller |
-|---|---|
-| Movimento | levetta sinistra |
-| Attacco con la motosega (combo; tieni premuto per continuare ad attaccare) | R1 |
-| Colpo potente (chiude la combo; tieni premuto per caricarlo, continua a tenere per concatenarli; in aria, solo con una bomba H: la spacchi a terra) | L2 |
-| Parata (tieni premuto) | L1 |
-| Attacco speciale della Frenesia (a barra piena) | L1 + R1 insieme |
-| Schivata (ripeti per concatenare) | B |
-| Salto | A |
-| Corsa (tocco: accendi / spegni; si spegne da sola fermandosi) | L3 |
-| Torcia elettrica (tenendo premuto 0,45 s: accendi / spegni) | L3 |
-| Focus (tieni premuto: oggetti da raccogliere più visibili) | R2 |
-| Bazooka (missile a ricerca) | X |
-| Scudo | Y |
-| Kit medico | croce sinistra |
-| Tanica di carburante | croce destra |
-| Batteria di ricambio | croce giù |
-| Inventario | croce su |
-| Mappa completa | Select |
-| Aggancio manuale del nemico più vicino che vedi (di nuovo: passa al più vicino; senza, l'aggancio è automatico) | R3 |
-| Menù di pausa (riprendi, salva, comandi, tutorial, esci con conferma) | Start |
+| Azione | Tastiera | Mouse | Controller |
+|---|---|---|---|
+| Movimento | W A S D | clic centrale (cammina verso il cursore) | levetta sinistra |
+| Attacco con la motosega (combo; tieni premuto per continuare ad attaccare; col mouse verso il cursore) | J | clic sinistro | R1 |
+| Colpo potente (chiude la combo; tieni premuto per caricarlo, continua a tenere per concatenarli; in aria, solo con una bomba H: la spacchi a terra) | L | clic destro | L2 |
+| Parata (tieni premuto) | K | | L1 |
+| Attacco speciale della Frenesia (a barra piena) | K + J insieme | | L1 + R1 insieme |
+| Schivata (ripeti per concatenare) | Spazio | | B |
+| Salto | F | | A |
+| Interagisci | E | | A |
+| Corsa (tocco: accendi / spegni; si spegne da sola fermandosi) | Maiusc | | L3 |
+| Torcia elettrica (tenendo premuto 0,45 s: accendi / spegni) | Maiusc | | L3 |
+| Focus (tieni premuto: oggetti da raccogliere più visibili) | V | | R2 |
+| Bazooka (missile a ricerca) | U | | X |
+| Scudo | R | | Y |
+| Kit medico | Q | | croce sinistra |
+| Tanica di carburante | T | | croce destra |
+| Batteria di ricambio | G | | croce giù |
+| Inventario (ordina: C / R3) | I / Tab | | croce su |
+| Mappa completa | M | | Select |
+| Aggancio manuale del nemico più vicino che vedi (di nuovo: passa al più vicino; senza, l'aggancio è automatico) | C | | R3 |
+| Menù di pausa (riprendi, salva, comandi, tutorial, opzioni, esci con conferma) | Esc | | Start |
+
+Sono i tasti predefiniti: si cambiano in *Opzioni*.
 
 - **HUD** (`scripts/hud_status.gd`, `scripts/hud_actions.gd`): in alto a sinistra un pannello con ritratto rosa e livello, vita a segmenti e carburante senza numeri (solo le barre, il carburante arancione), batteria (barra verde con un fulmine, il bordo lampeggia in rosso quando non basta per un attacco), esperienza, Frenesia (barra rossa con una fiamma: piena pulsa e mostra «FRENESIA! L1 + R1», con i tasti letti dall'Input Map), livelli delle abilità, rottami e nemici sconfitti; in basso a sinistra la barra delle azioni (kit medici, taniche, batterie di ricambio, scudo con la ricarica, bazooka, bombe H, inventario) con il tasto del controller; in alto a destra minimappa (200 px, con i segni contornati di scuro: casse, sirene, commercianti, porte degli edifici come dischi arancioni col vano buio, grigi se ripuliti, scale come frecce in giù e uscite come frecce in su; `scripts/minimap.gd`), su un pannello scuro. I potenziamenti attivi sono una riga compatta di icone in basso a destra (sotto ogni icona quante volte è stato preso, o i secondi rimasti della parata perfetta); Vicino a un elemento con cui si può interagire (cassa chiusa, commerciante, sirena pronta, porta di un edificio, scale, uscita) compare sopra di lui il tasto A con "Interact" (`scripts/interact_prompt.gd`): solo premendolo succede qualcosa; lì vicino A interagisce invece di saltare. Il pannello in alto a sinistra è disegnato più piccolo (scala 0,82) per coprire meno l'area di gioco, ma i testi sono disegnati alla loro grandezza vera (circa 16 e 14 px), nitidi e con un contorno scuro, su uno sfondo più scuro. Sopra il personaggio e i nemici non compaiono scritte (combo, danni, esperienza, oggetti raccolti): le informazioni sono nell'HUD. Con poca vita (un terzo o meno) i bordi dello schermo diventano rossi e pulsano come un battito, più forte quanto meno vita resta (`scripts/low_health_vignette.gd`).
 - **Movimento**: accelerazione e frenata morbide, con interpolazione fisica per restare fluido anche su schermi a 90/120 Hz. La telecamera segue con dolcezza e anticipa un poco la direzione di movimento; il corpo ondeggia camminando, si inclina nella direzione di corsa e si schiaccia atterrando.
@@ -152,7 +155,7 @@ All'avvio c'è un menù (Continua / Nuova partita / Comandi / Tutorial / Esci): 
 
 ## Steam Deck
 
-Sullo Steam Deck il gioco parte sempre a schermo intero, anche in modalità Desktop (`scripts/platform.gd`). In modalità Desktop, se il gioco è avviato fuori da Steam (per esempio dall'app di itch.io), Steam trasforma i comandi integrati in tastiera e mouse e il gioco, che si usa solo col controller, non vede niente. Per usarli come controller: tenere premuto il tasto Menu (Start) per 1 secondo, che passa alla modalità controller, oppure aggiungere il gioco a Steam come gioco non Steam e avviarlo da lì. Il gioco riconosce il Deck anche fuori da Steam (dal modello dell'hardware) e in quel caso, finché non vede un controller, mostra queste istruzioni nel menù e in gioco.
+Sullo Steam Deck il gioco parte sempre a schermo intero, anche in modalità Desktop (`scripts/platform.gd`). In modalità Desktop, se il gioco è avviato fuori da Steam (per esempio dall'app di itch.io), Steam trasforma i comandi integrati in tastiera e mouse e il gioco li riceve come tastiera e mouse (i menù accettano croce, frecce, WASD, Invio/Spazio e J). Per usarli come controller: tenere premuto il tasto Menu (Start) per 1 secondo, che passa alla modalità controller, oppure aggiungere il gioco a Steam come gioco non Steam e avviarlo da lì. Il gioco riconosce il Deck anche fuori da Steam (dal modello dell'hardware) e in quel caso, finché non vede un controller, mostra queste istruzioni nel menù e in gioco.
 
 ## Lingue
 
