@@ -292,7 +292,6 @@ const COLOR_CHARGE_GLOW := Color(1.0, 0.55, 0.15)
 ## Torcia elettrica: un fascio a cono nella direzione dello sguardo (vedi
 ## Flashlight), acceso e spento tenendo premuto L3 per TORCH_HOLD_TIME
 ## secondi; un tocco più breve è la corsa.
-const TORCH_COLOR := Flashlight.COLOR
 const TORCH_HOLD_TIME := 0.45
 
 ## Ogni pozione cura questi punti vita.
@@ -377,7 +376,12 @@ const DRINK_SPEED_FACTOR := 0.3
 
 const HURT_TIME := 0.25
 const HURT_KNOCKBACK := 420.0
+## Dopo un colpo si resta invulnerabili per HURT_INVULNERABLE_TIME secondi
+## (vedi _start_invulnerability), lampeggiando: un'opacità ogni
+## INVULNERABLE_BLINK secondi, che scende fino a INVULNERABLE_ALPHA.
 const HURT_INVULNERABLE_TIME := 0.8
+const INVULNERABLE_BLINK := 0.08
+const INVULNERABLE_ALPHA := 0.35
 
 ## Gambe: il corpo sta sopra di LEG_LENGTH; i passi seguono la velocità.
 ## Corte e larghe: le gambe sono distanti LEG_SPACING dal centro e spesse LEG_WIDTH.
@@ -476,7 +480,10 @@ var _dodges_used := 0
 var _dodge_cooldown := 0.0
 ## Dopo una schivata resta un attimo per concatenarne un'altra.
 var _dodge_chain_grace := 0.0
-var _invulnerable_time := 0.0
+## Invulnerabilità dopo un colpo: finché il timer corre si ignorano altri
+## danni e il personaggio lampeggia (_invulnerable_blink).
+var _invulnerable_timer := Timer.new()
+var _invulnerable_blink: Tween
 ## Colpi normali e colpi potenti della combo in corso, e tempo rimasto per continuarla.
 var _combo_step := 0
 var _heavy_step := 0
@@ -593,6 +600,11 @@ func _ready() -> void:
 	if not _voice.is_inside_tree():
 		_voice.tone = VOICE_TONE
 		add_child(_voice)
+	if not _invulnerable_timer.is_inside_tree():
+		_invulnerable_timer.one_shot = true
+		_invulnerable_timer.process_callback = Timer.TIMER_PROCESS_PHYSICS
+		_invulnerable_timer.timeout.connect(_end_invulnerability)
+		add_child(_invulnerable_timer)
 	if World.current:
 		ground_elevation = World.current.elevation_at(position)
 	_safe_position = position
@@ -609,7 +621,6 @@ func _physics_process(delta: float) -> void:
 	_state_time += delta
 	_dodge_cooldown = maxf(_dodge_cooldown - delta, 0.0)
 	_dodge_chain_grace = maxf(_dodge_chain_grace - delta, 0.0)
-	_invulnerable_time = maxf(_invulnerable_time - delta, 0.0)
 	_empowered_time = maxf(_empowered_time - delta, 0.0)
 	_block_flash = maxf(_block_flash - delta, 0.0)
 	soot = maxf(soot - delta / SOOT_CLEAN_TIME, 0.0)
@@ -1034,7 +1045,7 @@ func _end_combo() -> void:
 ## projectile: colpo a distanza (dardi, frecce), che raggiunge anche chi
 ## fluttua a mezz'aria caricando lo slam aereo.
 func receive_hit(from: Vector2, damage: int, projectile := false) -> String:
-	if _state in [State.DEAD, State.FALL] or _invulnerable_time > 0.0:
+	if _state in [State.DEAD, State.FALL] or is_invulnerable():
 		return "ignored"
 	if (_state == State.DODGE and _state_time <= DODGE_INVULNERABLE_TIME) \
 			or (_state == State.SLIDE and _state_time <= SLIDE_INVULNERABLE_TIME):
@@ -1073,7 +1084,7 @@ func receive_hit(from: Vector2, damage: int, projectile := false) -> String:
 	if shield_active:
 		# Lo scudo assorbe un colpo da qualsiasi direzione e poi si rompe.
 		shield_active = false
-		_invulnerable_time = 0.3
+		_start_invulnerability(0.3)
 		Sfx.play("shield_break", global_position)
 		return "shielded"
 
@@ -1089,7 +1100,7 @@ func receive_hit(from: Vector2, damage: int, projectile := false) -> String:
 	else:
 		_change_state(State.HURT)
 		_velocity = -to_attacker * HURT_KNOCKBACK
-		_invulnerable_time = HURT_INVULNERABLE_TIME
+		_start_invulnerability(HURT_INVULNERABLE_TIME)
 		Sfx.play("hurt", global_position)
 		_voice.pain()
 	return "hit"
@@ -1097,6 +1108,29 @@ func receive_hit(from: Vector2, damage: int, projectile := false) -> String:
 
 func is_dead() -> bool:
 	return _state == State.DEAD
+
+
+## Invulnerabile dopo un colpo: gli altri colpi vengono ignorati.
+func is_invulnerable() -> bool:
+	return not _invulnerable_timer.is_stopped()
+
+
+## Invulnerabilità per time secondi, con il personaggio che lampeggia.
+func _start_invulnerability(time: float) -> void:
+	_invulnerable_timer.start(time)
+	if _invulnerable_blink:
+		_invulnerable_blink.kill()
+	modulate.a = 1.0
+	_invulnerable_blink = create_tween().set_loops()
+	_invulnerable_blink.tween_property(self, "modulate:a", INVULNERABLE_ALPHA, INVULNERABLE_BLINK / 2.0)
+	_invulnerable_blink.tween_property(self, "modulate:a", 1.0, INVULNERABLE_BLINK / 2.0)
+
+
+func _end_invulnerability() -> void:
+	if _invulnerable_blink:
+		_invulnerable_blink.kill()
+		_invulnerable_blink = null
+	modulate.a = 1.0
 
 
 ## Una ferita (from: da dove arriva il colpo): lo squarcio sul corpo che
@@ -1191,7 +1225,7 @@ func _climb_out_of_ravine() -> void:
 	if health == 0:
 		_die()
 	else:
-		_invulnerable_time = HURT_INVULNERABLE_TIME
+		_start_invulnerability(HURT_INVULNERABLE_TIME)
 		Sfx.play("hurt", global_position)
 		_voice.pain()
 
@@ -2205,9 +2239,6 @@ func _draw() -> void:
 		body = COLOR_DEAD
 	elif _state == State.HURT:
 		body = COLOR_HURT
-	# Lampeggia mentre è invulnerabile dopo un colpo.
-	if _invulnerable_time > 0.0 and int(_invulnerable_time * 12.0) % 2 == 0:
-		body.a = 0.35
 	# Precipitando in un burrone svanisce nel buio.
 	self_modulate.a = 1.0 - clampf(_state_time / FALL_TIME, 0.0, 1.0) if _state == State.FALL else 1.0
 
@@ -2608,13 +2639,10 @@ func _draw_charge_heat(hand: Vector2, angle: float, length: float) -> void:
 		draw_line(tip - Vector2(0, flash), tip + Vector2(0, flash), Color(1, 1, 1, 0.9), 2.0)
 
 
-## Torcia elettrica nell'altra mano, con il fascio di luce in avanti.
+## Torcia elettrica nell'altra mano (il fascio è solo la luce, vedi Flashlight).
 func _draw_torch() -> void:
 	var hand := -facing.orthogonal() * RADIUS * 0.9
 	var lens := hand + facing * 12.0
-	var across := facing.orthogonal()
-	draw_primitive(PackedVector2Array([lens + across * 3.0, lens + facing * 42.0 + across * 20.0, lens + facing * 42.0 - across * 20.0, lens - across * 3.0]),
-			PackedColorArray([Color(TORCH_COLOR, 0.16)]), PackedVector2Array())
 	draw_line(hand, lens, COLOR_FLASHLIGHT, 5.0)
 	Shapes.disc(self, lens, 3.5, Color(1.0, 1.0, 0.85))
 	_off_hand = hand + facing * 3.0
