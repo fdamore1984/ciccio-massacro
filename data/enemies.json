@@ -81,7 +81,7 @@
 		"weapon": "",
 		"health": 8, "xp": 2, "damage": 1,
 		"guard_chance": 0, "guard_time": [0.5, 0.9], "max_strikes": 1,
-		"radius": 17, "speed": 190, "mass": 0.5, "aggro_range": 2400, "orbit_distance": 0,
+		"radius": 17, "speed": 300, "mass": 0.5, "aggro_range": 2400, "orbit_distance": 0,
 		"windup": [1.0, 1.0], "lunge_speed": 0, "strike_reach": 0, "strike_arc": 0,
 		"spawn_weight": [0, 0], "horde": true
 	},
