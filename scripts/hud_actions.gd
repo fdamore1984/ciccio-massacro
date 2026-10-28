@@ -2,7 +2,7 @@ class_name HudActions
 extends Control
 ## Barra delle azioni in basso a sinistra: kit medici, taniche, batterie,
 ## scudo, bazooka, bombe H (colpo potente in aria) e inventario, ognuno con la sua icona, il tasto del
-## controller (vedi PadLabels), quante ne restano o la ricarica.
+## controller scelto dal giocatore (vedi Keybinds), quante ne restano o la ricarica.
 
 const SLOT := 58.0
 const GAP := 8.0
@@ -63,7 +63,7 @@ func _draw() -> void:
 		if count != "":
 			_text(font, count, rect.position + Vector2(SLOT - 6, SLOT - 6), 13, Color.WHITE, HORIZONTAL_ALIGNMENT_RIGHT)
 		# Tasto del controller, sotto lo slot.
-		_text(font, PadLabels.primary(ACTIONS[i][1], true), rect.position + Vector2(SLOT / 2.0, SLOT + 14), 14, COLOR_KEY)
+		_text(font, Keybinds.primary(ACTIONS[i][1], "controller", true), rect.position + Vector2(SLOT / 2.0, SLOT + 14), 14, COLOR_KEY)
 
 
 func _is_ready(kind: String) -> bool:

@@ -43,7 +43,7 @@ Priorità di design indicata: il cuore del gioco sono sistema di gioco, inventar
 | Sistema | Descrizione | Stato |
 |---|---|---|
 | Movimento | Isometrico, 8 direzioni, col controller. Nel prototipo il movimento segue le direzioni dello schermo, con accelerazione e frenata | prototipo |
-| Comandi | Solo controller; tastiera, mouse e touch non sono supportati e i comandi non si rimappano. Tutorial a pagine con immagini dal menù iniziale e di pausa | prototipo |
+| Comandi | Controller, tastiera e mouse (camminata verso il cursore, attacchi verso il cursore), comandi rimappabili da Opzioni; touch non supportato. Tutorial a pagine con immagini dal menù iniziale e di pausa | prototipo |
 | Sfide | Nel prototipo: sirene d'allarme al centro di piazze piane che avviano una sfida di sopravvivenza di 30 secondi a ondate, tarata sul livello del giocatore | prototipo |
 | Mondo | Nel prototipo: città distrutta isometrica 3D generata a caso, tutta in piano, con una griglia ordinata di strade dritte e isolati, grandi palazzi in rovina con le porte degli edifici abbandonati, fessure dei terremoti e pochi ostacoli (rovine, macerie, cumuli di rottami che rallentano) | prototipo |
 | Combattimento | Tempo reale: combo di motosega (R1, colpi istantanei), colpo potente (L2), parata (L1), Frenesia con attacco speciale (L1 + R1 a barra piena), schivate concatenate e orientabili (B), salto (A), corsa e scivolata (L3), bazooka con missile a ricerca (X), scudo (Y), kit medici, taniche di carburante ed batterie di ricambio (croce sinistra, destra e giù), torcia elettrica accesa e spenta tenendo premuto L3, inventario (croce su); colpo potente caricabile (consuma carburante; a mezz'aria si fluttua e consuma anche batteria, esposti agli spari), fermo all'impatto, sangue abbondante; nove tipi di nemici, pistoleri e fucilieri compresi | prototipo |
@@ -76,7 +76,7 @@ Priorità di design indicata: il cuore del gioco sono sistema di gioco, inventar
 
 - **Motore**: Godot 4.4, GDScript, renderer Compatibility
 - **Isometrico**: terreno a blocchi disegnato in codice, ordinamento per profondità con Y-sort, movimento convertito dagli assi di input agli assi isometrici
-- **Input**: solo controller tramite Input Map; UI utilizzabile solo col controller
+- **Input**: controller, tastiera e mouse tramite Input Map, rimappabili; UI utilizzabile con controller, tastiera e mouse
 - **Lingue**: italiano; traduzioni in `data/translations.csv` (colonna `it`, la colonna `en` resta pronta)
 - **Dati**: contenuti di gioco in `data/` (JSON o risorse), separati dal codice
 - **Repository**: ramo unico `main`, CI su GitHub Actions

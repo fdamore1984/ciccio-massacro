@@ -4,7 +4,7 @@ extends Control
 ## che vende: oggetti rari che nelle casse non si trovano (finiscono quando
 ## li si compra) e scorte (kit medici, taniche, energetici) sempre disponibili. Sotto gli oggetti
 ## dell'inventario non indossati, da vendere a una parte del loro prezzo
-## (data/world.json, "merchant"). A (o un tocco) compra o vende; B o Start
+## (data/world.json, "merchant"). A (o clic) compra o vende; B, Esc, Start o I
 ## chiudono. Mentre è aperto il gioco è in pausa.
 
 const COLUMNS := 8
@@ -26,7 +26,7 @@ var _sell_grid := GridContainer.new()
 var _sell_scroll := ScrollContainer.new()
 var _nothing := Label.new()
 var _details := Label.new()
-## Comandi in fondo: mostrano i tasti del controller (vedi PadLabels).
+## Comandi in fondo: mostrano i tasti scelti dal giocatore (vedi Keybinds).
 var _hint: Label
 var _close := Button.new()
 var _buttons: Array[Button] = []
@@ -78,6 +78,7 @@ func _ready() -> void:
 	box.add_child(_details)
 	_hint = _label("", 16, Color(1, 1, 1, 0.55))
 	box.add_child(_hint)
+	# Per chi gioca col mouse.
 	_close.text = "SHOP_CLOSE"
 	_close.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_close.custom_minimum_size = Vector2(180, 40)
@@ -100,7 +101,7 @@ func is_open() -> bool:
 
 func open(merchant: Vector2) -> void:
 	_merchant = merchant
-	_hint.text = tr("SHOP_HINT")
+	_hint.text = tr("SHOP_HINT") % Keybinds.hint("inventory")
 	visible = true
 	get_tree().paused = true
 	Sfx.play_ui("ui_confirm")
@@ -117,7 +118,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not visible:
 		return
 	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("menu") \
-			or (event is InputEventAction and event.is_action_pressed("inventory")):
+			or ((event is InputEventKey or event is InputEventAction) and event.is_action_pressed("inventory")):
 		# Il tasto che chiude (B, Start...) non deve anche schivare in gioco.
 		UiNav.consume(event)
 		close()

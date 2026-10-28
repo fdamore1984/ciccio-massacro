@@ -21,9 +21,10 @@
   segnala all'utente cosa ricaricare a mano.
 - **Contenuti nei dati**: caratteristiche di nemici e simili in `data/`
   (per esempio `data/enemies.json`), separate dal codice.
-- **Input**: solo controller, solo azioni dell'Input Map; tastiera, mouse
-  e touch non sono supportati e i comandi non si
-  possono rimappare. Menù compresi, tutto deve funzionare col controller.
+- **Input**: solo azioni dell'Input Map; tutto deve funzionare con
+  controller e con tastiera e mouse (menù compresi), e i comandi si
+  rimappano dal pannello Opzioni (vedi `scripts/keybinds.gd`). Il touch non
+  è supportato.
 - **Asset provvisori**: grafica geometrica disegnata in codice e suoni
   sintetizzati in `scripts/sfx.gd`, finché non arrivano gli asset definitivi.
 - **Verifica prima di pubblicare**: import e avvio senza errori né warning

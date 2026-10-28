@@ -44,6 +44,8 @@ extends Node2D
 ## (HEAVY_CHARGE_MANA): senza carburante la carica si interrompe. Lo slam
 ## aereo caricato fa fluttuare a mezz'aria, consuma anche batteria ed espone
 ## ai proiettili.
+## Col mouse: clic sinistro per attaccare e destro per il colpo potente
+## verso il cursore, centrale (move_click) per camminarci (vedi _unhandled_input).
 ## Sconfiggere nemici dà esperienza; a ogni livello aumentano i danni
 ## base e si sceglie un potenziamento.
 ## Frenesia (da 0 a FRENZY_MAX): cresce a ogni colpo di motosega a segno,
@@ -338,6 +340,14 @@ const HEAVY_CHARGE_MANA := 20.0
 ## La motosega in carica si scalda: alone arancione, scintille e fumo.
 const COLOR_CHARGE_GLOW := Color(1.0, 0.55, 0.15)
 
+## Mouse: il tasto di "move_click" (centrale) fa camminare verso il punto
+## del terreno sotto il cursore (tenendolo premuto lo si segue); ci si ferma
+## entro CLICK_ARRIVE_DISTANCE o se si resta bloccati per CLICK_STUCK_TIME.
+## Gli attacchi partiti con un tasto del mouse (il sinistro è l'attacco,
+## il destro il colpo potente) vanno verso il cursore.
+const CLICK_ARRIVE_DISTANCE := 10.0
+const CLICK_STUCK_TIME := 0.4
+
 ## Torcia elettrica: un fascio a cono nella direzione dello sguardo (vedi
 ## Flashlight), acceso e spento tenendo premuto L3 per TORCH_HOLD_TIME
 ## secondi; un tocco più breve è la corsa.
@@ -630,6 +640,15 @@ var _chain_charge := 0.0
 var _heavy_swing_played := false
 ## Tempo passato in carica (per l'animazione della motosega che si scalda).
 var _charge_time := 0.0
+## Movimento col mouse: in corso, punto del terreno da raggiungere e da
+## quanto si è bloccati.
+var _click_moving := false
+var _click_target := Vector2.ZERO
+var _click_stuck := 0.0
+## L'attacco è partito con un tasto del mouse: si mira al cursore finché
+## lo si tiene premuto; direzione verso il cursore (zero se non si mira).
+var _aim_cursor := false
+var _aim := Vector2.ZERO
 var _torch := Flashlight.new()
 ## Potenziamento -> quante volte è stato scelto, nell'ordine di scelta.
 var upgrades_taken := {}
@@ -706,7 +725,16 @@ func _physics_process(delta: float) -> void:
 	# appena chiuso un menù (A su Riprendi, B) non conta finché non si rilascia.
 	var input := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	var dodge_input := Input.get_vector("move_left", "move_right", "move_up", "move_down", DODGE_STICK_DEADZONE)
-	var attack_input := input
+	# Tastiera e levetta hanno la precedenza sul movimento col mouse.
+	if input != Vector2.ZERO:
+		_click_moving = false
+	else:
+		input = _click_input(delta)
+		if dodge_input == Vector2.ZERO:
+			dodge_input = input
+	_update_aim()
+	# Gli attacchi col mouse partono verso il cursore.
+	var attack_input := _aim if _aim != Vector2.ZERO else input
 
 	if _state not in [State.DEAD, State.HURT, State.SPECIAL]:
 		if UiNav.game_pressed("potion"):
@@ -2983,3 +3011,67 @@ func _draw_torch() -> void:
 	draw_line(hand, lens, COLOR_FLASHLIGHT, 5.0)
 	Shapes.disc(self, lens, 3.5, Color(1.0, 1.0, 0.85))
 	_off_hand = hand + facing * 3.0
+
+
+## Tasti del mouse premuti sul mondo (non sui pulsanti dell'interfaccia,
+## che li consumano prima): movimento verso il cursore e mira degli
+## attacchi. Gli eventi emulati (tocchi sullo schermo) si ignorano: il touch
+## non è supportato.
+func _unhandled_input(event: InputEvent) -> void:
+	if not (event is InputEventMouseButton) or event.device == InputEvent.DEVICE_ID_EMULATION:
+		return
+	if _state == State.DEAD or Platform.ignores_desktop_input():
+		return
+	if event.is_action_pressed("move_click"):
+		_click_moving = true
+		_click_target = _cursor_ground()
+		_click_stuck = 0.0
+	if event.is_action_pressed("heavy_attack") or event.is_action_pressed("attack"):
+		_aim_cursor = true
+
+
+## Direzione del movimento col mouse (zero se non ci si sta muovendo così):
+## tenendo premuto il tasto si segue il cursore; arrivati, o bloccati da un
+## ostacolo, ci si ferma.
+func _click_input(delta: float) -> Vector2:
+	if not _click_moving or _state == State.DEAD:
+		_click_moving = false
+		return Vector2.ZERO
+	if Input.is_action_pressed("move_click"):
+		_click_target = _cursor_ground()
+	var to_target := _click_target - position
+	if _state == State.NORMAL and _state_time > CLICK_STUCK_TIME and _velocity.length() < SPEED * 0.1:
+		_click_stuck += delta
+	else:
+		_click_stuck = 0.0
+	if to_target.length() <= CLICK_ARRIVE_DISTANCE or _click_stuck >= CLICK_STUCK_TIME:
+		_click_moving = false
+		return Vector2.ZERO
+	return to_target.normalized()
+
+
+## Mira col mouse: finché si tiene premuto il tasto che ha fatto partire
+## l'attacco si mira al cursore.
+func _update_aim() -> void:
+	_aim = Vector2.ZERO
+	if not _aim_cursor:
+		return
+	var to_cursor := _cursor_ground() - position
+	if to_cursor.length() > 1.0:
+		_aim = to_cursor.normalized()
+	if not Input.is_action_pressed("heavy_attack") and not Input.is_action_pressed("attack"):
+		_aim_cursor = false
+
+
+## Punto del terreno sotto il cursore: il terreno è disegnato più in alto
+## della sua altezza, quindi si cerca il punto che, sollevato, cade sotto il
+## cursore (bastano pochi passi).
+func _cursor_ground() -> Vector2:
+	var parent := get_parent() as Node2D
+	var at := parent.to_local(get_global_mouse_position()) if parent else get_global_mouse_position()
+	if World.current == null:
+		return at
+	var point := at
+	for i in 3:
+		point = at + Vector2(0, World.current.elevation_at(point))
+	return point

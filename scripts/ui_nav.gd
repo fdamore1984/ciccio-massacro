@@ -1,7 +1,7 @@
 class_name UiNav
 ## Navigazione dei menù tollerante: oltre alle azioni ui_* di Godot accetta
-## la croce del controller letta direttamente, la levetta sinistra e
-## l'attacco per confermare; se nessun
+## croce del controller e frecce della tastiera lette direttamente, i
+## comandi di gioco (WASD, levetta) e l'attacco per confermare; se nessun
 ## pulsante ha il focus lo riporta sul primo. Serve per esempio sullo Steam
 ## Deck, dove Steam può trasformare i comandi del controller in tasti
 ## diversi da quelli che Godot usa di solito nei menù.
@@ -44,7 +44,7 @@ static func handle(event: InputEvent, viewport: Viewport, first: Control) -> boo
 		# Il tasto di conferma non deve arrivare anche al gioco (per esempio
 		# premendo Riprendi: si tornerebbe in gioco saltando).
 		consume(event)
-		# ui_accept (A) lo gestisce già il pulsante da solo, al
+		# ui_accept (A, Invio) lo gestisce già il pulsante da solo, al
 		# rilascio: premerlo anche qui farebbe due pressioni con un tocco solo
 		# (per esempio la conferma per sostituire uno slot salvato).
 		if not event.is_action_pressed("ui_accept"):
@@ -107,6 +107,12 @@ static func _direction(event: InputEvent) -> int:
 			JOY_BUTTON_DPAD_DOWN: return SIDE_BOTTOM
 			JOY_BUTTON_DPAD_LEFT: return SIDE_LEFT
 			JOY_BUTTON_DPAD_RIGHT: return SIDE_RIGHT
+	if event is InputEventKey:
+		match (event as InputEventKey).keycode:
+			KEY_UP: return SIDE_TOP
+			KEY_DOWN: return SIDE_BOTTOM
+			KEY_LEFT: return SIDE_LEFT
+			KEY_RIGHT: return SIDE_RIGHT
 	if _is_any(event, _UP):
 		return SIDE_TOP
 	if _is_any(event, _DOWN):

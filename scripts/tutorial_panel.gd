@@ -7,7 +7,7 @@ extends Control
 ## levetta per spostarsi, A per premere) o direttamente con L1 e R1; B, il
 ## pulsante Chiudi o Start chiudono.
 ## Nei testi i tasti sono scritti come {azione} e si leggono dall'Input Map
-## (vedi PadLabels): per esempio {attack} diventa R1.
+## (vedi Keybinds): per esempio {attack} diventa R1.
 
 signal closed
 
@@ -199,7 +199,7 @@ func _show_page(index: int) -> void:
 	_counter.text = tr("TUTORIAL_PAGE") % [index + 1, PAGES.size()]
 	for k in _dots.get_child_count():
 		(_dots.get_child(k) as ColorRect).color = COLOR_DOT_CURRENT if k == index else COLOR_DOT
-	_hint.text = tr("TUTORIAL_HINT") % [PadLabels.hint("parry"), PadLabels.hint("attack"), PadLabels.hint("ui_cancel")]
+	_hint.text = tr("TUTORIAL_HINT") % [Keybinds.hint("parry"), Keybinds.hint("attack"), Keybinds.hint("ui_cancel")]
 	# Prima e ultima pagina: il pulsante che non serve si spegne e il focus
 	# passa all'altro.
 	var focused := get_viewport().gui_get_focus_owner() if is_inside_tree() else null
@@ -215,7 +215,7 @@ func _show_page(index: int) -> void:
 func _with_keys(text: String) -> String:
 	var result := text
 	for found in _key_pattern.search_all(text):
-		result = result.replace(found.get_string(), PadLabels.hint(found.get_string(1)))
+		result = result.replace(found.get_string(), Keybinds.hint(found.get_string(1)))
 	return result
 
 

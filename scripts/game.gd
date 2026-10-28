@@ -219,7 +219,8 @@ func _update_challenge(delta: float) -> void:
 
 ## Elemento con cui si può interagire qui vicino (cassa chiusa, mercante,
 ## totem pronto, ingresso di una caverna, scala, uscita): sopra compare il
-## tasto con "Interact" e solo premendolo (A) succede qualcosa. Il tasto A serve anche a saltare: vicino
+## tasto con "Interact" e solo premendolo (A / E, o cliccando il
+## suggerimento) succede qualcosa. Il tasto A serve anche a saltare: vicino
 ## a un elemento interagisce invece di saltare (vedi Player.can_interact).
 func _update_interaction() -> void:
 	_interactable = _find_interactable()

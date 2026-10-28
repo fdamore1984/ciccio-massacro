@@ -44,7 +44,7 @@ UPGRADE_CHOICE,One more upgrade to choose,Un potenziamento in più da scegliere
 INVENTORY_TITLE,Inventory,Inventario
 INVENTORY_EQUIPPED,"Equipment: chain, armor, shoes, fuel tank, scope","Equipaggiamento: catena, giubbotto, scarpe, serbatoio, mirino"
 INVENTORY_EMPTY,Nothing yet: open crates to find items,Ancora niente: apri le casse per trovare oggetti
-INVENTORY_HINT,A: use · %s: sort · B: close,A: usa · %s: ordina · B: chiudi
+INVENTORY_HINT,A / Enter: use · %s: sort · B / Esc / %s: close,A / Invio: usa · %s: ordina · B / Esc / %s: chiudi
 INVENTORY_GOLD,Scrap: %d,Rottami: %d
 INVENTORY_SORT,Sort: %s · %s,Ordine: %s · %s
 INVENTORY_COMPARE,Compared to your %s: %s,Rispetto a %s: %s
@@ -96,7 +96,7 @@ SHOP_SELL_ACTION,A: sell for %d scrap,A: vendi per %d rottami
 SHOP_NOT_ENOUGH,You don't have enough scrap,Non hai abbastanza rottami
 SHOP_BELT_FULL,Your supply belt is full,La tua cintura delle scorte è piena
 SHOP_NOTHING_TO_SELL,Nothing to sell: collect items from crates,Niente da vendere: raccogli oggetti dalle casse
-SHOP_HINT,A: buy or sell · B: close,A: compra o vendi · B: chiudi
+SHOP_HINT,A / Enter: buy or sell · B / Esc / %s: close,A / Invio: compra o vendi · B / Esc / %s: chiudi
 SHOP_CLOSE,Close,Chiudi
 ITEM_SWORD_DRAGON,Diamond chain,Catena diamantata
 ITEM_ARMOR_PLATE,Riot armor,Armatura antisommossa
@@ -108,7 +108,7 @@ ITEM_BOOK_VIGOR,Manual: Survival,Manuale: Sopravvivenza
 ITEM_POTION_ELIXIR,Survival kit,Kit di sopravvivenza
 MENU_CONTROLS,Controls,Comandi
 CONTROLS_TITLE,Controls,Comandi
-CONTROLS_MOVE,Move,Movimento
+CONTROLS_MOVE,"Move (mouse: walk to the cursor, hold to follow it)","Movimento (mouse: cammina verso il cursore, tieni premuto per seguirlo)"
 CONTROLS_ATTACK,"Attack (combo, hold to keep attacking)","Attacco (combo, tieni premuto per continuare ad attaccare)"
 CONTROLS_HEAVY,"Power strike (hold to charge, burns fuel while held; keep holding to chain)","Colpo potente (tieni premuto per caricarlo, consuma carburante; continua a tenere per concatenarli)"
 CONTROLS_PARRY,"Parry (instant, cancels any action)","Parata (istantanea, annulla qualsiasi azione)"
@@ -122,12 +122,12 @@ CONTROLS_POTION,Medkit,Kit medico
 CONTROLS_MANA,Fuel can,Tanica di carburante
 CONTROLS_BATTERY_POTION,Spare battery,Batteria di ricambio
 CONTROLS_INVENTORY,Inventory · sort it,Inventario · ordinalo
-CONTROLS_MENU,"Pause menu (save, controls, quit)","Menù di pausa (salva, comandi, esci)"
+CONTROLS_MENU,"Pause menu (save, controls, tutorial, options, quit)","Menù di pausa (salva, comandi, tutorial, opzioni, esci)"
 CONTROLS_SPECIAL_TITLE,Special attacks,Attacchi speciali
 CONTROLS_SPECIAL_MIXED,Power strike right after a combo: a wide power strike with bonus damage,Colpo potente subito dopo una combo: un colpo potente ampio con danni in più
 CONTROLS_SPECIAL_CHARGED,Charge the first power strike: every power strike chained after it deals extra damage,Carica il primo colpo potente: ogni colpo potente concatenato dopo fa danni in più
 CONTROLS_SPECIAL_AIR,Attack in mid-air: wide aerial slashes that also reach the enemies below you,Attacco a mezz'aria: fendenti ampi che colpiscono anche i nemici sotto di te
-CONTROLS_SPECIAL_PLUNGE,"Power strike in mid-air, only with an H-bomb: smash it on the ground, the blast kills the enemies around (hold it to float and widen the blast; gunners can hit you)","Colpo potente a mezz'aria, solo con una bomba H: la spacchi a terra e l'esplosione uccide i nemici attorno (tienilo premuto per fluttuare e allargarla; i tiratori ti colpiscono)"
+CONTROLS_SPECIAL_PLUNGE,"Power strike in mid-air, with an H-bomb: smash it, the blast kills the enemies around (hold to float and widen it)","Colpo potente a mezz'aria, con una bomba H: la spacchi e l'esplosione uccide i nemici attorno (tieni premuto per allargarla)"
 CONTROLS_SPECIAL_DASH,Power strike during an air dash: dash strike that smashes a wide area,Colpo potente durante uno scatto in aria: colpo in scatto che spazza un'area ampia
 CONTROLS_BACK,Back,Indietro
 MENU_CONTINUE,Continue,Continua
@@ -177,7 +177,7 @@ MENU_CREDITS,Created by fdamore1984 with Claude Code,Creato da fdamore1984 con C
 MAP_TITLE,Map,Mappa
 MAP_HINT,%s / B: close,%s / B: chiudi
 CONTROLS_MAP,Map,Mappa
-CONTROLS_LOCK,"Lock on the nearest enemy you can see and keep it (manual lock); press again to switch to the nearest one. Without it the lock is automatic",Aggancia il nemico più vicino che vedi e lo tiene (aggancio manuale); premi di nuovo per passare al più vicino. Senza aggancio manuale l'aggancio è automatico
+CONTROLS_LOCK,Manual lock on the nearest enemy in sight (again: switch target),Aggancio manuale del nemico più vicino in vista (di nuovo: cambia)
 ITEM_BLADE_GUARDIAN,Warlord's chain,Catena del Signore della Guerra
 ITEM_ARMOR_GUARDIAN,Warlord's armor,Armatura del Signore della Guerra
 ITEM_BOOTS_GUARDIAN,Warlord's boots,Stivali del Signore della Guerra
@@ -232,7 +232,7 @@ TUTORIAL_CLOSE,Close,Chiudi
 TUTORIAL_PAGE,Page %d / %d,Pagina %d / %d
 TUTORIAL_HINT,%s / %s: previous / next page · %s: close,%s / %s: pagina precedente / successiva · %s: chiudi
 TUTORIAL_MOVE_TITLE,Moving,Muoversi
-TUTORIAL_MOVE_TEXT,"Move with the left stick. Tap {run} to start or stop running (it stops by itself when you stand still); hold {run} to switch the flashlight on or off, you need it at night and inside buildings. {jump} jumps: you climb onto higher blocks and enemy strikes pass under you. Dodge while running to slide.","Muoviti con la levetta sinistra. Un tocco di {run} accende e spegne la corsa (si spegne da sola quando ti fermi); tenendo premuto {run} accendi e spegni la torcia elettrica, che serve di notte e dentro gli edifici. Con {jump} salti: sali sui blocchi più alti e i colpi dei nemici ti passano sotto. Schivando mentre corri fai una scivolata."
+TUTORIAL_MOVE_TEXT,"Move with the left stick or the keyboard, or walk to the cursor holding the middle mouse button. Tap {run} to start or stop running (it stops by itself when you stand still); hold {run} to switch the flashlight on or off, you need it at night and inside buildings. {jump} jumps: you climb onto higher blocks and enemy strikes pass under you. Dodge while running to slide. With the mouse, strikes go toward the cursor; you can change every control in Options.","Muoviti con la levetta sinistra o la tastiera, oppure cammina verso il cursore tenendo premuto il tasto centrale del mouse. Un tocco di {run} accende e spegne la corsa (si spegne da sola quando ti fermi); tenendo premuto {run} accendi e spegni la torcia elettrica, che serve di notte e dentro gli edifici. Con {jump} salti: sali sui blocchi più alti e i colpi dei nemici ti passano sotto. Schivando mentre corri fai una scivolata. Col mouse i colpi vanno verso il cursore; tutti i comandi si cambiano in Opzioni."
 TUTORIAL_COMBO_TITLE,Chainsaw and combos,Motosega e combo
 TUTORIAL_COMBO_TEXT,"Press {attack} to strike with the chainsaw: the strike lands right away. Quick strikes form a combo (3 at first), each one stronger than the last; hold {attack} to keep attacking. {heavy_attack} is the power strike, wide and very strong: it ends the combo with a bonus. Hold it to charge it up to double damage (it burns fuel) and to chain more power strikes.","Premi {attack} per colpire con la motosega: il colpo parte subito. Colpi ravvicinati formano una combo (3 all'inizio), ognuno più forte del precedente; tieni premuto {attack} per continuare ad attaccare. {heavy_attack} è il colpo potente, ampio e fortissimo: chiude la combo con un bonus. Tienilo premuto per caricarlo fino al doppio dei danni (consuma carburante) e per concatenare altri colpi potenti."
 TUTORIAL_PARRY_TITLE,Parry,Parata
@@ -257,3 +257,50 @@ TUTORIAL_BUILDINGS_TITLE,Abandoned buildings and the boss,Edifici abbandonati e 
 TUTORIAL_BUILDINGS_TEXT,"Doors of abandoned buildings open in the skyscraper walls: go in with {interact}. Inside it's dark and the enemies get tougher floor after floor: on every floor look for the stairs door. On the last one the Warlord waits in his arena: he calls in reinforcements by radio and fires his shotgun from afar. Beat him for scrap, an H-bomb and gear you won't find anywhere else.","Nelle pareti dei palazzi si aprono le porte di edifici abbandonati: entra con {interact}. Dentro è buio e i nemici sono più forti piano dopo piano: su ogni piano cerca la porta delle scale. All'ultimo, nella sua arena, ti aspetta il signore della guerra: chiama rinforzi via radio e da lontano spara con la doppietta. Sconfiggilo per rottami, una bomba H e oggetti che non si trovano altrove."
 TUTORIAL_PROGRESS_TITLE,"Challenges, levels and saves","Sfide, livelli e salvataggi"
 TUTORIAL_PROGRESS_TEXT,"Interact with an alarm siren for a 30-second challenge in waves: survive it for experience and a medkit. Every defeated enemy gives experience; at every level your damage grows and you pick an upgrade among the cards on offer (""Frenzy strikes +2"" too). The game saves by itself every 5 minutes and when you enter a building, with no enemies nearby; from the pause menu ({menu}) you save by hand.","Interagisci con una sirena d'allarme per una sfida di 30 secondi a ondate: superala per esperienza e un kit medico. Ogni nemico sconfitto dà esperienza; a ogni livello i danni crescono e scegli un potenziamento tra le schede proposte (anche ""Colpi della Frenesia +2""). La partita si salva da sola ogni 5 minuti ed entrando negli edifici, senza nemici vicini; dal menù di pausa ({menu}) salvi a mano."
+BIND_ACTION_ATTACK,Attack,Attacco
+BIND_ACTION_DODGE,Dodge,Schivata
+BIND_ACTION_FOCUS,Focus,Focus
+BIND_ACTION_HEAVY_ATTACK,Power strike,Colpo potente
+BIND_ACTION_INTERACT,Interact,Interagisci
+BIND_ACTION_INVENTORY,Inventory,Inventario
+BIND_ACTION_INVENTORY_SORT,Sort the inventory,Ordina l'inventario
+BIND_ACTION_JUMP,Jump,Salto
+BIND_ACTION_LOCK_ON,Manual lock,Aggancio manuale
+BIND_ACTION_MANA_POTION,Fuel can,Tanica di carburante
+BIND_ACTION_MAP,Map,Mappa
+BIND_ACTION_MENU,Pause menu,Menù di pausa
+BIND_ACTION_MOVE_CLICK,Walk to the cursor,Cammina verso il cursore
+BIND_ACTION_MOVE_DOWN,Move down,Giù
+BIND_ACTION_MOVE_LEFT,Move left,Sinistra
+BIND_ACTION_MOVE_RIGHT,Move right,Destra
+BIND_ACTION_MOVE_UP,Move up,Su
+BIND_ACTION_PARRY,Parry,Parata
+BIND_ACTION_POTION,Medkit,Kit medico
+BIND_ACTION_RUN,Run / flashlight,Corsa / torcia
+BIND_ACTION_SHIELD,Shield,Scudo
+BIND_ACTION_SPELL,Bazooka,Bazooka
+BIND_ACTION_BATTERY_POTION,Spare battery,Batteria di ricambio
+BIND_MOUSE,Mouse %d,Mouse %d
+BIND_MOUSE_1,Left click,Clic sinistro
+BIND_MOUSE_2,Right click,Clic destro
+BIND_MOUSE_3,Middle click,Clic centrale
+BIND_MOUSE_8,Mouse back,Mouse indietro
+BIND_MOUSE_9,Mouse forward,Mouse avanti
+MENU_OPTIONS,Options,Opzioni
+PAUSE_OPTIONS,Options,Opzioni
+OPTIONS_TITLE,Options,Opzioni
+OPTIONS_BACK,Back,Indietro
+OPTIONS_BOUND,"""%s"" set to %s","""%s"" impostato su %s"
+OPTIONS_CANCELLED,Cancelled: nothing changed,Annullato: nessuna modifica
+OPTIONS_CONTROLS,"Controls: select a binding, then press the new key, mouse button or controller button","Comandi: scegli un tasto, poi premi il nuovo tasto della tastiera, del mouse o del controller"
+OPTIONS_DEVICE_CONTROLLER,controller button or stick,tasto o levetta del controller
+OPTIONS_DEVICE_KEYBOARD,key,tasto della tastiera
+OPTIONS_DEVICE_MOUSE,mouse button,tasto del mouse
+OPTIONS_HEADER_ACTION,Action,Azione
+OPTIONS_HEADER_CONTROLLER,Controller,Controller
+OPTIONS_HEADER_KEYBOARD,Keyboard,Tastiera
+OPTIONS_HEADER_MOUSE,Mouse,Mouse
+OPTIONS_LISTEN,"Press the new %s for ""%s"" (%d s, another device cancels)","Premi il nuovo %s per ""%s"" (%d s, un altro dispositivo annulla)"
+OPTIONS_RESET,Reset to defaults,Ripristina i predefiniti
+OPTIONS_RESET_DONE,All controls are back to their defaults,Tutti i comandi sono tornati quelli predefiniti
+OPTIONS_SHARED,also used by: %s,usato anche da: %s
