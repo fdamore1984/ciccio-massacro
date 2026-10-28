@@ -7,6 +7,11 @@ extends Node2D
 ## rimossi e ne compaiono di nuovi fuori dallo schermo, così ce ne sono
 ## sempre. Gestisce anche esperienza, livelli e scelta dei potenziamenti.
 ##
+## Ogni tanto, in superficie e fuori dalle sfide, arriva un'orda di zombie
+## (voce "hordes" di data/world.json): tanti, debolissimi, sbucano tutti
+## dalla stessa parte fuori dallo schermo e corrono verso il giocatore (vedi
+## Enemy.is_horde). Non contano tra i nemici che girano di solito.
+##
 ## Toccando il totem al centro di un'arena parte una sfida di
 ## sopravvivenza (parametri in data/challenge.json): per 30 secondi
 ## arrivano ondate di nemici, più numerose e forti salendo di livello, da
@@ -82,6 +87,9 @@ var _kills := 0
 ## si somma tra un salvataggio e l'altro e si vede negli slot del menù.
 var play_time := 0.0
 var _maintain_timer := MAINTAIN_INTERVAL
+## Secondi al prossimo arrivo di un'orda (negativo: ancora da estrarre).
+var _horde_timer := -1.0
+var _horde_data: Dictionary = World.DATA.data["hordes"]
 ## Livelli guadagnati per cui va ancora scelto il potenziamento.
 var _pending_level_ups := 0
 ## Sfida in corso: centro dell'arena (Vector2.INF se nessuna), tempo
@@ -160,6 +168,8 @@ func _process(delta: float) -> void:
 	if _maintain_timer <= 0.0 and _cave == Vector2.INF:
 		_maintain_timer = MAINTAIN_INTERVAL
 		_maintain_enemies()
+	if _cave == Vector2.INF:
+		_update_hordes(delta)
 
 
 func _maintain_enemies() -> void:
@@ -169,12 +179,42 @@ func _maintain_enemies() -> void:
 		if enemy.is_queued_for_deletion():
 			continue
 		var far := enemy.global_position.distance_to(_player.global_position) > DESPAWN_DISTANCE
-		if far and not enemy.is_engaged():
+		# Gli zombie inseguono sempre: rimasti indietro si tolgono lo stesso.
+		if far and (not enemy.is_engaged() or enemy.is_horde()):
 			enemy.queue_free()
-		else:
+		elif not enemy.is_horde():
 			alive += 1
 	for i in EnemyTypes.population(_player.level) - alive:
 		_spawn_enemy(EnemyTypes.pick_random(_player.level), _random_position(SPAWN_RANGE), _player.level)
+
+
+## Conto alla rovescia dell'orda: si ferma durante le sfide, l'attacco
+## speciale e da morti.
+func _update_hordes(delta: float) -> void:
+	if _horde_timer < 0.0:
+		_horde_timer = randf_range(_horde_data["first_delay"][0], _horde_data["first_delay"][1])
+	if _challenge_arena != Vector2.INF or _player.is_dead() or _player.is_special_active():
+		return
+	_horde_timer -= delta
+	if _horde_timer <= 0.0:
+		_horde_timer = randf_range(_horde_data["interval"][0], _horde_data["interval"][1])
+		_spawn_horde()
+
+
+## Un'orda di zombie da una direzione a caso, fuori dallo schermo: più
+## numerosa salendo di livello (fino a "max"); un verso e un avviso la
+## annunciano.
+func _spawn_horde() -> void:
+	var count_data: Array = _horde_data["count"]
+	var count := mini(floori(float(count_data[0]) + float(count_data[1]) * (_player.level - 1)), int(_horde_data["max"]))
+	var direction := Vector2.from_angle(randf() * TAU)
+	var center := _player.position + direction * randf_range(_horde_data["distance"][0], _horde_data["distance"][1])
+	var spread := float(_horde_data["spread"])
+	for i in count:
+		var zombie := _spawn_enemy("zombie", center + Vector2.from_angle(randf() * TAU) * spread * sqrt(randf()), _player.level)
+		zombie.alert()
+	Sfx.play("horde", _player.position + direction * 250.0)
+	_hud.flash_challenge(tr("HORDE_INCOMING"))
 
 
 ## Nemici a caso attorno al giocatore, quanti ne vuole il suo livello.

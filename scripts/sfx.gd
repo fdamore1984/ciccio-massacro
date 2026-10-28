@@ -249,6 +249,17 @@ func _build_sounds() -> void:
 	# Arrivo dei rinforzi: il fumogeno scoppia.
 	_streams["summon_pop"] = _render(0.18, func(t: float, d: float) -> float:
 		return (_noise() * 0.5 + sin(TAU * 300.0 * t) * 0.2) * _env(t, d, 0.003))
+	# Orda di zombie in arrivo: un coro di rantoli bassi e tremolanti.
+	_streams["horde"] = _render_filtered(1.8, Vector2(0.35, 0.35), func(t: float, d: float) -> float:
+		var groan := 0.0
+		for k in 4:
+			var frequency := 70.0 + 18.0 * k + 12.0 * sin(TAU * (1.3 + 0.4 * k) * t + k)
+			groan += _saw(frequency * t) * 0.16
+		return (groan + _noise() * 0.12) * absf(sin(TAU * 1.6 * t)) * _env(t, d, 0.2))
+	# Zombie che si spappola: uno schiocco umido.
+	_streams["splat"] = _render_filtered(0.25, Vector2(0.5, 0.1), func(t: float, d: float) -> float:
+		var squelch := sin(TAU * lerpf(180.0, 60.0, t / d) * t) * 0.5 * exp(-t * 20.0)
+		return clampf(_noise() * exp(-t * 28.0) + squelch, -1.0, 1.0) * _env(t, d, 0.002))
 	# Sirena della sfida: un ululato che sale e scende.
 	_streams["siren"] = _render(1.6, func(t: float, d: float) -> float:
 		var frequency := 600.0 + 350.0 * sin(TAU * 0.9 * t - PI / 2.0)

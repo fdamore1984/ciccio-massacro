@@ -32,6 +32,10 @@ extends Node2D
 ## bandana, berretto, occhiali, maschera...), scelti da un seme salvato con
 ## il nemico (vedi _apply_look).
 ##
+## Gli zombie delle orde (tipi con "horde", vedi Game) non girano attorno e
+## non attaccano: corrono dritti verso il giocatore e, quando lo toccano, si
+## spappolano facendogli un danno (vedi _rush e _burst). Muoiono con un colpo.
+##
 ## Si muovono sul terreno a gradini come il giocatore: scendono dai gradini
 ## cadendo e, quando un gradino alto un livello li blocca, ci saltano sopra;
 ## nei burroni non entrano mai. Il boss resta sempre dentro la sua arena
@@ -194,6 +198,14 @@ const HAIRS := ["", "", "mohawk", "spikes", "afro"]
 const HEADWEARS := ["", "", "bandana", "cap", "beanie"]
 const FACES := ["", "", "sunglasses", "gasmask", "scarf", "eyepatch"]
 const COLOR_LIMBS := Color(0.05, 0.05, 0.06)
+## Zombie: pelle verdastra o grigia, occhi rossi, velocità variabile di
+## questa parte; si spappolano toccando il giocatore entro CONTACT_MARGIN
+## oltre i due raggi.
+const ZOMBIE_TONES := [Color(0.55, 0.68, 0.45), Color(0.48, 0.58, 0.42), Color(0.6, 0.62, 0.52), Color(0.45, 0.52, 0.5)]
+const COLOR_ZOMBIE_EYES := Color(1.0, 0.2, 0.1)
+const ZOMBIE_SPEED_SPREAD := 0.15
+const CONTACT_MARGIN := 6.0
+const BURST_SPLATS := 5
 
 var player: Player
 var type_id := "warrior"
@@ -334,6 +346,8 @@ func setup(id: String, level := 1) -> void:
 	damage = floori(EnemyTypes.scaled("damage", _type["damage"], threat_level))
 	armor = EnemyTypes.armor(float(_type.get("armor", 0.0)), threat_level)
 	_speed = _type["speed"]
+	if is_horde():
+		_speed *= randf_range(1.0 - ZOMBIE_SPEED_SPREAD, 1.0 + ZOMBIE_SPEED_SPREAD)
 	_apply_look(randi())
 	if _type.has("summon"):
 		_summon_cooldown = randf_range(1.0, 2.5)
@@ -380,13 +394,14 @@ func _apply_look(look_seed: int) -> void:
 	rng.seed = look_seed
 	var size := 1.0 if is_boss() else rng.randf_range(SIZE_RANGE.x, SIZE_RANGE.y)
 	radius = float(_type["radius"]) * size
-	var tone: Color = SKIN_TONES[rng.randi() % SKIN_TONES.size()]
+	var tones: Array = ZOMBIE_TONES if is_horde() else SKIN_TONES
+	var tone: Color = tones[rng.randi() % tones.size()]
 	_color = Color.from_hsv(wrapf(tone.h + rng.randf_range(-0.02, 0.02), 0.0, 1.0), clampf(tone.s * rng.randf_range(0.85, 1.15), 0.0, 1.0), clampf(tone.v * rng.randf_range(0.9, 1.08), 0.0, 1.0))
 	_hair = "" if is_boss() else HAIRS[rng.randi() % HAIRS.size()]
 	_hair_color = HAIR_COLORS[rng.randi() % HAIR_COLORS.size()]
-	_headwear = "" if is_boss() else HEADWEARS[rng.randi() % HEADWEARS.size()]
+	_headwear = "" if is_boss() or is_horde() else HEADWEARS[rng.randi() % HEADWEARS.size()]
 	_headwear_color = GEAR_COLORS[rng.randi() % GEAR_COLORS.size()]
-	_face = "" if is_boss() else FACES[rng.randi() % FACES.size()]
+	_face = "" if is_boss() or is_horde() else FACES[rng.randi() % FACES.size()]
 	_face_color = GEAR_COLORS[rng.randi() % GEAR_COLORS.size()]
 	_shape_radius = -1.0
 
@@ -486,7 +501,9 @@ func _physics_process(delta: float) -> void:
 				_change_state(State.CHASE)
 
 		State.CHASE:
-			if not player_active or distance > LEASH_RANGE:
+			if is_horde():
+				target_velocity = _rush(to_player, distance, player_active)
+			elif not player_active or distance > LEASH_RANGE:
 				_change_state(State.WANDER)
 			elif _punishing(to_player, distance):
 				_attack_cooldown = 0.0
@@ -765,6 +782,38 @@ func is_dead() -> bool:
 ## Il boss in fondo al sotterraneo (vedi Game).
 func is_boss() -> bool:
 	return _type.get("boss", false)
+
+
+## Zombie di un'orda (vedi Game): corre dritto verso il giocatore.
+func is_horde() -> bool:
+	return _type.get("horde", false)
+
+
+## Zombie: velocità verso il giocatore; toccandolo (non se ci salta sopra)
+## si spappola e gli fa un danno. Se lo schiva si riprova.
+func _rush(to_player: Vector2, distance: float, player_active: bool) -> Vector2:
+	if not player_active:
+		_change_state(State.WANDER)
+		return Vector2.ZERO
+	var above := player.altitude() - ground_elevation
+	if distance <= radius + Player.RADIUS + CONTACT_MARGIN and above <= Player.JUMP_EVADE_HEIGHT:
+		if player.receive_hit(global_position, EnemyTypes.player_damage(false)) != "dodged":
+			_burst(to_player)
+			return Vector2.ZERO
+	return to_player.normalized() * _speed
+
+
+## Lo zombie si spappola addosso al giocatore: sangue tutto attorno, niente
+## esperienza né bottino, e sparisce subito (niente corpo a terra).
+func _burst(to_player: Vector2) -> void:
+	xp_reward = 0
+	drops_loot = false
+	for k in BURST_SPLATS:
+		GroundFx.bleed(global_position, ground_elevation + radius * 0.8, Vector2.from_angle(randf() * TAU), BLEED_DROPS_HEAVY)
+	HitSpark.spawn(get_parent(), global_position + to_player.normalized() * radius, ground_elevation + radius * 0.5, 40.0, COLOR_DANGER)
+	Sfx.play("splat", global_position)
+	take_damage(health + 1000, to_player.normalized(), true)
+	queue_free()
 
 
 ## Elmetto chiodato del boss (il signore della guerra).
@@ -1344,7 +1393,12 @@ func _draw_gear(body: Color) -> void:
 	_draw_face()
 	if _state == State.SUMMON:
 		_draw_radio()
-	if is_casting():
+	if is_horde():
+		# Braccia tese in avanti, senza armi.
+		var reach := _facing * radius * 1.3
+		var spread := _facing.orthogonal() * radius * 0.4
+		_draw_arms(reach + spread, reach - spread)
+	elif is_casting():
 		_draw_gun("shotgun")
 	elif _is_ranged():
 		_draw_gun(_type.get("weapon", "pistol"))
@@ -1548,6 +1602,9 @@ func _draw_hair() -> void:
 func _draw_face() -> void:
 	var eyes := _facing * radius * 0.5 + Vector2(0, -radius * 0.2)
 	var across := _facing.orthogonal()
+	if is_horde():
+		for side: float in [-1.0, 1.0]:
+			Shapes.disc(self, eyes + across * radius * 0.25 * side, radius * 0.1, COLOR_ZOMBIE_EYES)
 	match _face:
 		"sunglasses":
 			draw_line(eyes - across * radius * 0.35, eyes + across * radius * 0.35, Color(0.05, 0.05, 0.06), radius * 0.2)
