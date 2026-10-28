@@ -538,7 +538,7 @@ func _physics_process(delta: float) -> void:
 				_strike_enemies()
 			if not shooting and not _strike_resolved and player_active and _player_in_strike_zone():
 				_strike_resolved = true
-				var result := player.receive_hit(global_position, damage)
+				var result := player.receive_hit(global_position, EnemyTypes.player_damage(is_boss()))
 				if result == "parried":
 					Sfx.play("stun", global_position)
 					_change_state(State.STUNNED)
@@ -872,6 +872,7 @@ func _shoot_bolt(direction: Vector2, ranged: Dictionary) -> void:
 	bolt.direction = direction
 	bolt.speed = ranged["bolt_speed"]
 	bolt.damage = damage + int(ranged.get("damage_bonus", 0))
+	bolt.player_damage = EnemyTypes.player_damage(is_boss())
 	bolt.max_distance = float(ranged["range"]) * 1.3
 	bolt.altitude = ground_elevation
 	bolt.radius = float(ranged.get("bolt_radius", EnemyBolt.RADIUS))
@@ -1077,7 +1078,7 @@ func _land_slam(player_active: bool, slam: Dictionary) -> void:
 	if player_active and player.global_position.distance_to(global_position) <= impact_radius + Player.RADIUS:
 		# Anche il colpo a terra si può parare: con una parata perfetta
 		# (istantanea, appena prima dell'impatto) si resta storditi.
-		if player.receive_hit(global_position, damage + int(slam["damage_bonus"])) == "parried":
+		if player.receive_hit(global_position, EnemyTypes.player_damage(is_boss())) == "parried":
 			Sfx.play("stun", global_position)
 			_slam_cooldown = randf_range(SLAM_RETRY.x, SLAM_RETRY.y) * 2.0
 			_change_state(State.STUNNED)

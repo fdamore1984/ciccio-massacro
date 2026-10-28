@@ -50,7 +50,12 @@
 	},
 	"enemy_attacks": {
 		"max_simultaneous": 2,
-		"friendly_fire": 8
+		"friendly_fire": 8,
+		"player_damage": 1,
+		"boss_player_damage": 2
+	},
+	"level_up": {
+		"health_offer_chance": 0.25
 	},
 	"arena": {
 		"region": 2600,
