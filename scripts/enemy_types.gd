@@ -78,12 +78,14 @@ static func friendly_fire(threat_level: int) -> float:
 
 
 ## Sceglie un tipo a caso, pesato: salendo di livello compaiono più
-## spesso i nemici forti.
-static func pick_random(player_level: int) -> String:
+## spesso i nemici forti. weight_key: il peso da usare ("spawn_weight" in
+## superficie e negli edifici, "metro_weight" nella metropolitana, dove ci
+## sono solo i mutanti).
+static func pick_random(player_level: int, weight_key := "spawn_weight") -> String:
 	var weights := {}
 	var total := 0.0
 	for id: String in ids():
-		var weight: Array = get_type(id)["spawn_weight"]
+		var weight: Array = get_type(id).get(weight_key, [0, 0])
 		var value := maxf(weight[0] + weight[1] * (player_level - 1), 0.0)
 		if value <= 0.0:
 			# Il boss (peso zero) non compare mai a caso.

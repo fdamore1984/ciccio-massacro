@@ -36,6 +36,11 @@ extends Node2D
 ## non attaccano: corrono dritti verso il giocatore e, quando lo toccano, si
 ## spappolano facendogli un danno (vedi _rush e _burst). Muoiono con un colpo.
 ##
+## I mutanti della metropolitana (tipi con "mutant") combattono come gli
+## altri ma senza armi: pelle livida, niente accessori, più occhi rossi,
+## escrescenze sul corpo e artigli al posto delle mani; quelli che
+## sputano ("weapon": "spit") lanciano acido dalla bocca invece di sparare.
+##
 ## Si muovono sul terreno a gradini come il giocatore: scendono dai gradini
 ## cadendo e, quando un gradino alto un livello li blocca, ci saltano sopra;
 ## nei burroni non entrano mai. Il boss resta sempre dentro la sua arena
@@ -169,6 +174,12 @@ const VIEW_MARGIN := Vector2(160, 220)
 ## VERY_FAR_RANGE un passo ogni quattro (con il tempo di tutti).
 const FAR_RANGE := 1000.0
 const VERY_FAR_RANGE := 1500.0
+## Zombie delle orde (anche 200 insieme): a passi alterni oltre
+## HORDE_NEAR_RANGE, uno ogni quattro oltre HORDE_FAR_RANGE; la spinta di
+## separazione guarda al più SEPARATION_MAX vicini.
+const HORDE_NEAR_RANGE := 450.0
+const HORDE_FAR_RANGE := 900.0
+const SEPARATION_MAX := 10
 
 ## Scia rossa: mentre carica l'attacco il nemico si accende di un bagliore
 ## rosso; quando scatta per colpire (e nel salto con colpo a terra) lascia
@@ -204,6 +215,11 @@ const COLOR_LIMBS := Color(0.05, 0.05, 0.06)
 const ZOMBIE_TONES := [Color(0.55, 0.68, 0.45), Color(0.48, 0.58, 0.42), Color(0.6, 0.62, 0.52), Color(0.45, 0.52, 0.5)]
 const COLOR_ZOMBIE_EYES := Color(1.0, 0.2, 0.1)
 const ZOMBIE_SPEED_SPREAD := 0.15
+## Mutanti: pelle livida o pallida, occhi rossi in più, escrescenze e artigli.
+const MUTANT_TONES := [Color(0.62, 0.52, 0.6), Color(0.72, 0.66, 0.6), Color(0.5, 0.56, 0.46), Color(0.66, 0.5, 0.48)]
+const COLOR_GROWTH := Color(0.78, 0.55, 0.5)
+const COLOR_CLAWS := Color(0.85, 0.82, 0.72)
+const COLOR_ACID := Color(0.55, 1.0, 0.25)
 const CONTACT_MARGIN := 6.0
 const BURST_SPLATS := 5
 
@@ -393,15 +409,17 @@ func _apply_look(look_seed: int) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = look_seed
 	var size := 1.0 if is_boss() else rng.randf_range(SIZE_RANGE.x, SIZE_RANGE.y)
-	radius = float(_type["radius"]) * size
-	var tones: Array = ZOMBIE_TONES if is_horde() else SKIN_TONES
+	# Raggi a passi di mezzo pixel: le mesh del corpo (una per raggio, vedi
+	# Shapes) restano poche anche con le orde di centinaia di zombie.
+	radius = snappedf(float(_type["radius"]) * size, 0.5)
+	var tones: Array = ZOMBIE_TONES if is_horde() else (MUTANT_TONES if is_mutant() else SKIN_TONES)
 	var tone: Color = tones[rng.randi() % tones.size()]
 	_color = Color.from_hsv(wrapf(tone.h + rng.randf_range(-0.02, 0.02), 0.0, 1.0), clampf(tone.s * rng.randf_range(0.85, 1.15), 0.0, 1.0), clampf(tone.v * rng.randf_range(0.9, 1.08), 0.0, 1.0))
-	_hair = "" if is_boss() else HAIRS[rng.randi() % HAIRS.size()]
+	_hair = "" if is_boss() or is_mutant() else HAIRS[rng.randi() % HAIRS.size()]
 	_hair_color = HAIR_COLORS[rng.randi() % HAIR_COLORS.size()]
-	_headwear = "" if is_boss() or is_horde() else HEADWEARS[rng.randi() % HEADWEARS.size()]
+	_headwear = "" if is_boss() or is_horde() or is_mutant() else HEADWEARS[rng.randi() % HEADWEARS.size()]
 	_headwear_color = GEAR_COLORS[rng.randi() % GEAR_COLORS.size()]
-	_face = "" if is_boss() or is_horde() else FACES[rng.randi() % FACES.size()]
+	_face = "" if is_boss() or is_horde() or is_mutant() else FACES[rng.randi() % FACES.size()]
 	_face_color = GEAR_COLORS[rng.randi() % GEAR_COLORS.size()]
 	_shape_radius = -1.0
 
@@ -466,6 +484,9 @@ func _physics_process(delta: float) -> void:
 	if player and _state != State.DEAD:
 		var far := global_position.distance_squared_to(player.global_position)
 		var interval := 4 if far > VERY_FAR_RANGE * VERY_FAR_RANGE else (2 if far > FAR_RANGE * FAR_RANGE else 1)
+		if is_horde():
+			# Gli zombie corrono dritti: anche più vicini basta aggiornarli meno spesso.
+			interval = 4 if far > HORDE_FAR_RANGE * HORDE_FAR_RANGE else (2 if far > HORDE_NEAR_RANGE * HORDE_NEAR_RANGE else 1)
 		if (Engine.get_physics_frames() + _update_slot) % interval != 0:
 			_skipped_time += delta
 			return
@@ -789,6 +810,11 @@ func is_horde() -> bool:
 	return _type.get("horde", false)
 
 
+## Mostro mutato della metropolitana (vedi in cima).
+func is_mutant() -> bool:
+	return _type.get("mutant", false)
+
+
 ## Zombie: velocità verso il giocatore; toccandolo (non se ci salta sopra)
 ## si spappola e gli fa un danno. Se lo schiva si riprova.
 func _rush(to_player: Vector2, distance: float, player_active: bool) -> Vector2:
@@ -945,7 +971,9 @@ func _shoot_bolt(direction: Vector2, ranged: Dictionary) -> void:
 	bolt.threat_level = threat_level
 	get_parent().add_child(bolt)
 	_muzzle_flash = MUZZLE_FLASH_TIME
-	if not _casting:
+	if is_mutant():
+		Sfx.play("splat", global_position, 1.3 if _casting else 1.6)
+	elif not _casting:
 		Sfx.play("gunshot", global_position, 1.15 if _type.get("weapon", "") == "pistol" else 0.9)
 
 
@@ -980,7 +1008,8 @@ func _cast_magic() -> void:
 	var spread := deg_to_rad(float(magic["spread"]))
 	for i in count:
 		_shoot_bolt(_attack_direction.rotated((i - (count - 1) / 2.0) * spread), magic)
-	Sfx.play("shotgun", global_position)
+	if not is_mutant():
+		Sfx.play("shotgun", global_position)
 
 
 func _finish_cast() -> void:
@@ -1254,11 +1283,15 @@ func _separation() -> Vector2:
 	var grid := _enemy_grid()
 	var push := Vector2.ZERO
 	var home := Vector2i((global_position / GRID_CELL).floor())
+	var checked := 0
 	for i in range(-1, 2):
 		for j in range(-1, 2):
 			for node in grid.get(home + Vector2i(i, j), []):
 				if node == self or not is_instance_valid(node):
 					continue
+				checked += 1
+				if checked > SEPARATION_MAX:
+					return push
 				var other := node as Enemy
 				var offset := global_position - other.global_position
 				var distance := offset.length()
@@ -1309,13 +1342,15 @@ func _draw_telegraph() -> void:
 		GroundFx.danger_glow(_telegraph, _slam_target - global_position, float(slam["radius"]), _state_time / total)
 	if _state == State.SUMMON:
 		var progress: float = _state_time / _type["summon"]["channel_time"]
+		# I mutanti richiamano gli zombie con un urlo: dove arriveranno sale un vapore verde.
+		var smoke := COLOR_ACID if is_mutant() else COLOR_SUMMON
 		for offset in _summon_positions:
-			Shapes.disc(_telegraph, offset, 24.0, Color(COLOR_SUMMON, 0.12))
-			Shapes.disc(_telegraph, offset, 24.0 * progress, Color(COLOR_SUMMON, 0.3))
+			Shapes.disc(_telegraph, offset, 24.0, Color(smoke, 0.12))
+			Shapes.disc(_telegraph, offset, 24.0 * progress, Color(smoke, 0.3))
 			# Fumo arancione che sale dal fumogeno.
 			for k in 3:
 				var t := fposmod(_state_time * 0.9 + k / 3.0, 1.0)
-				Shapes.disc(_telegraph, offset + Vector2(sin(k * 2.3 + _state_time * 2.0) * 6.0, -10.0 - 40.0 * t), 6.0 + 8.0 * t, Color(COLOR_SUMMON, 0.35 * (1.0 - t) * progress))
+				Shapes.disc(_telegraph, offset + Vector2(sin(k * 2.3 + _state_time * 2.0) * 6.0, -10.0 - 40.0 * t), 6.0 + 8.0 * t, Color(smoke, 0.35 * (1.0 - t) * progress))
 			Shapes.disc(_telegraph, offset, 3.0, Color(1.0, 0.85, 0.5))
 
 
@@ -1368,7 +1403,9 @@ func _draw() -> void:
 	if not behind:
 		_draw_gear(body)
 	_draw_hair()
-	if is_boss():
+	if is_mutant():
+		_draw_growths(body)
+	elif is_boss():
 		_draw_crown()
 
 	if _state == State.STUNNED:
@@ -1391,9 +1428,11 @@ func _draw_gear(body: Color) -> void:
 	var side := _facing.orthogonal() * radius * 0.35
 	draw_primitive(PackedVector2Array([tip, _facing * radius * 0.6 + side, _facing * radius * 0.6 - side]), PackedColorArray([body.darkened(0.3)]), PackedVector2Array())
 	_draw_face()
-	if _state == State.SUMMON:
+	if _state == State.SUMMON and not is_mutant():
 		_draw_radio()
-	if is_horde():
+	if is_mutant():
+		_draw_claws()
+	elif is_horde():
 		# Braccia tese in avanti, senza armi.
 		var reach := _facing * radius * 1.3
 		var spread := _facing.orthogonal() * radius * 0.4
@@ -1605,6 +1644,20 @@ func _draw_face() -> void:
 	if is_horde():
 		for side: float in [-1.0, 1.0]:
 			Shapes.disc(self, eyes + across * radius * 0.25 * side, radius * 0.1, COLOR_ZOMBIE_EYES)
+	elif is_mutant():
+		# Tanti occhi rossi in disordine e la bocca spalancata.
+		var rng := RandomNumberGenerator.new()
+		rng.seed = _look_seed
+		for k in 3 + rng.randi() % 3:
+			var at := eyes + across * radius * rng.randf_range(-0.45, 0.45) + Vector2(0, radius * rng.randf_range(-0.35, 0.1))
+			Shapes.disc(self, at, radius * rng.randf_range(0.06, 0.12), COLOR_ZOMBIE_EYES)
+		var mouth := eyes + Vector2(0, radius * 0.35)
+		var open := 0.12 + (0.12 if _state in [State.WINDUP, State.STRIKE, State.SUMMON] else 0.0)
+		draw_colored_polygon(PackedVector2Array([mouth - across * radius * 0.25, mouth + across * radius * 0.25, mouth + Vector2(0, radius * open)]), Color(0.12, 0.02, 0.03))
+		if _type.get("weapon", "") == "spit" or is_casting():
+			# L'acido gocciola dalla bocca, di più mentre carica lo sputo.
+			var charge := clampf(_state_time / _windup_time, 0.0, 1.0) if _state == State.WINDUP else 0.0
+			Shapes.disc(self, mouth + Vector2(0, radius * open), radius * (0.08 + 0.12 * charge), Color(COLOR_ACID, 0.7 + 0.3 * charge))
 	match _face:
 		"sunglasses":
 			draw_line(eyes - across * radius * 0.35, eyes + across * radius * 0.35, Color(0.05, 0.05, 0.06), radius * 0.2)
@@ -1617,6 +1670,54 @@ func _draw_face() -> void:
 		"eyepatch":
 			draw_line(eyes + across * radius * 0.5 + Vector2(0, -radius * 0.25), eyes - across * radius * 0.5 + Vector2(0, radius * 0.1), Color(0.05, 0.05, 0.06), 2.0)
 			Shapes.disc(self, eyes + across * radius * 0.15, radius * 0.14, Color(0.05, 0.05, 0.06))
+
+
+## Artigli del mutante: braccia lunghe con tre unghie ricurve. Come le
+## armi, durante la carica si portano indietro e poi spazzano l'arco
+## dell'attacco; chi sputa le tiene basse e punta la bocca.
+func _draw_claws() -> void:
+	var angles := _sword_angles()
+	var angle := _facing.angle() + 0.5
+	match _state:
+		State.WINDUP:
+			if not _is_ranged() and not is_casting():
+				angle = angles.x - _swing_sign * 0.4 * minf(_state_time / _windup_time, 1.0)
+		State.STRIKE:
+			if not _is_ranged() and not is_casting():
+				angle = angles.z
+		State.RECOVER:
+			angle = angles.y
+	if _state == State.WINDUP and (_is_ranged() or is_casting()):
+		# Mira dello sputo: una scia verde che si allunga dalla bocca (il momento di schivare).
+		var progress := clampf(_state_time / _windup_time, 0.0, 1.0)
+		var mouth := _facing * radius * 0.5 + Vector2(0, radius * 0.2)
+		draw_line(mouth, mouth + _attack_direction * radius * 6.0 * progress, Color(COLOR_ACID, 0.2 + 0.4 * progress), 1.5)
+	var reach := radius * (1.25 if _state in [State.WINDUP, State.STRIKE] else 1.05)
+	var hand := Vector2.from_angle(angle) * reach
+	var other := _facing * radius * 1.1 - _facing.orthogonal() * radius * 0.55 * _swing_sign
+	var shoulder := _facing.orthogonal() * radius * 0.7
+	for pair: Array in [[shoulder if hand.dot(shoulder) >= 0.0 else -shoulder, hand], [-shoulder if hand.dot(shoulder) >= 0.0 else shoulder, other]]:
+		var from: Vector2 = pair[0]
+		var to: Vector2 = pair[1]
+		draw_line(from, to, COLOR_LIMBS, maxf(2.5, radius * 0.12))
+		var out := (to - from).normalized()
+		for k in 3:
+			var nail := out.rotated((k - 1) * 0.45)
+			var tip := to + nail * radius * 0.4 + nail.orthogonal() * radius * 0.08
+			draw_polyline(PackedVector2Array([to, to + nail * radius * 0.25, tip]), COLOR_CLAWS, maxf(1.5, radius * 0.06))
+
+
+## Escrescenze del mutante: bolle di carne gonfia sul corpo, sempre uguali
+## per lo stesso nemico (dal seme dell'aspetto).
+func _draw_growths(body: Color) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = _look_seed + 7
+	var growth := body.lerp(COLOR_GROWTH, 0.5)
+	for k in 2 + rng.randi() % 3 + (3 if is_boss() else 0):
+		var at := Vector2.from_angle(rng.randf_range(-PI, 0.2)) * radius * rng.randf_range(0.55, 0.85)
+		var size := radius * rng.randf_range(0.14, 0.26)
+		Shapes.disc(self, at, size, growth)
+		Shapes.disc(self, at + Vector2(-size * 0.3, -size * 0.3), size * 0.35, growth.lightened(0.25))
 
 
 static func _closed(points: PackedVector2Array) -> PackedVector2Array:

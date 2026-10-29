@@ -33,8 +33,8 @@
 		"start": 0.2,
 		"night_threshold": 0.5,
 		"colors": [
-			[0.0, [1.0, 1.0, 1.0]], [0.4, [1.0, 1.0, 1.0]], [0.5, [0.85, 0.62, 0.55]], [0.58, [0.16, 0.18, 0.32]],
-			[0.88, [0.16, 0.18, 0.32]], [0.95, [0.8, 0.68, 0.7]], [1.0, [1.0, 1.0, 1.0]]
+			[0.0, [1.0, 1.0, 1.0]], [0.4, [1.0, 1.0, 1.0]], [0.5, [0.85, 0.62, 0.55]], [0.58, [0.025, 0.027, 0.045]],
+			[0.88, [0.025, 0.027, 0.045]], [0.95, [0.8, 0.68, 0.7]], [1.0, [1.0, 1.0, 1.0]]
 		]
 	},
 	"enemy_scaling": {
@@ -45,16 +45,17 @@
 		"armor_max": 0.5
 	},
 	"population": {
-		"count": [5, 0.5],
-		"max": 12
+		"count": [8, 0.7],
+		"max": 20
 	},
 	"hordes": {
 		"first_delay": [60, 120],
 		"interval": [90, 180],
-		"count": [12, 1.0],
-		"max": 30,
-		"distance": [850, 1050],
-		"spread": 220
+		"count": [50, 200],
+		"distance": [900, 1150],
+		"spread": 220,
+		"spread_count": 50,
+		"spawn_per_frame": 25
 	},
 	"enemy_attacks": {
 		"max_simultaneous": 2,
@@ -105,7 +106,7 @@
 		"pillar_chance": 0.6,
 		"arena_radius": 7,
 		"wall_level": 2,
-		"enemies_per_room": [1, 3],
+		"enemies_per_room": [2, 4],
 		"chests": [1, 2],
 		"rubble_chance": 0.05,
 		"floor_colors": [[0.36, 0.34, 0.3], [0.4, 0.37, 0.32], [0.33, 0.31, 0.28]],
@@ -113,10 +114,62 @@
 		"face_colors": [[0.36, 0.42, 0.38], [0.26, 0.3, 0.27]],
 		"glowstick_chance": 0.06,
 		"glowstick_colors": [[0.4, 1.0, 0.45], [1.0, 0.3, 0.25], [1.0, 0.85, 0.3]],
-		"darkness": [0.4, 0.38, 0.45],
+		"darkness": [0.03, 0.03, 0.04],
 		"boss": "guardian",
 		"boss_arena_margin": 1.5,
 		"boss_reward_gold": [60, 15],
+		"boss_reward_items": 2,
+		"boss_reward_h_bombs": 1
+	},
+	"metro": {
+		"size": [46, 4],
+		"levels": [2, 4],
+		"wall_level": 3,
+		"track_level": -1,
+		"train_level": 2,
+		"side_platform": 3,
+		"track_width": 2,
+		"island_platform": [4, 6],
+		"platform_end": [5, 9],
+		"platform_segment": 9,
+		"pillar_step": 4,
+		"train_chance": 0.75,
+		"train_cars": [1, 3],
+		"car_length": [5, 7],
+		"service_doors": 3,
+		"room_size": [3, 9],
+		"stop_chance": 0.35,
+		"corridor_chance": 0.3,
+		"merge_chance": 0.15,
+		"merge_max": 6,
+		"extra_doors": 0.3,
+		"pillar_room": 7,
+		"pillar_chance": 0.5,
+		"arena_radius": 7,
+		"enemies_per_room": [1, 2],
+		"zombies_per_room": [2, 5],
+		"chests": [1, 3],
+		"rubble_chance": 0.035,
+		"bench_chance": 0.12,
+		"corpse_chance": 0.025,
+		"floor_colors": [[0.42, 0.41, 0.38], [0.45, 0.44, 0.4], [0.39, 0.38, 0.35]],
+		"track_color": [0.17, 0.15, 0.14],
+		"rail_color": [0.5, 0.47, 0.44],
+		"sleeper_color": [0.26, 0.2, 0.16],
+		"edge_color": [0.78, 0.62, 0.16],
+		"wall_color": [0.07, 0.07, 0.08],
+		"face_colors": [[0.66, 0.66, 0.62], [0.52, 0.52, 0.49]],
+		"tile_band": [0.16, 0.26, 0.42],
+		"train_top": [0.32, 0.31, 0.3],
+		"train_faces": [[0.62, 0.3, 0.17], [0.48, 0.23, 0.13]],
+		"train_window": [0.06, 0.07, 0.08],
+		"blood_color": [0.4, 0.03, 0.03],
+		"blood_chance": 0.12,
+		"glowstick_chance": 0.03,
+		"darkness": [0.02, 0.02, 0.03],
+		"boss": "abomination",
+		"boss_arena_margin": 1.5,
+		"boss_reward_gold": [70, 18],
 		"boss_reward_items": 2,
 		"boss_reward_h_bombs": 1
 	},
@@ -183,7 +236,15 @@
 		},
 		"metro": {
 			"radius": [44, 44], "collision": 0.8, "solid": true,
-			"colors": [[0.05, 0.05, 0.06], [0.3, 0.32, 0.3]], "sign": [0.75, 0.15, 0.12]
+			"colors": [[0.05, 0.05, 0.06], [0.3, 0.32, 0.3]], "sign": [0.75, 0.15, 0.12], "cleared": [0.4, 0.38, 0.36]
+		},
+		"bench": {
+			"radius": [24, 24], "collision": 0.75, "solid": true,
+			"colors": [[0.42, 0.27, 0.17], [0.32, 0.33, 0.35]]
+		},
+		"corpse": {
+			"radius": [20, 20], "collision": 0.6, "solid": false, "slow": 0.8,
+			"colors": [[0.36, 0.33, 0.3], [0.3, 0.32, 0.36], [0.4, 0.34, 0.28]], "blood": [0.38, 0.03, 0.03]
 		},
 		"rock": {
 			"radius": [14, 30], "collision": 0.9, "solid": true,

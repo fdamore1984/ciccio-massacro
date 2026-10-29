@@ -14,6 +14,9 @@ const SPLAT_TIME := 30.0
 const CORPSE_TIME := 20.0
 const FADE_TIME := 4.0
 const MAX_SPLATS := 700
+## Gocce in volo al più (le orde di zombie che si spappolano ne lancerebbero
+## migliaia): oltre, i colpi lasciano solo lo schizzo a terra.
+const MAX_DROPS := 900
 const MAX_CORPSES := 40
 ## Pozze di sangue di chi muore: si allargano in POOL_GROW secondi e poi
 ## restano (finché si resta in quella zona: si tolgono passando tra
@@ -85,7 +88,7 @@ func _ready() -> void:
 static func bleed(at: Vector2, altitude: float, direction: Vector2, amount: int) -> void:
 	if current == null:
 		return
-	for i in amount:
+	for i in mini(amount, MAX_DROPS - current._drops.size()):
 		var spread := direction.rotated(randf_range(-1.0, 1.0)) * randf_range(60.0, 340.0)
 		current._drops.append({
 			"position": at, "altitude": altitude, "velocity": Vector2(spread.x, spread.y * 0.6),

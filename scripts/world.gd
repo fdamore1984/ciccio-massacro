@@ -23,7 +23,10 @@ extends Node2D
 ## terremoti ("ravine") non si attraversano (hanno qualche passaggio);
 ## nelle pareti dei palazzi si aprono porte ("cave") che portano agli
 ## interni degli edifici abbandonati (vedi Dungeon), disegnati con gli
-## stessi blocchi.
+## stessi blocchi. Dagli ingressi della metropolitana ("metro") si scende
+## nelle stazioni (Dungeon con kind "metro"): banchine di piastrelle con la
+## striscia gialla, binari incassati con le traversine, vagoni abbandonati,
+## pareti piastrellate e sporche di sangue (parametri in "metro").
 ##
 ## Le posizioni di personaggi e oggetti sono a terra (il piano x, y);
 ## l'altezza del terreno sotto di loro (elevation_at) li disegna più in
@@ -170,6 +173,12 @@ var _curb_color: Color
 var _fissure_color: Color
 var _fissure_glow: Color
 var _dungeon_wall_color: Color
+## Colori della metropolitana (voce "metro" di data/world.json).
+var _metro_data: Dictionary = DATA.data["metro"]
+var _metro_floor_colors: Array[Color] = []
+var _metro_face_colors: Array[Color] = []
+var _train_faces: Array[Color] = []
+var _metro_colors := {}
 var _crack_range := Vector2i.ZERO
 ## Pezzo -> ostacoli (dizionari), generati quando servono.
 var _chunk_obstacles := {}
@@ -226,6 +235,11 @@ func _ready() -> void:
 	_fissure_color = _color(_terrain["fissure_color"])
 	_fissure_glow = _color(_terrain["fissure_glow"])
 	_dungeon_wall_color = _color(_dungeon_data["wall_color"])
+	_metro_floor_colors = _colors(_metro_data["floor_colors"])
+	_metro_face_colors = _colors(_metro_data["face_colors"])
+	_train_faces = _colors(_metro_data["train_faces"])
+	for key: String in ["track_color", "rail_color", "sleeper_color", "edge_color", "wall_color", "tile_band", "train_top", "train_window", "blood_color"]:
+		_metro_colors[key] = _color(_metro_data[key])
 	var cracks: Array = _decor["cracks"]
 	_crack_range = Vector2i(cracks[0], cracks[1])
 	# I pezzi di terreno si disegnano da dietro in avanti.
@@ -455,9 +469,10 @@ func level_of(cell: Vector2i) -> int:
 	var kind := Kind.GROUND
 	var level := 0
 	if dungeon:
+		# Muri e vagoni non si attraversano; i binari della metro sono più in basso.
+		level = dungeon.level_at(cell)
 		if not dungeon.is_floor(cell):
 			kind = Kind.ROCK
-			level = dungeon.wall_level
 	else:
 		# Il terreno è tutto piano (livello 0): ci sono gli edifici della
 		# pianta (vedi CityPlan) e le fessure dei terremoti.
@@ -731,7 +746,7 @@ func points_of_interest(center: Vector2, radius: float) -> Array[Dictionary]:
 	for i in range(min_chunk.x, max_chunk.x + 1):
 		for j in range(min_chunk.y, max_chunk.y + 1):
 			for obstacle: Dictionary in _obstacles_of(Vector2i(i, j)):
-				if obstacle["type"] in ["chest", "totem", "merchant", "cave", "stairs", "exit"]:
+				if obstacle["type"] in ["chest", "totem", "merchant", "cave", "metro", "stairs", "exit"]:
 					result.append(obstacle)
 	return result
 
@@ -1332,6 +1347,10 @@ func draw_cell(canvas: CanvasItem, cell: Vector2i, offset: Vector2) -> void:
 	var faces := _face_colors_of(kind, cell)
 	var lip := kind == Kind.GROUND and dungeon == null
 	var windows := kind == Kind.MOUNTAIN
+	# Nella metro le pareti sono piastrellate e i vagoni hanno i finestrini.
+	var pattern := ""
+	if dungeon and dungeon.is_metro() and kind == Kind.ROCK:
+		pattern = "train" if dungeon.tile_at(cell) == Dungeon.Tile.TRAIN else "tiles"
 	for side in 2:
 		var other := cell + (Vector2i(1, 0) if side == 0 else Vector2i(0, 1))
 		# Verso una fessura la parete è terra spaccata, non mattoni.
@@ -1339,9 +1358,9 @@ func draw_cell(canvas: CanvasItem, cell: Vector2i, offset: Vector2) -> void:
 		if kind == Kind.GROUND and dungeon == null and kind_of(other) == Kind.RAVINE:
 			color = _fissure_face_colors[side]
 		if side == 0:
-			_draw_face(canvas, corners, heights, other, 1, 2, 0, 3, color, lip, windows, cell)
+			_draw_face(canvas, corners, heights, other, 1, 2, 0, 3, color, lip, windows, cell, pattern)
 		else:
-			_draw_face(canvas, corners, heights, other, 2, 3, 1, 0, color, lip, windows, cell)
+			_draw_face(canvas, corners, heights, other, 2, 3, 1, 0, color, lip, windows, cell, pattern)
 
 	var path := is_path(cell)
 	var color := _top_color(cell, kind, path)
@@ -1364,7 +1383,13 @@ func _top_color(cell: Vector2i, kind: int, path: bool) -> Color:
 		Kind.RAVINE:
 			return _fissure_color
 		Kind.ROCK:
+			if dungeon and dungeon.is_metro():
+				return _metro_colors["train_top"] if dungeon.tile_at(cell) == Dungeon.Tile.TRAIN else _metro_colors["wall_color"]
 			return _dungeon_wall_color
+	if dungeon and dungeon.is_metro():
+		if dungeon.tile_at(cell) == Dungeon.Tile.TRACK:
+			return _metro_colors["track_color"]
+		return _metro_floor_colors[posmod(hash([cell.x, cell.y]), _metro_floor_colors.size())]
 	if dungeon:
 		return _dungeon_floor_colors[posmod(hash([cell.x, cell.y]), _dungeon_floor_colors.size())]
 	if path:
@@ -1377,16 +1402,26 @@ func _face_colors_of(kind: int, cell: Vector2i) -> Array[Color]:
 		var faces: Array[Color] = []
 		faces.assign(_style_faces[CityPlan.style_of(_city_code(cell))])
 		return faces
+	if dungeon and dungeon.is_metro():
+		match dungeon.tile_at(cell):
+			Dungeon.Tile.TRAIN:
+				return _train_faces
+			Dungeon.Tile.WALL:
+				return _metro_face_colors
+		# Bordo della banchina sopra i binari: cemento.
+		var concrete: Array[Color] = [_metro_floor_colors[0].darkened(0.3), _metro_floor_colors[0].darkened(0.45)]
+		return concrete
 	if dungeon:
 		return _dungeon_face_colors
 	return _face_colors
 
 
 ## lip: bordo del marciapiede in cima; windows: finestre del grattacielo
-## (cell serve a sceglierle sempre uguali).
+## (cell serve a sceglierle sempre uguali); pattern: "tiles" per le pareti
+## piastrellate della metro, "train" per la fiancata di un vagone.
 func _draw_face(canvas: CanvasItem, corners: PackedVector2Array, heights: Array[float], other: Vector2i,
 		first: int, second: int, other_first: int, other_second: int, color: Color, lip: bool,
-		windows := false, cell := Vector2i.ZERO) -> void:
+		windows := false, cell := Vector2i.ZERO, pattern := "") -> void:
 	var top_a := heights[first]
 	var top_b := heights[second]
 	var bottom_a := minf(corner_height(other, other_first), top_a)
@@ -1401,6 +1436,13 @@ func _draw_face(canvas: CanvasItem, corners: PackedVector2Array, heights: Array[
 	if top_a - bottom_a >= 0.5:
 		points.append(a - Vector2(0, bottom_a))
 	canvas.draw_colored_polygon(points, color)
+	if pattern != "":
+		if pattern == "train":
+			_draw_train_side(canvas, a, b, top_a, top_b, bottom_a, bottom_b, cell, first, color)
+		else:
+			_draw_wall_tiles(canvas, a, b, top_a, top_b, bottom_a, bottom_b, cell, first, color)
+		canvas.draw_line(a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), Color(0, 0, 0, 0.4), 2.0)
+		return
 	if windows:
 		_draw_windows(canvas, a, b, top_a, top_b, bottom_a, bottom_b, cell, first)
 		canvas.draw_line(a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), Color(0, 0, 0, 0.3), 2.0)
@@ -1495,6 +1537,100 @@ func _draw_windows(canvas: CanvasItem, a: Vector2, b: Vector2, top_a: float, top
 		depth += row
 
 
+## Parete piastrellata della metro tra a e b (dall'alto top alla base
+## bottom): fughe delle piastrelle, una fascia colorata, lo sporco che sale
+## da terra e, qua e là, manifesti strappati, il cartello con la M o
+## strisciate di sangue che colano.
+func _draw_wall_tiles(canvas: CanvasItem, a: Vector2, b: Vector2, top_a: float, top_b: float,
+		bottom_a: float, bottom_b: float, cell: Vector2i, side: int, color: Color) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([_decor_seed(), cell.x, cell.y, side, "tiles"])
+	var height := minf(top_a - bottom_a, top_b - bottom_b)
+	var joints := PackedVector2Array()
+	var depth := 9.0
+	while depth < height - 2.0:
+		joints.append(a - Vector2(0, bottom_a + depth))
+		joints.append(b - Vector2(0, bottom_b + depth))
+		depth += 9.0
+	for k in range(1, 6):
+		var t := k / 6.0
+		var at := a.lerp(b, t)
+		var base := lerpf(bottom_a, bottom_b, t)
+		var top := lerpf(top_a, top_b, t)
+		joints.append(at - Vector2(0, base))
+		joints.append(at - Vector2(0, top))
+	canvas.draw_multiline(joints, color.darkened(0.12), 1.0)
+	var band: Color = _metro_colors["tile_band"]
+	canvas.draw_colored_polygon(PackedVector2Array([a - Vector2(0, bottom_a + 30.0), b - Vector2(0, bottom_b + 30.0),
+			b - Vector2(0, bottom_b + 40.0), a - Vector2(0, bottom_a + 40.0)]), band)
+	# Sporco e muffa alla base.
+	canvas.draw_polygon(PackedVector2Array([a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), b - Vector2(0, bottom_b + 26.0), a - Vector2(0, bottom_a + 26.0)]),
+			PackedColorArray([Color(0.1, 0.09, 0.06, 0.55), Color(0.1, 0.09, 0.06, 0.55), Color(0.1, 0.09, 0.06, 0.0), Color(0.1, 0.09, 0.06, 0.0)]))
+	var roll := rng.randf()
+	if roll < 0.12:
+		# Cartello della stazione con la M.
+		var middle := a.lerp(b, 0.5) - Vector2(0, lerpf(bottom_a, bottom_b, 0.5) + 58.0)
+		canvas.draw_colored_polygon(PackedVector2Array([middle + (a - b) * 0.3, middle - (a - b) * 0.3, middle - (a - b) * 0.3 - Vector2(0, 14), middle + (a - b) * 0.3 - Vector2(0, 14)]), Color(0.12, 0.13, 0.15))
+		canvas.draw_rect(Rect2(middle + (a - b) * 0.22 - Vector2(6, 13), Vector2(12, 12)), Color(0.72, 0.12, 0.1))
+	elif roll < 0.3:
+		# Manifesto strappato e sbiadito.
+		var t := rng.randf_range(0.2, 0.6)
+		var p0 := a.lerp(b, t)
+		var p1 := a.lerp(b, t + 0.3)
+		var h0 := lerpf(bottom_a, bottom_b, t) + 46.0
+		var h1 := lerpf(bottom_a, bottom_b, t + 0.3) + 46.0
+		var paper := Color.from_hsv(rng.randf(), 0.35, 0.55)
+		canvas.draw_colored_polygon(PackedVector2Array([p0 - Vector2(0, h0), p1 - Vector2(0, h1), p1 - Vector2(0, h1 + 30.0), p0 - Vector2(0, h0 + 24.0)]), paper)
+	if rng.randf() < float(_metro_data["blood_chance"]) * 1.5:
+		# Strisciata di sangue che cola giù dalla parete.
+		var blood: Color = _metro_colors["blood_color"]
+		var t := rng.randf_range(0.15, 0.7)
+		var high := rng.randf_range(24.0, height - 10.0)
+		var hand := a.lerp(b, t) - Vector2(0, lerpf(bottom_a, bottom_b, t) + high)
+		var drag := (b - a) * rng.randf_range(0.15, 0.3)
+		canvas.draw_colored_polygon(PackedVector2Array([hand, hand + drag, hand + drag + Vector2(0, 7), hand + Vector2(0, 9)]), blood)
+		var drips := PackedVector2Array()
+		for k in 4:
+			var at := hand + drag * rng.randf() + Vector2(0, 6)
+			drips.append_array([at, at + Vector2(0, rng.randf_range(8.0, high * 0.8))])
+		canvas.draw_multiline(drips, blood, 2.0)
+
+
+## Fiancata di un vagone abbandonato: fascia chiara, finestrini bui con i
+## vetri rotti, una porta ogni tre rombi e la ruggine in basso.
+func _draw_train_side(canvas: CanvasItem, a: Vector2, b: Vector2, top_a: float, top_b: float,
+		bottom_a: float, bottom_b: float, cell: Vector2i, side: int, color: Color) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([_decor_seed(), cell.x, cell.y, side, "train"])
+	var glass: Color = _metro_colors["train_window"]
+	var stripe := Color(0.82, 0.78, 0.66).darkened(0.2 * side)
+	canvas.draw_colored_polygon(PackedVector2Array([a - Vector2(0, bottom_a + 30.0), b - Vector2(0, bottom_b + 30.0),
+			b - Vector2(0, bottom_b + 36.0), a - Vector2(0, bottom_a + 36.0)]), stripe)
+	var door := side == 1 and posmod(cell.x, 3) == 1
+	var t0 := 0.2 if door else 0.12
+	var t1 := 0.8 if door else 0.88
+	var p0 := a.lerp(b, t0)
+	var p1 := a.lerp(b, t1)
+	var low := 8.0 if door else 44.0
+	var h0 := lerpf(bottom_a, bottom_b, t0)
+	var h1 := lerpf(bottom_a, bottom_b, t1)
+	canvas.draw_colored_polygon(PackedVector2Array([p0 - Vector2(0, h0 + low), p1 - Vector2(0, h1 + low), p1 - Vector2(0, h1 + 78.0), p0 - Vector2(0, h0 + 78.0)]),
+			color.darkened(0.35) if door else glass)
+	if door:
+		canvas.draw_colored_polygon(PackedVector2Array([p0.lerp(p1, 0.15) - Vector2(0, h0 + 46.0), p0.lerp(p1, 0.85) - Vector2(0, h1 + 46.0),
+				p0.lerp(p1, 0.85) - Vector2(0, h1 + 72.0), p0.lerp(p1, 0.15) - Vector2(0, h0 + 72.0)]), glass)
+	elif rng.randf() < 0.5:
+		# Vetro incrinato (o un'impronta di sangue).
+		var center := p0.lerp(p1, rng.randf_range(0.3, 0.7)) - Vector2(0, lerpf(h0, h1, 0.5) + 60.0)
+		var crack := PackedVector2Array()
+		for k in 4:
+			var out := Vector2.from_angle(rng.randf() * TAU)
+			crack.append_array([center, center + out * rng.randf_range(6.0, 14.0)])
+		canvas.draw_multiline(crack, Color(0.6, 0.65, 0.7, 0.5) if rng.randf() < 0.7 else _metro_colors["blood_color"], 1.2)
+	canvas.draw_polygon(PackedVector2Array([a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), b - Vector2(0, bottom_b + 18.0), a - Vector2(0, bottom_a + 18.0)]),
+			PackedColorArray([Color(0.18, 0.1, 0.06, 0.6), Color(0.18, 0.1, 0.06, 0.6), Color(0.18, 0.1, 0.06, 0.0), Color(0.18, 0.1, 0.06, 0.0)]))
+
+
 ## Linee lungo la pendenza di una rampa, parallele al lato più alto.
 func _draw_ramp_lines(canvas: CanvasItem, top: PackedVector2Array, ramp: Vector2i, color: Color) -> void:
 	# Lati bassi e alti della rampa, come coppie di vertici (alto, destra, basso, sinistra).
@@ -1532,6 +1668,9 @@ func _draw_decor(canvas: CanvasItem, cell: Vector2i, offset: Vector2, kind: int,
 		return
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([_decor_seed(), cell.x, cell.y, "decor"])
+	if dungeon and dungeon.is_metro():
+		_draw_metro_floor(canvas, cell, offset, rng)
+		return
 	if path or dungeon:
 		for k in rng.randi_range(2, 4):
 			var at := _decor_point(cell, rng, offset)
@@ -1569,6 +1708,55 @@ func _draw_decor(canvas: CanvasItem, cell: Vector2i, offset: Vector2, kind: int,
 		var color := _litter_colors[rng.randi() % _litter_colors.size()]
 		var at := _decor_point(cell, rng, offset)
 		canvas.draw_colored_polygon(PackedVector2Array([at + Vector2(-4, -1), at + Vector2(3, -3), at + Vector2(5, 2), at + Vector2(-2, 3)]), color)
+
+
+## Pavimento della metro: sui binari le traversine e le rotaie, sulle
+## banchine le fughe delle piastrelle e la striscia gialla lungo il bordo
+## sopra i binari; dappertutto calcinacci, rifiuti e pozze di sangue.
+func _draw_metro_floor(canvas: CanvasItem, cell: Vector2i, offset: Vector2, rng: RandomNumberGenerator) -> void:
+	var lift := Vector2(0, elevation_at(cell_center(cell)))
+	var point := func(u: float, v: float) -> Vector2:
+		return _from_uv((cell.x + u) * CELL, (cell.y + v) * CELL) + offset - lift
+	var tile := dungeon.tile_at(cell)
+	if tile == Dungeon.Tile.TRACK:
+		var sleepers := PackedVector2Array()
+		for u: float in [0.2, 0.533, 0.866]:
+			sleepers.append_array([point.call(u, 0.12), point.call(u, 0.88)])
+		canvas.draw_multiline(sleepers, _metro_colors["sleeper_color"], 5.0)
+		var rails := PackedVector2Array()
+		for v: float in [0.3, 0.7]:
+			rails.append_array([point.call(0.0, v), point.call(1.0, v)])
+		canvas.draw_multiline(rails, _metro_colors["rail_color"], 2.5)
+	else:
+		var joints := PackedVector2Array([point.call(0.5, 0.0), point.call(0.5, 1.0), point.call(0.0, 0.5), point.call(1.0, 0.5)])
+		canvas.draw_multiline(joints, Color(0, 0, 0, 0.12), 1.0)
+		# Striscia gialla di sicurezza lungo il bordo della banchina.
+		for side: int in [-1, 1]:
+			if dungeon.tile_at(cell + Vector2i(0, side)) == Dungeon.Tile.TRACK:
+				var v := 0.12 if side < 0 else 0.88
+				canvas.draw_line(point.call(0.0, v), point.call(1.0, v), Color(_metro_colors["edge_color"], 0.85), 4.0)
+	for k in rng.randi_range(1, 3):
+		canvas.draw_circle(point.call(rng.randf_range(0.15, 0.85), rng.randf_range(0.15, 0.85)), rng.randf_range(1.5, 3.0), _debris_colors[k % _debris_colors.size()])
+	if rng.randf() < float(_metro_data["blood_chance"]):
+		# Pozza di sangue rappreso, con gli schizzi attorno.
+		var blood: Color = _metro_colors["blood_color"]
+		var center: Vector2 = point.call(rng.randf_range(0.3, 0.7), rng.randf_range(0.3, 0.7))
+		var pool := PackedVector2Array()
+		var size := rng.randf_range(10.0, 22.0)
+		for k in 9:
+			pool.append(center + Vector2.from_angle(TAU * k / 9.0) * Vector2(size, size * 0.5) * rng.randf_range(0.6, 1.2))
+		canvas.draw_colored_polygon(pool, blood)
+		for k in 4:
+			canvas.draw_circle(center + Vector2.from_angle(rng.randf() * TAU) * size * rng.randf_range(1.2, 1.8) * Vector2(1, 0.5), rng.randf_range(1.5, 3.0), blood)
+	elif rng.randf() < float(_decor["litter_chance"]):
+		var color := _litter_colors[rng.randi() % _litter_colors.size()]
+		var at: Vector2 = point.call(rng.randf_range(0.2, 0.8), rng.randf_range(0.2, 0.8))
+		canvas.draw_colored_polygon(PackedVector2Array([at + Vector2(-4, -1), at + Vector2(3, -3), at + Vector2(5, 2), at + Vector2(-2, 3)]), color)
+	if rng.randf() < float(_metro_data["glowstick_chance"]):
+		var at: Vector2 = point.call(rng.randf_range(0.2, 0.8), rng.randf_range(0.2, 0.8))
+		var glow := _glowstick_colors[rng.randi() % _glowstick_colors.size()]
+		canvas.draw_circle(at, 9.0, Color(glow, 0.22))
+		canvas.draw_line(at + Vector2(-4, 1), at + Vector2(4, -2), glow.lightened(0.3), 3.0)
 
 
 ## Fondo di una fessura aperta dal terremoto: crepe più chiare e, qua e
@@ -1616,7 +1804,9 @@ func set_dungeon(value: Dungeon) -> void:
 	for cache: Dictionary in [_level_cache, _ramp_cache, _path_cache, _kind_cache, _city_cache]:
 		cache.clear()
 	region = Rect2i()
-	var ground := _dungeon_wall_color if dungeon else _ground_colors[0].darkened(0.3)
+	var ground := _ground_colors[0].darkened(0.3)
+	if dungeon:
+		ground = _metro_colors["wall_color"] if dungeon.is_metro() else _dungeon_wall_color
 	RenderingServer.set_default_clear_color(ground)
 
 
@@ -1626,25 +1816,41 @@ func _decor_seed() -> int:
 	return dungeon.seed_value if dungeon else seed_value
 
 
+## Ostacoli di un piano: macerie (nella metro anche panchine sulle
+## banchine e corpi a terra), i passaggi nelle pareti e le casse.
 func _dungeon_obstacles(chunk: Vector2i) -> Array:
 	var result: Array[Dictionary] = []
 	var rng := RandomNumberGenerator.new()
-	var chance := float(_dungeon_data["rubble_chance"])
-	var rock: Dictionary = _obstacle_types["rock"]
-	var radius_range: Array = rock["radius"]
+	var settings := dungeon.settings()
+	var table := {"rock": float(settings["rubble_chance"])}
+	if dungeon.is_metro():
+		table["bench"] = float(settings["bench_chance"])
+		table["corpse"] = float(settings["corpse_chance"])
 	for i in CHUNK_CELLS:
 		for j in CHUNK_CELLS:
 			var cell := chunk * CHUNK_CELLS + Vector2i(i, j)
 			if not dungeon.is_open(cell):
 				continue
 			rng.seed = hash([dungeon.seed_value, cell.x, cell.y, "rock"])
-			if rng.randf() >= chance:
+			var roll := rng.randf()
+			var type_id := ""
+			for id: String in table:
+				roll -= table[id]
+				if roll < 0.0:
+					type_id = id
+					break
+			# Le panchine stanno sulle banchine, non sui binari.
+			if type_id == "" or (type_id == "bench" and dungeon.tile_at(cell) != Dungeon.Tile.FLOOR):
 				continue
+			var type: Dictionary = _obstacle_types[type_id]
+			var radius_range: Array = type["radius"]
 			var radius := rng.randf_range(radius_range[0], radius_range[1])
 			var spot := _from_uv(cell.x * CELL + rng.randf_range(PLACE_MIN, PLACE_MAX), cell.y * CELL + rng.randf_range(PLACE_MIN, PLACE_MAX))
+			if type_id == "bench":
+				spot = cell_center(cell)
 			result.append({
-				"type": "rock", "position": spot, "elevation": 0.0, "radius": radius,
-				"collision": radius * float(rock["collision"]), "solid": true, "slow": 1.0, "damage": 0,
+				"type": type_id, "position": spot, "elevation": elevation_at(spot), "radius": radius,
+				"collision": radius * float(type["collision"]), "solid": type["solid"], "slow": type.get("slow", 1.0), "damage": 0,
 				"damage_interval": 0.0, "variant": rng.randi(),
 			})
 	# Passaggi nelle pareti: verso la superficie (all'arrivo) e verso il
