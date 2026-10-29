@@ -36,6 +36,16 @@ extends Node2D
 ## dietro; quelli che coprono il giocatore, e tutti quelli attorno,
 ## diventano trasparenti finché resta lì dietro.
 ##
+## Luce della torcia (vedi Flashlight): non passa attraverso edifici, muri,
+## pilastri e vagoni. Ogni blocco invalicabile che confina con un posto in
+## cui si cammina ha due ostacoli per la luce (LightOccluder2D): la sua base
+## a terra (OCCLUDER_BASE) e la sua cima (OCCLUDER_TOP, la base alzata
+## quanto il blocco). Il pavimento (ChunkView e i blocchi di pavimento tra i
+## personaggi, sullo strato di luce LIGHT_FLOOR) fa ombra con tutti e due;
+## pareti, personaggi e oggetti, che sullo schermo salgono sopra i propri
+## piedi, solo con la cima: così le pareti rivolte verso la torcia restano
+## illuminate e dietro i muri è buio.
+##
 ## Prestazioni: i dati del terreno (livelli, rampe, ostacoli) di una regione
 ## grande attorno al giocatore sono generati in anticipo (begin_region,
 ## generate_region); avvicinandosi al bordo Game mette in pausa e genera la
@@ -93,6 +103,12 @@ const RAMP_DIRECTIONS := [Vector2i(-1, 0), Vector2i(0, -1), Vector2i(1, 0), Vect
 ## Distanza tra le linee degli strati di terra sulle pareti.
 const STRATA_STEP := 14.0
 const LIP_WIDTH := 5.0
+
+## Strato di luce del pavimento (light_mask) e maschere degli ostacoli per
+## la luce (vedi in cima e Flashlight).
+const LIGHT_FLOOR := 2
+const OCCLUDER_BASE := 1
+const OCCLUDER_TOP := 2
 
 ## Tipi di blocco: terreno normale, grattacielo o fessura (invalicabili) e
 ## muro degli interni.
@@ -1259,6 +1275,14 @@ func _show_chunk(chunk: Vector2i) -> void:
 	view.world = self
 	view.chunk = chunk
 	view.position = _from_uv(chunk.x * CHUNK_CELLS * CELL, chunk.y * CHUNK_CELLS * CELL)
+	view.light_mask = LIGHT_FLOOR
+	# Pareti e blocchi invalicabili sopra il pavimento, sul loro strato di luce.
+	var walls := ChunkView.new()
+	walls.world = self
+	walls.chunk = chunk
+	walls.barriers = true
+	view.add_child(walls)
+	_add_occluders(view, chunk)
 	add_child(view)
 	var nodes: Array[Node] = []
 	if entities:
@@ -1272,6 +1296,8 @@ func _show_chunk(chunk: Vector2i) -> void:
 					block.world = self
 					block.cell = cell
 					block.position = cell_corners(cell)[0]
+					if not is_barrier(cell):
+						block.light_mask = LIGHT_FLOOR
 					entities.add_child(block)
 					nodes.append(block)
 	_chunk_views[chunk] = {"view": view, "nodes": nodes}
@@ -1297,7 +1323,9 @@ func _covers_behind(cell: Vector2i) -> bool:
 
 # --- Disegno dei blocchi ----------------------------------------------
 
-func draw_chunk(canvas: CanvasItem, chunk: Vector2i, offset: Vector2) -> void:
+## barriers: disegna solo i blocchi invalicabili (sopra il pavimento, su
+## un altro strato di luce: vedi in cima), altrimenti solo il resto.
+func draw_chunk(canvas: CanvasItem, chunk: Vector2i, offset: Vector2, barriers := false) -> void:
 	# Da dietro in avanti: prima i rombi con u + v più piccolo. I blocchi che
 	# coprono chi sta dietro li disegna il loro TerrainBlock, tra i personaggi;
 	# qui sotto resta il pavimento da cui salgono, che si vede quando il
@@ -1305,10 +1333,42 @@ func draw_chunk(canvas: CanvasItem, chunk: Vector2i, offset: Vector2) -> void:
 	for depth in 2 * CHUNK_CELLS - 1:
 		for i in range(maxi(0, depth - CHUNK_CELLS + 1), mini(depth, CHUNK_CELLS - 1) + 1):
 			var cell := chunk * CHUNK_CELLS + Vector2i(i, depth - i)
+			if is_barrier(cell) != barriers:
+				continue
 			if entities == null or not _covers_behind(cell):
 				draw_cell(canvas, cell, offset)
 			else:
 				draw_floor(canvas, cell, offset)
+
+
+## Ostacoli per la luce dei blocchi invalicabili del pezzo che confinano
+## con un posto in cui si cammina (vedi in cima), figli di view.
+func _add_occluders(view: Node2D, chunk: Vector2i) -> void:
+	for i in CHUNK_CELLS:
+		for j in CHUNK_CELLS:
+			var cell := chunk * CHUNK_CELLS + Vector2i(i, j)
+			if not is_barrier(cell) or kind_of(cell) == Kind.RAVINE:
+				continue
+			var open := false
+			for step: Vector2i in RAMP_DIRECTIONS:
+				var other := cell + step
+				if not is_barrier(other) or kind_of(other) == Kind.RAVINE:
+					open = true
+					break
+			if not open:
+				continue
+			var corners := cell_corners(cell)
+			for mask: int in [OCCLUDER_BASE, OCCLUDER_TOP]:
+				var lift := Vector2(0, 0.0 if mask == OCCLUDER_BASE else _top_height(cell))
+				var polygon := PackedVector2Array()
+				for corner in corners:
+					polygon.append(corner - lift - view.position)
+				var shape := OccluderPolygon2D.new()
+				shape.polygon = polygon
+				var occluder := LightOccluder2D.new()
+				occluder.occluder = shape
+				occluder.occluder_light_mask = mask
+				view.add_child(occluder)
 
 
 ## Pavimento sotto un blocco che copre chi sta dietro: il rombo piano
@@ -1981,9 +2041,11 @@ class ChunkView:
 
 	var world: World
 	var chunk: Vector2i
+	## Solo i blocchi invalicabili (figlio del pezzo di pavimento, vedi draw_chunk).
+	var barriers := false
 
 	func _draw() -> void:
-		world.draw_chunk(self, chunk, -position)
+		world.draw_chunk(self, chunk, -global_position, barriers)
 
 
 ## Blocco ridisegnato tra i personaggi: la posizione è il suo vertice più
