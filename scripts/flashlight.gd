@@ -16,9 +16,9 @@ extends Node2D
 ## il buio passa da "dark_from" a "dark_full" (vedi DayNight.darkness), e al
 ## buio pieno il fascio principale illumina quanto la luce del giorno.
 ##
-## La luce non passa attraverso i muri: ogni fascio è fatto di due luci con
-## le ombre, una per il pavimento (che fa ombra con la base e la cima dei
-## blocchi) e una per tutto il resto (solo con la cima), vedi World.
+## La luce non passa attraverso i muri: i fasci hanno le ombre degli
+## ostacoli alla base dei blocchi (vedi World); pareti, personaggi e oggetti
+## prendono la luce del punto del pavimento ai loro piedi (vedi LightShaders).
 
 const DATA := preload("res://data/world.json")
 ## La prospettiva isometrica: il terreno è schiacciato a metà in verticale.
@@ -40,24 +40,18 @@ var _energies: Array[float] = []
 func _init() -> void:
 	scale = Vector2(1.0, GROUND_SQUASH)
 	for beam: Dictionary in _settings["beams"]:
-		for floor_layer: bool in [true, false]:
-			var light := PointLight2D.new()
-			light.texture = LightTexture.get_cone_texture(float(beam["angle"]))
-			light.texture_scale = float(beam["range"]) / (LightTexture.CONE_SIZE / 2.0)
-			light.color = World._color(_settings["color"])
-			light.shadow_enabled = true
-			light.shadow_filter = Light2D.SHADOW_FILTER_PCF5
-			light.shadow_filter_smooth = 2.0
-			if floor_layer:
-				light.range_item_cull_mask = World.LIGHT_FLOOR
-				light.shadow_item_cull_mask = World.OCCLUDER_BASE | World.OCCLUDER_TOP
-			else:
-				light.range_item_cull_mask = ~World.LIGHT_FLOOR & 0xFFFFF
-				light.shadow_item_cull_mask = World.OCCLUDER_TOP
-			light.enabled = enabled
-			add_child(light)
-			_lights.append(light)
-			_energies.append(float(beam["energy"]))
+		var light := PointLight2D.new()
+		light.texture = LightTexture.get_cone_texture(float(beam["angle"]))
+		light.texture_scale = float(beam["range"]) / (LightTexture.CONE_SIZE / 2.0)
+		light.color = World._color(_settings["color"])
+		light.shadow_enabled = true
+		light.shadow_filter = Light2D.SHADOW_FILTER_PCF5
+		light.shadow_filter_smooth = 2.0
+		light.shadow_item_cull_mask = World.OCCLUDER_BASE
+		light.enabled = enabled
+		add_child(light)
+		_lights.append(light)
+		_energies.append(float(beam["energy"]))
 
 
 ## Quanto illuminano adesso i fasci accesi, da 0 (c'è luce: niente) a 1

@@ -38,13 +38,11 @@ extends Node2D
 ##
 ## Luce della torcia (vedi Flashlight): non passa attraverso edifici, muri,
 ## pilastri e vagoni. Ogni blocco invalicabile che confina con un posto in
-## cui si cammina ha due ostacoli per la luce (LightOccluder2D): la sua base
-## a terra (OCCLUDER_BASE) e la sua cima (OCCLUDER_TOP, la base alzata
-## quanto il blocco). Il pavimento (ChunkView e i blocchi di pavimento tra i
-## personaggi, sullo strato di luce LIGHT_FLOOR) fa ombra con tutti e due;
-## pareti, personaggi e oggetti, che sullo schermo salgono sopra i propri
-## piedi, solo con la cima: così le pareti rivolte verso la torcia restano
-## illuminate e dietro i muri è buio.
+## cui si cammina ha un ostacolo per la luce (LightOccluder2D) sulla sua base
+## a terra. Pareti e cime dei blocchi sono illuminate come il punto del
+## pavimento ai loro piedi (vedi LightShaders.ground e _light_uvs): una
+## parete si accende solo se il fascio arriva davanti a lei, e quelle dietro
+## altri muri restano al buio.
 ##
 ## Prestazioni: i dati del terreno (livelli, rampe, ostacoli) di una regione
 ## grande attorno al giocatore sono generati in anticipo (begin_region,
@@ -104,11 +102,16 @@ const RAMP_DIRECTIONS := [Vector2i(-1, 0), Vector2i(0, -1), Vector2i(1, 0), Vect
 const STRATA_STEP := 14.0
 const LIP_WIDTH := 5.0
 
-## Strato di luce del pavimento (light_mask) e maschere degli ostacoli per
-## la luce (vedi in cima e Flashlight).
-const LIGHT_FLOOR := 2
+## Maschera degli ostacoli per la luce (vedi in cima e Flashlight) e di
+## quanto, sotto la base di una parete, si guarda se arriva la luce (così il
+## punto è davanti al suo stesso ostacolo).
 const OCCLUDER_BASE := 1
-const OCCLUDER_TOP := 2
+const LIGHT_BASE_NUDGE := 4.0
+
+## Come si calcola la luce dei punti che si disegnano (vedi LightShaders.ground):
+## NONE dove sono, FACE alla base della parete (_light_base_a, _light_base_b),
+## TOP alla base di una cima alta _light_top.
+enum LightMode { NONE, FACE, TOP }
 
 ## Tipi di blocco: terreno normale, grattacielo o fessura (invalicabili) e
 ## muro degli interni.
@@ -215,6 +218,11 @@ var _faded_blocks := {}
 ## ricontrollarli.
 var _wanted_blocks := {}
 var _occlusion_timer := 0.0
+## Punto del pavimento in cui si calcola la luce di quello che si disegna (vedi LightMode).
+var _light_mode := LightMode.NONE
+var _light_base_a := Vector2.ZERO
+var _light_base_b := Vector2.ZERO
+var _light_top := 0.0
 
 
 func _ready() -> void:
@@ -1275,13 +1283,7 @@ func _show_chunk(chunk: Vector2i) -> void:
 	view.world = self
 	view.chunk = chunk
 	view.position = _from_uv(chunk.x * CHUNK_CELLS * CELL, chunk.y * CHUNK_CELLS * CELL)
-	view.light_mask = LIGHT_FLOOR
-	# Pareti e blocchi invalicabili sopra il pavimento, sul loro strato di luce.
-	var walls := ChunkView.new()
-	walls.world = self
-	walls.chunk = chunk
-	walls.barriers = true
-	view.add_child(walls)
+	view.material = LightShaders.ground()
 	_add_occluders(view, chunk)
 	add_child(view)
 	var nodes: Array[Node] = []
@@ -1296,8 +1298,7 @@ func _show_chunk(chunk: Vector2i) -> void:
 					block.world = self
 					block.cell = cell
 					block.position = cell_corners(cell)[0]
-					if not is_barrier(cell):
-						block.light_mask = LIGHT_FLOOR
+					block.material = LightShaders.ground()
 					entities.add_child(block)
 					nodes.append(block)
 	_chunk_views[chunk] = {"view": view, "nodes": nodes}
@@ -1323,9 +1324,7 @@ func _covers_behind(cell: Vector2i) -> bool:
 
 # --- Disegno dei blocchi ----------------------------------------------
 
-## barriers: disegna solo i blocchi invalicabili (sopra il pavimento, su
-## un altro strato di luce: vedi in cima), altrimenti solo il resto.
-func draw_chunk(canvas: CanvasItem, chunk: Vector2i, offset: Vector2, barriers := false) -> void:
+func draw_chunk(canvas: CanvasItem, chunk: Vector2i, offset: Vector2) -> void:
 	# Da dietro in avanti: prima i rombi con u + v più piccolo. I blocchi che
 	# coprono chi sta dietro li disegna il loro TerrainBlock, tra i personaggi;
 	# qui sotto resta il pavimento da cui salgono, che si vede quando il
@@ -1333,8 +1332,6 @@ func draw_chunk(canvas: CanvasItem, chunk: Vector2i, offset: Vector2, barriers :
 	for depth in 2 * CHUNK_CELLS - 1:
 		for i in range(maxi(0, depth - CHUNK_CELLS + 1), mini(depth, CHUNK_CELLS - 1) + 1):
 			var cell := chunk * CHUNK_CELLS + Vector2i(i, depth - i)
-			if is_barrier(cell) != barriers:
-				continue
 			if entities == null or not _covers_behind(cell):
 				draw_cell(canvas, cell, offset)
 			else:
@@ -1358,17 +1355,15 @@ func _add_occluders(view: Node2D, chunk: Vector2i) -> void:
 			if not open:
 				continue
 			var corners := cell_corners(cell)
-			for mask: int in [OCCLUDER_BASE, OCCLUDER_TOP]:
-				var lift := Vector2(0, 0.0 if mask == OCCLUDER_BASE else _top_height(cell))
-				var polygon := PackedVector2Array()
-				for corner in corners:
-					polygon.append(corner - lift - view.position)
-				var shape := OccluderPolygon2D.new()
-				shape.polygon = polygon
-				var occluder := LightOccluder2D.new()
-				occluder.occluder = shape
-				occluder.occluder_light_mask = mask
-				view.add_child(occluder)
+			var polygon := PackedVector2Array()
+			for corner in corners:
+				polygon.append(corner - view.position)
+			var shape := OccluderPolygon2D.new()
+			shape.polygon = polygon
+			var occluder := LightOccluder2D.new()
+			occluder.occluder = shape
+			occluder.occluder_light_mask = OCCLUDER_BASE
+			view.add_child(occluder)
 
 
 ## Pavimento sotto un blocco che copre chi sta dietro: il rombo piano
@@ -1388,6 +1383,7 @@ func draw_floor(canvas: CanvasItem, cell: Vector2i, offset: Vector2) -> void:
 	var faces := _face_colors_of(kind, cell)
 	_draw_face(canvas, corners, heights, cell + Vector2i(1, 0), 1, 2, 0, 3, faces[0], false)
 	_draw_face(canvas, corners, heights, cell + Vector2i(0, 1), 2, 3, 1, 0, faces[1], false)
+	_light_mode = LightMode.NONE
 	canvas.draw_colored_polygon(top, _top_color(cell, kind, is_path(cell)).darkened(0.15))
 
 
@@ -1428,7 +1424,13 @@ func draw_cell(canvas: CanvasItem, cell: Vector2i, offset: Vector2) -> void:
 	if ramp != Vector2i.ZERO:
 		# Le rampe che salgono verso il fondo sono in ombra, le altre in luce.
 		color = color.darkened(0.12) if ramp.x + ramp.y < 0 else color.lightened(0.08)
-	canvas.draw_colored_polygon(top, color)
+	_light_mode = LightMode.NONE
+	if kind != Kind.GROUND:
+		# La cima di un blocco prende la luce che arriva sulla sua base.
+		_light_mode = LightMode.TOP
+		_light_top = maxf(heights.max(), 0.0)
+	_fill(canvas, top, color)
+	_light_mode = LightMode.NONE
 	if ramp != Vector2i.ZERO:
 		_draw_ramp_lines(canvas, top, ramp, color)
 	_draw_decor(canvas, cell, offset, kind, path)
@@ -1490,22 +1492,26 @@ func _draw_face(canvas: CanvasItem, corners: PackedVector2Array, heights: Array[
 		return
 	var a := corners[first]
 	var b := corners[second]
+	# Ogni punto della parete prende la luce che arriva alla sua base.
+	_light_mode = LightMode.FACE
+	_light_base_a = a - Vector2(0, bottom_a)
+	_light_base_b = b - Vector2(0, bottom_b)
 	var points := PackedVector2Array([a - Vector2(0, top_a), b - Vector2(0, top_b)])
 	if top_b - bottom_b >= 0.5:
 		points.append(b - Vector2(0, bottom_b))
 	if top_a - bottom_a >= 0.5:
 		points.append(a - Vector2(0, bottom_a))
-	canvas.draw_colored_polygon(points, color)
+	_fill(canvas, points, color)
 	if pattern != "":
 		if pattern == "train":
 			_draw_train_side(canvas, a, b, top_a, top_b, bottom_a, bottom_b, cell, first, color)
 		else:
 			_draw_wall_tiles(canvas, a, b, top_a, top_b, bottom_a, bottom_b, cell, first, color)
-		canvas.draw_line(a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), Color(0, 0, 0, 0.4), 2.0)
+		_line(canvas, a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), Color(0, 0, 0, 0.4), 2.0)
 		return
 	if windows:
 		_draw_windows(canvas, a, b, top_a, top_b, bottom_a, bottom_b, cell, first)
-		canvas.draw_line(a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), Color(0, 0, 0, 0.3), 2.0)
+		_line(canvas, a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), Color(0, 0, 0, 0.3), 2.0)
 		return
 	# Corsi dei mattoni, strati della terra o del muro, tutti in una sola chiamata.
 	var strata := PackedVector2Array()
@@ -1515,7 +1521,7 @@ func _draw_face(canvas: CanvasItem, corners: PackedVector2Array, heights: Array[
 		strata.append(b - Vector2(0, top_b - minf(depth, top_b - bottom_b)))
 		depth += STRATA_STEP
 	if not strata.is_empty():
-		canvas.draw_multiline(strata, color.darkened(0.18), 1.5)
+		_lines(canvas, strata, color.darkened(0.18), 1.5)
 	if lip:
 		# Bordo del marciapiede in cima.
 		var lip_a := minf(LIP_WIDTH, top_a - bottom_a)
@@ -1526,8 +1532,8 @@ func _draw_face(canvas: CanvasItem, corners: PackedVector2Array, heights: Array[
 		if lip_a > 0.5:
 			lip_points.append(a - Vector2(0, top_a - lip_a))
 		if lip_points.size() >= 3:
-			canvas.draw_colored_polygon(lip_points, _curb_color)
-	canvas.draw_line(a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), Color(0, 0, 0, 0.3), 2.0)
+			_fill(canvas, lip_points, _curb_color)
+	_line(canvas, a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), Color(0, 0, 0, 0.3), 2.0)
 
 
 ## Finestre dell'edificio in rovina sulla parete tra a e b (dall'alto top
@@ -1559,12 +1565,12 @@ func _draw_windows(canvas: CanvasItem, a: Vector2, b: Vector2, top_a: float, top
 		var p1 := a.lerp(b, 0.92)
 		var h0 := lerpf(bottom_a, bottom_b, 0.08)
 		var h1 := lerpf(bottom_a, bottom_b, 0.92)
-		canvas.draw_colored_polygon(PackedVector2Array([p0 - Vector2(0, h0 + 3.0), p1 - Vector2(0, h1 + 3.0),
+		_fill(canvas, PackedVector2Array([p0 - Vector2(0, h0 + 3.0), p1 - Vector2(0, h1 + 3.0),
 				p1 - Vector2(0, h1 + 18.0), p0 - Vector2(0, h0 + 18.0)]), _window_colors[0])
 		var shutter := rng.randf_range(0.3, 0.8)
-		canvas.draw_colored_polygon(PackedVector2Array([p0 - Vector2(0, h0 + 18.0 - 15.0 * shutter), p1 - Vector2(0, h1 + 18.0 - 15.0 * shutter),
+		_fill(canvas, PackedVector2Array([p0 - Vector2(0, h0 + 18.0 - 15.0 * shutter), p1 - Vector2(0, h1 + 18.0 - 15.0 * shutter),
 				p1 - Vector2(0, h1 + 18.0), p0 - Vector2(0, h0 + 18.0)]), Color(0.42, 0.42, 0.4))
-		canvas.draw_colored_polygon(PackedVector2Array([a - Vector2(0, bottom_a + 18.0), b - Vector2(0, bottom_b + 18.0),
+		_fill(canvas, PackedVector2Array([a - Vector2(0, bottom_a + 18.0), b - Vector2(0, bottom_b + 18.0),
 				b - Vector2(0, bottom_b + 24.0), a - Vector2(0, bottom_a + 24.0)]), awning)
 	var depth := 8.0
 	while depth + size + 2.0 < height - reserved:
@@ -1583,17 +1589,17 @@ func _draw_windows(canvas: CanvasItem, a: Vector2, b: Vector2, top_a: float, top
 			var p1 := a.lerp(b, t1)
 			var h0 := lerpf(top_a, top_b, t0) - depth
 			var h1 := lerpf(top_a, top_b, t1) - depth
-			canvas.draw_colored_polygon(PackedVector2Array([p0 - Vector2(0, h0), p1 - Vector2(0, h1),
+			_fill(canvas, PackedVector2Array([p0 - Vector2(0, h0), p1 - Vector2(0, h1),
 					p1 - Vector2(0, h1 - size), p0 - Vector2(0, h0 - size)]), color)
 			# Fuliggine di un incendio sopra la finestra.
 			if roll > 0.9 and roll <= 0.96:
 				var middle := (p0 + p1) / 2.0 - Vector2(0, (h0 + h1) / 2.0)
-				canvas.draw_colored_polygon(PackedVector2Array([middle + (p0 - p1) * 0.4, middle - (p0 - p1) * 0.4,
+				_fill(canvas, PackedVector2Array([middle + (p0 - p1) * 0.4, middle - (p0 - p1) * 0.4,
 						middle - Vector2(0, 9.0)]), Color(0.05, 0.05, 0.05, 0.6))
 		if windows.get("balconies", false):
 			var h0 := top_a - depth - size - 2.0
 			var h1 := top_b - depth - size - 2.0
-			canvas.draw_line(a.lerp(b, 0.1) - Vector2(0, lerpf(h0, h1, 0.1)), a.lerp(b, 0.9) - Vector2(0, lerpf(h0, h1, 0.9)), Color(0.25, 0.24, 0.22), 3.0)
+			_line(canvas, a.lerp(b, 0.1) - Vector2(0, lerpf(h0, h1, 0.1)), a.lerp(b, 0.9) - Vector2(0, lerpf(h0, h1, 0.9)), Color(0.25, 0.24, 0.22), 3.0)
 		depth += row
 
 
@@ -1619,19 +1625,19 @@ func _draw_wall_tiles(canvas: CanvasItem, a: Vector2, b: Vector2, top_a: float, 
 		var top := lerpf(top_a, top_b, t)
 		joints.append(at - Vector2(0, base))
 		joints.append(at - Vector2(0, top))
-	canvas.draw_multiline(joints, color.darkened(0.12), 1.0)
+	_lines(canvas, joints, color.darkened(0.12), 1.0)
 	var band: Color = _metro_colors["tile_band"]
-	canvas.draw_colored_polygon(PackedVector2Array([a - Vector2(0, bottom_a + 30.0), b - Vector2(0, bottom_b + 30.0),
+	_fill(canvas, PackedVector2Array([a - Vector2(0, bottom_a + 30.0), b - Vector2(0, bottom_b + 30.0),
 			b - Vector2(0, bottom_b + 40.0), a - Vector2(0, bottom_a + 40.0)]), band)
 	# Sporco e muffa alla base.
-	canvas.draw_polygon(PackedVector2Array([a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), b - Vector2(0, bottom_b + 26.0), a - Vector2(0, bottom_a + 26.0)]),
+	_fill_colors(canvas, PackedVector2Array([a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), b - Vector2(0, bottom_b + 26.0), a - Vector2(0, bottom_a + 26.0)]),
 			PackedColorArray([Color(0.1, 0.09, 0.06, 0.55), Color(0.1, 0.09, 0.06, 0.55), Color(0.1, 0.09, 0.06, 0.0), Color(0.1, 0.09, 0.06, 0.0)]))
 	var roll := rng.randf()
 	if roll < 0.12:
 		# Cartello della stazione con la M.
 		var middle := a.lerp(b, 0.5) - Vector2(0, lerpf(bottom_a, bottom_b, 0.5) + 58.0)
-		canvas.draw_colored_polygon(PackedVector2Array([middle + (a - b) * 0.3, middle - (a - b) * 0.3, middle - (a - b) * 0.3 - Vector2(0, 14), middle + (a - b) * 0.3 - Vector2(0, 14)]), Color(0.12, 0.13, 0.15))
-		canvas.draw_rect(Rect2(middle + (a - b) * 0.22 - Vector2(6, 13), Vector2(12, 12)), Color(0.72, 0.12, 0.1))
+		_fill(canvas, PackedVector2Array([middle + (a - b) * 0.3, middle - (a - b) * 0.3, middle - (a - b) * 0.3 - Vector2(0, 14), middle + (a - b) * 0.3 - Vector2(0, 14)]), Color(0.12, 0.13, 0.15))
+		_fill(canvas, _rect_points(Rect2(middle + (a - b) * 0.22 - Vector2(6, 13), Vector2(12, 12))), Color(0.72, 0.12, 0.1))
 	elif roll < 0.3:
 		# Manifesto strappato e sbiadito.
 		var t := rng.randf_range(0.2, 0.6)
@@ -1640,7 +1646,7 @@ func _draw_wall_tiles(canvas: CanvasItem, a: Vector2, b: Vector2, top_a: float, 
 		var h0 := lerpf(bottom_a, bottom_b, t) + 46.0
 		var h1 := lerpf(bottom_a, bottom_b, t + 0.3) + 46.0
 		var paper := Color.from_hsv(rng.randf(), 0.35, 0.55)
-		canvas.draw_colored_polygon(PackedVector2Array([p0 - Vector2(0, h0), p1 - Vector2(0, h1), p1 - Vector2(0, h1 + 30.0), p0 - Vector2(0, h0 + 24.0)]), paper)
+		_fill(canvas, PackedVector2Array([p0 - Vector2(0, h0), p1 - Vector2(0, h1), p1 - Vector2(0, h1 + 30.0), p0 - Vector2(0, h0 + 24.0)]), paper)
 	if rng.randf() < float(_metro_data["blood_chance"]) * 1.5:
 		# Strisciata di sangue che cola giù dalla parete.
 		var blood: Color = _metro_colors["blood_color"]
@@ -1648,12 +1654,12 @@ func _draw_wall_tiles(canvas: CanvasItem, a: Vector2, b: Vector2, top_a: float, 
 		var high := rng.randf_range(24.0, height - 10.0)
 		var hand := a.lerp(b, t) - Vector2(0, lerpf(bottom_a, bottom_b, t) + high)
 		var drag := (b - a) * rng.randf_range(0.15, 0.3)
-		canvas.draw_colored_polygon(PackedVector2Array([hand, hand + drag, hand + drag + Vector2(0, 7), hand + Vector2(0, 9)]), blood)
+		_fill(canvas, PackedVector2Array([hand, hand + drag, hand + drag + Vector2(0, 7), hand + Vector2(0, 9)]), blood)
 		var drips := PackedVector2Array()
 		for k in 4:
 			var at := hand + drag * rng.randf() + Vector2(0, 6)
 			drips.append_array([at, at + Vector2(0, rng.randf_range(8.0, high * 0.8))])
-		canvas.draw_multiline(drips, blood, 2.0)
+		_lines(canvas, drips, blood, 2.0)
 
 
 ## Fiancata di un vagone abbandonato: fascia chiara, finestrini bui con i
@@ -1664,7 +1670,7 @@ func _draw_train_side(canvas: CanvasItem, a: Vector2, b: Vector2, top_a: float, 
 	rng.seed = hash([_decor_seed(), cell.x, cell.y, side, "train"])
 	var glass: Color = _metro_colors["train_window"]
 	var stripe := Color(0.82, 0.78, 0.66).darkened(0.2 * side)
-	canvas.draw_colored_polygon(PackedVector2Array([a - Vector2(0, bottom_a + 30.0), b - Vector2(0, bottom_b + 30.0),
+	_fill(canvas, PackedVector2Array([a - Vector2(0, bottom_a + 30.0), b - Vector2(0, bottom_b + 30.0),
 			b - Vector2(0, bottom_b + 36.0), a - Vector2(0, bottom_a + 36.0)]), stripe)
 	var door := side == 1 and posmod(cell.x, 3) == 1
 	var t0 := 0.2 if door else 0.12
@@ -1674,10 +1680,10 @@ func _draw_train_side(canvas: CanvasItem, a: Vector2, b: Vector2, top_a: float, 
 	var low := 8.0 if door else 44.0
 	var h0 := lerpf(bottom_a, bottom_b, t0)
 	var h1 := lerpf(bottom_a, bottom_b, t1)
-	canvas.draw_colored_polygon(PackedVector2Array([p0 - Vector2(0, h0 + low), p1 - Vector2(0, h1 + low), p1 - Vector2(0, h1 + 78.0), p0 - Vector2(0, h0 + 78.0)]),
+	_fill(canvas, PackedVector2Array([p0 - Vector2(0, h0 + low), p1 - Vector2(0, h1 + low), p1 - Vector2(0, h1 + 78.0), p0 - Vector2(0, h0 + 78.0)]),
 			color.darkened(0.35) if door else glass)
 	if door:
-		canvas.draw_colored_polygon(PackedVector2Array([p0.lerp(p1, 0.15) - Vector2(0, h0 + 46.0), p0.lerp(p1, 0.85) - Vector2(0, h1 + 46.0),
+		_fill(canvas, PackedVector2Array([p0.lerp(p1, 0.15) - Vector2(0, h0 + 46.0), p0.lerp(p1, 0.85) - Vector2(0, h1 + 46.0),
 				p0.lerp(p1, 0.85) - Vector2(0, h1 + 72.0), p0.lerp(p1, 0.15) - Vector2(0, h0 + 72.0)]), glass)
 	elif rng.randf() < 0.5:
 		# Vetro incrinato (o un'impronta di sangue).
@@ -1686,9 +1692,57 @@ func _draw_train_side(canvas: CanvasItem, a: Vector2, b: Vector2, top_a: float, 
 		for k in 4:
 			var out := Vector2.from_angle(rng.randf() * TAU)
 			crack.append_array([center, center + out * rng.randf_range(6.0, 14.0)])
-		canvas.draw_multiline(crack, Color(0.6, 0.65, 0.7, 0.5) if rng.randf() < 0.7 else _metro_colors["blood_color"], 1.2)
-	canvas.draw_polygon(PackedVector2Array([a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), b - Vector2(0, bottom_b + 18.0), a - Vector2(0, bottom_a + 18.0)]),
+		_lines(canvas, crack, Color(0.6, 0.65, 0.7, 0.5) if rng.randf() < 0.7 else _metro_colors["blood_color"], 1.2)
+	_fill_colors(canvas, PackedVector2Array([a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), b - Vector2(0, bottom_b + 18.0), a - Vector2(0, bottom_a + 18.0)]),
 			PackedColorArray([Color(0.18, 0.1, 0.06, 0.6), Color(0.18, 0.1, 0.06, 0.6), Color(0.18, 0.1, 0.06, 0.0), Color(0.18, 0.1, 0.06, 0.0)]))
+
+
+## Per ogni punto, di quanti pixel scendere per arrivare al punto del
+## pavimento da cui prende la luce (in UV.y, vedi LightShaders.ground): fin
+## sotto la base della parete (un poco davanti, LIGHT_BASE_NUDGE) o della
+## cima. Vuoto se la luce si calcola dove si disegna.
+func _light_uvs(points: PackedVector2Array) -> PackedVector2Array:
+	var uvs := PackedVector2Array()
+	if _light_mode == LightMode.NONE:
+		return uvs
+	uvs.resize(points.size())
+	var a := _light_base_a
+	var b := _light_base_b
+	for k in points.size():
+		var drop := _light_top
+		if _light_mode == LightMode.FACE:
+			var t := clampf((points[k].x - a.x) / (b.x - a.x), 0.0, 1.0) if absf(b.x - a.x) > 0.01 else 0.0
+			drop = maxf(lerpf(a.y, b.y, t) - points[k].y, 0.0) + LIGHT_BASE_NUDGE
+		uvs[k] = Vector2(0.0, drop)
+	return uvs
+
+
+func _fill(canvas: CanvasItem, points: PackedVector2Array, color: Color) -> void:
+	canvas.draw_colored_polygon(points, color, _light_uvs(points))
+
+
+func _fill_colors(canvas: CanvasItem, points: PackedVector2Array, colors: PackedColorArray) -> void:
+	canvas.draw_polygon(points, colors, _light_uvs(points))
+
+
+func _line(canvas: CanvasItem, from: Vector2, to: Vector2, color: Color, width: float) -> void:
+	_lines(canvas, PackedVector2Array([from, to]), color, width)
+
+
+## Segmenti (a coppie di punti) come quadrilateri, così ogni vertice ha la sua luce.
+func _lines(canvas: CanvasItem, pairs: PackedVector2Array, color: Color, width: float) -> void:
+	if _light_mode == LightMode.NONE:
+		canvas.draw_multiline(pairs, color, width)
+		return
+	var colors := PackedColorArray([color, color, color, color])
+	for k in range(0, pairs.size() - 1, 2):
+		var across := (pairs[k + 1] - pairs[k]).orthogonal().normalized() * width / 2.0
+		var quad := PackedVector2Array([pairs[k] + across, pairs[k + 1] + across, pairs[k + 1] - across, pairs[k] - across])
+		canvas.draw_primitive(quad, colors, _light_uvs(quad))
+
+
+static func _rect_points(rect: Rect2) -> PackedVector2Array:
+	return PackedVector2Array([rect.position, Vector2(rect.end.x, rect.position.y), rect.end, Vector2(rect.position.x, rect.end.y)])
 
 
 ## Linee lungo la pendenza di una rampa, parallele al lato più alto.
@@ -2041,11 +2095,9 @@ class ChunkView:
 
 	var world: World
 	var chunk: Vector2i
-	## Solo i blocchi invalicabili (figlio del pezzo di pavimento, vedi draw_chunk).
-	var barriers := false
 
 	func _draw() -> void:
-		world.draw_chunk(self, chunk, -global_position, barriers)
+		world.draw_chunk(self, chunk, -position)
 
 
 ## Blocco ridisegnato tra i personaggi: la posizione è il suo vertice più

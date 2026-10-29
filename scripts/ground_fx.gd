@@ -75,8 +75,6 @@ func _exit_tree() -> void:
 
 
 func _ready() -> void:
-	# Sangue e corpi sono a terra: prendono la luce della torcia come il pavimento.
-	light_mask = World.LIGHT_FLOOR
 	_air.fx = self
 	_air.z_index = 20
 	add_child(_air)

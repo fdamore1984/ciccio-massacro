@@ -2487,8 +2487,9 @@ func _update_run_button(delta: float) -> void:
 ## della notte e dei sotterranei non lo scurisce (niente luci su di lui).
 func update_torch_light() -> void:
 	var lit := _torch.strength() >= TORCH_SELF_LIGHT
-	if lit != (material != null):
-		material = Enemy._unshaded_material() if lit else null
+	var wanted: Material = Enemy._unshaded_material() if lit else LightShaders.feet()
+	if material != wanted:
+		material = wanted
 
 
 func set_torch(on: bool) -> void:
