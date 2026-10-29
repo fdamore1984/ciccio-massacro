@@ -29,6 +29,8 @@ const COLOR_LOOT := Color(1, 1, 1)
 const COLOR_MERCHANT := Color(1.0, 0.6, 0.85)
 ## Ingressi delle caverne e scale (in giù), uscite verso la superficie.
 const COLOR_CAVE := Color(0.95, 0.55, 0.2)
+## Ingressi della metropolitana.
+const COLOR_METRO := Color(0.8, 0.15, 0.12)
 const COLOR_EXIT := Color(1.0, 0.85, 0.45)
 
 ## Righe campionate a ogni frame: l'immagine nuova si prepara in più
@@ -153,8 +155,8 @@ func _inside(at: Vector2) -> bool:
 	return Rect2(Vector2.ZERO, size).has_point(at)
 
 
-## Segno di un punto d'interesse (cassa, totem, mercante, caverna, scala,
-## uscita) in at, con un bordo scuro; usato anche dalla mappa completa.
+## Segno di un punto d'interesse (cassa, totem, mercante, caverna,
+## metropolitana, scala, uscita) in at, con un bordo scuro; usato anche dalla mappa completa.
 static func draw_point(canvas: CanvasItem, world: World, point: Dictionary, at: Vector2) -> void:
 	match point["type"]:
 		"chest":
@@ -181,6 +183,12 @@ static func draw_point(canvas: CanvasItem, world: World, point: Dictionary, at: 
 			canvas.draw_circle(at, 8.0, COLOR_OUTLINE)
 			canvas.draw_circle(at, 6.5, COLOR_USED if cleared else COLOR_CAVE)
 			canvas.draw_circle(at + Vector2(0, 1.5), 3.5, Color(0.05, 0.04, 0.04))
+		"metro":
+			# Il cartello della metropolitana: una M bianca su un quadrato rosso (grigio se ripulita).
+			var cleared := world.is_cave_cleared(point["position"])
+			canvas.draw_rect(Rect2(at - Vector2(8, 8), Vector2(16, 16)), COLOR_OUTLINE)
+			canvas.draw_rect(Rect2(at - Vector2(6.5, 6.5), Vector2(13, 13)), COLOR_USED if cleared else COLOR_METRO)
+			canvas.draw_polyline(PackedVector2Array([at + Vector2(-4, 4), at + Vector2(-4, -4), at + Vector2(0, 1), at + Vector2(4, -4), at + Vector2(4, 4)]), Color(0.95, 0.95, 0.9), 1.5)
 		"stairs":
 			# Una freccia in giù: si scende.
 			canvas.draw_colored_polygon(PackedVector2Array([at + Vector2(-8, -6), at + Vector2(8, -6), at + Vector2(0, 8)]), COLOR_OUTLINE)

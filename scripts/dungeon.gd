@@ -15,6 +15,15 @@ extends RefCounted
 ##
 ## Il terreno lo disegna World come la superficie: il pavimento è al
 ## livello 0, la roccia è un blocco alto che non si scala.
+##
+## La metropolitana (kind "metro", parametri in "metro" di data/world.json)
+## è un sotterraneo come gli altri, con la pianta di una stazione: al
+## centro le banchine (due laterali e una a isola con i pilastri) tra due
+## binari incassati un livello più in basso (TRACK), che continuano nelle
+## gallerie buie oltre le banchine; sui binari i vagoni abbandonati (TRAIN,
+## blocchi alti che non si scalano). Sopra e sotto la stazione i locali di
+## servizio, divisi a caso in stanze come gli edifici, con le porte sulle
+## banchine.
 
 const DATA := preload("res://data/world.json")
 ## Ostacoli e nemici stanno ad almeno questa distanza (in rombi) da scale e arena.
@@ -22,9 +31,14 @@ const KEEP_CLEAR := 3
 ## Due passaggi nelle pareti non stanno mai più vicini di così (in rombi).
 const PASSAGE_SPACING := 8
 
+## Tipo di ogni rombo (solo grafica e altezze; vedi tile_at).
+enum Tile { FLOOR, WALL, TRACK, TRAIN }
+
 ## Piano (1 = il primo sotto la superficie) e quanti piani ha il sotterraneo.
 var depth := 1
 var levels := 2
+## "building" (edificio abbandonato) o "metro" (stazione della metropolitana).
+var kind := "building"
 var width := 0
 var height := 0
 var seed_value := 0
@@ -47,20 +61,42 @@ var chests: Array[Vector2i] = []
 ## Casse già aperte in questo piano (posizione -> true).
 var opened_chests := {}
 
+## Livello dei binari e della cima dei vagoni (solo nella metro).
+var track_level := -1
+var train_level := 2
+## Rombi delle banchine: righe (v) e colonne (u) in cui c'è la stazione (solo nella metro).
+var station_rows := Vector2i(-1, -1)
+
 ## 1 = pavimento, 0 = roccia; fuori dalla griglia è tutta roccia.
 var _floor := PackedByteArray()
+## Tipo di rombo (Tile), solo nella metro.
+var _tiles := PackedByteArray()
 
 
-func _init(dungeon_seed: int, depth_value: int, levels_value: int) -> void:
+func _init(dungeon_seed: int, depth_value: int, levels_value: int, kind_value := "building") -> void:
 	seed_value = dungeon_seed
 	depth = depth_value
 	levels = levels_value
+	kind = kind_value
 	_generate()
 
 
+## Parametri del tipo di sotterraneo ("dungeon" o "metro" di data/world.json).
+static func data_for(kind_value: String) -> Dictionary:
+	return DATA.data["metro" if kind_value == "metro" else "dungeon"]
+
+
+func settings() -> Dictionary:
+	return data_for(kind)
+
+
+func is_metro() -> bool:
+	return kind == "metro"
+
+
 ## Quanti piani ha il sotterraneo di una caverna (sempre lo stesso per la stessa caverna).
-static func levels_for(cave_seed: int) -> int:
-	var range_values: Array = DATA.data["dungeon"]["levels"]
+static func levels_for(cave_seed: int, kind_value := "building") -> int:
+	var range_values: Array = data_for(kind_value)["levels"]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = cave_seed
 	return rng.randi_range(range_values[0], range_values[1])
@@ -81,12 +117,37 @@ func is_floor(cell: Vector2i) -> bool:
 	return _floor[cell.y * width + cell.x] == 1
 
 
+## Tipo del rombo (vedi Tile): negli edifici solo pavimento e muro.
+func tile_at(cell: Vector2i) -> int:
+	if not is_floor(cell):
+		if is_metro() and cell.x >= 0 and cell.y >= 0 and cell.x < width and cell.y < height \
+				and _tiles[cell.y * width + cell.x] == Tile.TRAIN:
+			return Tile.TRAIN
+		return Tile.WALL
+	if is_metro():
+		return _tiles[cell.y * width + cell.x]
+	return Tile.FLOOR
+
+
+## Livello del rombo: pavimento 0, muri wall_level, binari e vagoni i loro.
+func level_at(cell: Vector2i) -> int:
+	match tile_at(cell):
+		Tile.TRACK:
+			return track_level
+		Tile.TRAIN:
+			return train_level
+		Tile.WALL:
+			return wall_level
+	return 0
+
+
 ## Pavimento libero tutto attorno e lontano da scale, arena e casse: qui
-## si possono mettere stalagmiti e nemici senza chiudere le gallerie.
-func is_open(cell: Vector2i) -> bool:
+## si possono mettere stalagmiti e nemici senza chiudere le gallerie. Con
+## loose basta il rombo stesso (i binari nelle gallerie sono stretti).
+func is_open(cell: Vector2i, loose := false) -> bool:
 	for i in range(-1, 2):
 		for j in range(-1, 2):
-			if not is_floor(cell + Vector2i(i, j)):
+			if not is_floor(cell + Vector2i(i, j)) and not (loose and (i != 0 or j != 0)):
 				return false
 	for spot in [arrival, stairs]:
 		if spot.x >= 0 and (spot as Vector2i).distance_to(cell) < KEEP_CLEAR:
@@ -111,16 +172,17 @@ func room_cells(room: Dictionary) -> Array[Vector2i]:
 	var center: Vector2i = room["center"]
 	var radius: int = room["radius"]
 	var rect: Rect2i = room.get("rect", Rect2i(center - Vector2i(radius, radius), Vector2i(radius, radius) * 2 + Vector2i.ONE))
+	var loose := is_metro()
 	for x in range(rect.position.x, rect.end.x):
 		for y in range(rect.position.y, rect.end.y):
 			var cell := Vector2i(x, y)
-			if is_open(cell):
+			if is_open(cell, loose):
 				result.append(cell)
 	return result
 
 
 func _generate() -> void:
-	var data: Dictionary = DATA.data["dungeon"]
+	var data := settings()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
 	var size: Array = data["size"]
@@ -130,13 +192,25 @@ func _generate() -> void:
 	arena_radius = data["arena_radius"]
 	_floor.resize(width * height)
 	_floor.fill(0)
+	var leaves: Array[Rect2i] = []
+	var start_leaf: Rect2i
+	if is_metro():
+		start_leaf = _generate_station(rng, data, leaves)
+	else:
+		_generate_rooms(Rect2i(1, 1, width - 2, height - 2), rng, data, leaves)
+		start_leaf = leaves[rng.randi() % leaves.size()]
+	_place_passages(start_leaf, leaves, rng, data)
+
+
+## Divide il rettangolo in stanze (aggiunte a leaves) con muri dritti e porte.
+func _generate_rooms(area: Rect2i, rng: RandomNumberGenerator, data: Dictionary, leaves: Array[Rect2i]) -> void:
 	# Lo spazio si taglia più volte con muri dritti: le stanze sono i pezzi
 	# rimasti, i muri si incontrano a T e a croce.
-	var leaves: Array[Rect2i] = []
+	var first := leaves.size()
 	var walls: Array[Dictionary] = []
-	_split(Rect2i(1, 1, width - 2, height - 2), rng, leaves, walls, data)
-	for leaf in leaves:
-		_fill(leaf.position, leaf.end - Vector2i.ONE)
+	_split(area, rng, leaves, walls, data)
+	for k in range(first, leaves.size()):
+		_fill(leaves[k].position, leaves[k].end - Vector2i.ONE)
 	# Ogni muro ha una porta (così tutte le stanze sono collegate), a volte
 	# due, a volte sparisce del tutto (un salone); nei saloni grandi i pilastri.
 	for wall in walls:
@@ -147,10 +221,106 @@ func _generate() -> void:
 		_open_door(wall, rng)
 		if rng.randf() < float(data["extra_doors"]):
 			_open_door(wall, rng)
-	for leaf in leaves:
-		_add_pillars(leaf, rng, data)
-	# Stanza d'arrivo a caso; la più lontana a piedi ha la scala, o l'arena del boss.
-	var start_leaf := leaves[rng.randi() % leaves.size()]
+	for k in range(first, leaves.size()):
+		_add_pillars(leaves[k], rng, data)
+
+
+## Pianta della stazione della metro (vedi in cima): banchine, binari,
+## gallerie, vagoni e locali di servizio. Le stanze per i nemici (leaves)
+## sono i locali, pezzi di banchina e tratti di galleria; restituisce il
+## pezzo di banchina d'arrivo, in fondo a sinistra della prima banchina.
+func _generate_station(rng: RandomNumberGenerator, data: Dictionary, leaves: Array[Rect2i]) -> Rect2i:
+	_tiles.resize(width * height)
+	_tiles.fill(Tile.WALL)
+	track_level = data["track_level"]
+	train_level = data["train_level"]
+	var side := int(data["side_platform"])
+	var track := int(data["track_width"])
+	var island_range: Array = data["island_platform"]
+	var island := rng.randi_range(island_range[0], island_range[1])
+	var total := side * 2 + track * 2 + island
+	var top := (height - total) / 2 + rng.randi_range(-2, 2)
+	station_rows = Vector2i(top, top + total - 1)
+	var ends: Array = data["platform_end"]
+	var x0 := 1 + rng.randi_range(ends[0], ends[1])
+	var x1 := width - 2 - rng.randi_range(ends[0], ends[1])
+	# Righe dall'alto: banchina, binario, isola, binario, banchina.
+	var rows: Array[Array] = []
+	var y := top
+	for part: Array in [["side", side], ["track", track], ["island", island], ["track", track], ["side", side]]:
+		rows.append([part[0], y, y + int(part[1]) - 1])
+		y += int(part[1])
+	var segment := int(data["platform_segment"])
+	for row: Array in rows:
+		var first: int = row[1]
+		var last: int = row[2]
+		if row[0] == "track":
+			# I binari attraversano tutta la pianta: oltre le banchine sono gallerie.
+			for x in range(1, width - 1):
+				for v in range(first, last + 1):
+					_set_tile(Vector2i(x, v), Tile.TRACK)
+			for start: int in [1, x1 + 1]:
+				var end := x0 - 1 if start == 1 else width - 2
+				if end - start >= 3:
+					leaves.append(Rect2i(start, first, end - start + 1, last - first + 1))
+			continue
+		_fill(Vector2i(x0, first), Vector2i(x1, last))
+		var x := x0
+		while x <= x1:
+			var length := mini(segment, x1 - x + 1)
+			leaves.append(Rect2i(x, first, length, last - first + 1))
+			x += length
+	# Pilastri in mezzo alla banchina a isola, uno ogni "pillar_step" rombi.
+	var island_row: Array = rows[2]
+	var middle := (int(island_row[1]) + int(island_row[2])) / 2
+	for x in range(x0 + 2, x1 - 1, int(data["pillar_step"])):
+		_floor[middle * width + x] = 0
+		_set_tile(Vector2i(x, middle), Tile.WALL, false)
+	# Vagoni abbandonati sui binari, solo lungo le banchine (così non
+	# chiudono le gallerie): blocchi lunghi con un rombo libero tra l'uno e l'altro.
+	var cars: Array = data["train_cars"]
+	var car_length: Array = data["car_length"]
+	for row: Array in [rows[1], rows[3]]:
+		if rng.randf() >= float(data["train_chance"]):
+			continue
+		var count := rng.randi_range(cars[0], cars[1])
+		var x := rng.randi_range(x0 + 1, maxi(x0 + 1, x1 - 1 - count * (int(car_length[1]) + 1)))
+		for k in count:
+			var length := rng.randi_range(car_length[0], car_length[1])
+			for i in mini(length, x1 - x):
+				for v in range(int(row[1]), int(row[2]) + 1):
+					_floor[v * width + x + i] = 0
+					_set_tile(Vector2i(x + i, v), Tile.TRAIN, false)
+			x += length + 1
+	# Locali di servizio sopra e sotto la stazione, con le porte sulle banchine.
+	var areas := [Rect2i(1, 1, width - 2, top - 2), Rect2i(1, station_rows.y + 2, width - 2, height - station_rows.y - 3)]
+	for k in areas.size():
+		var area: Rect2i = areas[k]
+		if area.size.y < int(data["room_size"][0]):
+			continue
+		_generate_rooms(area, rng, data, leaves)
+		var wall_y := top - 1 if k == 0 else station_rows.y + 1
+		var cells: Array[Vector2i] = []
+		for x in range(x0, x1 + 1):
+			cells.append(Vector2i(x, wall_y))
+		var wall := {"cells": cells, "across": Vector2i(0, 1)}
+		for _door in int(data["service_doors"]):
+			_open_door(wall, rng)
+	# Ciò che non si raggiunge dalla banchina d'arrivo diventa muro.
+	var start := Rect2i(x0, top, mini(segment, x1 - x0 + 1), side)
+	var reached := _distances_from(_center(start))
+	for v in height:
+		for x in width:
+			var cell := Vector2i(x, v)
+			if is_floor(cell) and not reached.has(cell):
+				_floor[v * width + x] = 0
+				_tiles[v * width + x] = Tile.WALL
+	return start
+
+
+## Arrivo, scala (o arena del boss all'ultimo piano), stanze e casse.
+func _place_passages(start_leaf: Rect2i, leaves: Array[Rect2i], rng: RandomNumberGenerator, data: Dictionary) -> void:
+	# La stanza più lontana a piedi ha la scala, o l'arena del boss.
 	var arrival_room := _center(start_leaf)
 	var arrival_spot := _wall_spot(arrival_room, maxi(start_leaf.size.x, start_leaf.size.y) / 2 + 2)
 	arrival = arrival_spot[0]
@@ -158,7 +328,7 @@ func _generate() -> void:
 	var distances := _distances_from(arrival)
 	var far := start_leaf
 	for leaf in leaves:
-		if distances.get(_center(leaf), 0) > distances.get(_center(far), 0):
+		if distances.get(_center(leaf), 0) > distances.get(_center(far), 0) and is_floor(_center(leaf)):
 			far = leaf
 	if is_last():
 		# Arena: un salone quadrato attorno alla stanza più lontana, dentro la pianta.
@@ -327,6 +497,16 @@ func _find_wall_spot(near: Vector2i, max_distance: int, avoid: Array[Vector2i], 
 func _set_floor(cell: Vector2i) -> void:
 	if cell.x >= 1 and cell.y >= 1 and cell.x < width - 1 and cell.y < height - 1:
 		_floor[cell.y * width + cell.x] = 1
+		if is_metro():
+			_tiles[cell.y * width + cell.x] = Tile.FLOOR
+
+
+## Tipo di un rombo della metro; floor: è anche pavimento (i binari sì, muri e vagoni no).
+func _set_tile(cell: Vector2i, tile: int, floor := true) -> void:
+	if cell.x >= 1 and cell.y >= 1 and cell.x < width - 1 and cell.y < height - 1:
+		if floor:
+			_floor[cell.y * width + cell.x] = 1
+		_tiles[cell.y * width + cell.x] = tile
 
 
 ## Distanza a piedi (in rombi) di ogni rombo del pavimento dal punto.

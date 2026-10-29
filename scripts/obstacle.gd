@@ -5,7 +5,9 @@ extends Node2D
 ## distrutta: "tree" è un albero secco (sui viali e nei parchi), "lamp" un
 ## lampione piegato, "shelter" una pensilina dell'autobus sfasciata,
 ## "metro" l'ingresso della metropolitana (scale che scendono nel buio, la
-## ringhiera e il cartello con la M), "rock" un blocco di macerie, "bush"
+## ringhiera e il cartello con la M: ci si scende come nelle porte degli
+## edifici), "bench" una panchina e "corpse" un corpo a terra sulle
+## banchine della metro, "rock" un blocco di macerie, "bush"
 ## un cumulo di rottami che rallenta, "chest" una cassa militare, "totem" la sirena al centro di
 ## un'arena, "merchant" il banco di un commerciante, "cave" la porta di un
 ## edificio abbandonato, "stairs" le scale verso il piano dopo ed "exit"
@@ -19,7 +21,7 @@ extends Node2D
 const CANOPY_FADE_ALPHA := 0.4
 ## Elementi con cui si interagisce: in modalità focus restano a colori con
 ## un'aura bianca attorno (vedi LowHealthVignette).
-const INTERACTIVE := ["chest", "cave", "stairs", "exit", "merchant", "totem"]
+const INTERACTIVE := ["chest", "cave", "metro", "stairs", "exit", "merchant", "totem"]
 const COLOR_AURA := Color(1, 1, 1, 0.55)
 ## Ostacoli alti, che sfumano quando il giocatore ci passa dietro.
 const TALL := ["tree", "lamp", "shelter"]
@@ -74,7 +76,7 @@ func _is_active() -> bool:
 	match type_id:
 		"chest":
 			return not _opened
-		"cave":
+		"cave", "metro":
 			return world == null or not world.is_cave_cleared(position)
 		"totem":
 			return world == null or world.totem_state(position) == "ready"
@@ -94,6 +96,8 @@ func _aura_height() -> float:
 	match type_id:
 		"chest":
 			return radius * 0.6
+		"metro":
+			return radius * 0.3
 		"merchant":
 			return radius * 1.4
 		"totem":
@@ -108,7 +112,7 @@ func _process(_delta: float) -> void:
 		if aura != _aura_shown:
 			_aura_shown = aura
 			queue_redraw()
-	if type_id == "cave":
+	if type_id in ["cave", "metro"]:
 		return
 	if type_id in ["totem", "merchant", "stairs", "exit"]:
 		queue_redraw()
@@ -158,6 +162,10 @@ func _draw() -> void:
 			_draw_shelter(rng)
 		"metro":
 			_draw_metro()
+		"bench":
+			_draw_bench(rng)
+		"corpse":
+			_draw_corpse(rng)
 		"rock":
 			_draw_rock(rng)
 		"bush":
@@ -265,8 +273,58 @@ func _draw_metro() -> void:
 	var pole := hole[2] + Vector2(6, 0)
 	draw_line(pole, pole - Vector2(0, radius * 1.6), rail.darkened(0.2), 3.0)
 	var board := pole - Vector2(0, radius * 1.6 + 8.0)
-	draw_rect(Rect2(board - Vector2(9, 9), Vector2(18, 18)), sign_color)
+	var cleared := World.current != null and World.current.is_cave_cleared(position)
+	draw_rect(Rect2(board - Vector2(9, 9), Vector2(18, 18)), _type_color("cleared") if cleared else sign_color)
 	draw_polyline(PackedVector2Array([board + Vector2(-5, 5), board + Vector2(-5, -5), board + Vector2(0, 1), board + Vector2(5, -5), board + Vector2(5, 5)]), Color(0.95, 0.95, 0.9), 2.0)
+	if cleared:
+		# Stazione ripulita: grata di traverso sulle scale.
+		var bars := PackedVector2Array()
+		for k in 5:
+			var t := (k + 0.5) / 5.0
+			bars.append_array([hole[0].lerp(hole[1], t) - Vector2(0, 3), hole[3].lerp(hole[2], t) - Vector2(0, 3)])
+		draw_multiline(bars, rail.lightened(0.15), 3.0)
+		return
+	# Dal buio sale un alito verdastro.
+	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 600.0)
+	draw_circle(Vector2(0, -4), radius * 0.3, Color(0.4, 0.7, 0.35, 0.06 + 0.06 * pulse))
+
+
+## Panchina della metro: seduta e schienale di assi su due piedi di ferro,
+## lungo i binari (in diagonale come la banchina).
+func _draw_bench(rng: RandomNumberGenerator) -> void:
+	_draw_shadow(radius * 0.9)
+	var wood := _color(0)
+	var metal := _color(1)
+	var along := Vector2(1.0, 0.5).normalized() * radius
+	var across := Vector2(-1.0, 0.5).normalized() * radius * 0.25
+	var seat := Vector2(0, -12)
+	for side: float in [-0.75, 0.75]:
+		draw_line(along * side, along * side + seat, metal, 3.0)
+	draw_colored_polygon(PackedVector2Array([seat - along - across, seat + along - across, seat + along + across, seat - along + across]), wood)
+	var back := seat - across - Vector2(0, 12)
+	draw_colored_polygon(PackedVector2Array([seat - along - across, seat + along - across, back + along, back - along]), wood.darkened(0.2))
+	if rng.randf() < 0.3:
+		# Un'asse spezzata.
+		draw_line(back + along * 0.2, back + along * 0.7 + Vector2(0, 8), wood.darkened(0.5), 2.0)
+
+
+## Corpo a terra sulla banchina, in una pozza di sangue: rallenta un poco.
+func _draw_corpse(rng: RandomNumberGenerator) -> void:
+	var blood := _type_color("blood")
+	draw_set_transform(Vector2(0, -_lift), 0.0, Vector2(1.0, 0.5))
+	draw_circle(Vector2(rng.randf_range(-6, 6), 4), radius * 1.3, Color(blood, 0.8))
+	draw_set_transform(Vector2(0, -_lift))
+	var cloth := _color(rng.randi())
+	var angle := rng.randf_range(-0.4, 0.4)
+	var axis := Vector2.from_angle(angle) * radius
+	var body := PackedVector2Array()
+	for k in 10:
+		var a := TAU * k / 10.0
+		body.append(Vector2(cos(a), sin(a) * 0.38).rotated(angle) * radius)
+	draw_colored_polygon(body, cloth)
+	draw_circle(axis * 1.1 + Vector2(0, -2), radius * 0.32, Color(0.55, 0.5, 0.45))
+	draw_line(-axis * 0.2, -axis * 0.2 + Vector2(-radius * 0.4, radius * 0.4), Enemy.COLOR_LIMBS, 2.5)
+	draw_line(axis * 0.3, axis * 0.3 + Vector2(radius * 0.3, -radius * 0.45), Enemy.COLOR_LIMBS, 2.5)
 
 
 ## Blocco di macerie di cemento con la faccia superiore più chiara e i
@@ -478,6 +536,9 @@ func _draw_cave() -> void:
 func _draw_stairs() -> void:
 	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 350.0)
 	_draw_arch(_color(0))
+	if _in_metro():
+		_draw_escalator(false)
+		return
 	var width := radius * 1.0
 	var height := radius * 2.0
 	var stone := _color(1)
@@ -500,3 +561,40 @@ func _draw_exit() -> void:
 	_draw_arch(Color(light, 0.85))
 	var height := radius * 2.0
 	draw_circle(Vector2(0, -height * 0.45), radius * 0.6, Color(1, 1, 1, 0.25 + 0.2 * pulse))
+	if _in_metro():
+		_draw_escalator(true)
+
+
+func _in_metro() -> bool:
+	return World.current != null and World.current.dungeon != null and World.current.dungeon.is_metro()
+
+
+## Nella metro le porte delle scale sono scale mobili ferme: gradini con i
+## corrimano di gomma nera; quella verso il piano sotto ha sopra una
+## lampada d'emergenza rossa che sfarfalla, quella verso l'aperto il
+## cartello con la M.
+func _draw_escalator(up: bool) -> void:
+	var width := radius * 1.0
+	var height := radius * 2.0
+	var steps := PackedVector2Array()
+	for k in 6:
+		var y := -2.0 - k * (height * 0.8 / 6.0)
+		var w := width * (0.85 - k * 0.08)
+		steps.append_array([_edge * -w + Vector2(0, y), _edge * w + Vector2(0, y)])
+	draw_multiline(steps, Color(0.25, 0.25, 0.27) if not up else Color(0.55, 0.52, 0.45, 0.8), 2.0)
+	for side: float in [-1.0, 1.0]:
+		draw_line(_edge * side * width * 0.95, _edge * side * width * 0.5 + Vector2(0, -height * 0.85), Color(0.05, 0.05, 0.05), 4.0)
+	var lamp := Vector2(0, -height - 16.0)
+	if up:
+		draw_rect(Rect2(lamp - Vector2(8, 8), Vector2(16, 16)), _type_color_or("sign", Color(0.75, 0.15, 0.12)))
+		draw_polyline(PackedVector2Array([lamp + Vector2(-4, 4), lamp + Vector2(-4, -4), lamp + Vector2(0, 1), lamp + Vector2(4, -4), lamp + Vector2(4, 4)]), Color(0.95, 0.95, 0.9), 2.0)
+		return
+	# Sfarfalla in modo irregolare, come un neon che sta per morire.
+	var t := Time.get_ticks_msec() / 1000.0
+	var flicker := 1.0 if sin(t * 13.0) + sin(t * 7.3) > -0.6 else 0.15
+	draw_circle(lamp, 14.0, Color(1.0, 0.15, 0.1, 0.18 * flicker))
+	draw_circle(lamp, 5.0, Color(1.0, 0.25, 0.2, 0.9 * flicker + 0.1))
+
+
+func _type_color_or(key: String, fallback: Color) -> Color:
+	return _type_color(key) if _type.has(key) else fallback
