@@ -474,6 +474,8 @@ func _punishing(to_player: Vector2, distance: float) -> bool:
 func _ready() -> void:
 	if _type.is_empty():
 		setup(type_id)
+	# La torcia lo illumina come il punto del pavimento su cui sta.
+	material = LightShaders.feet()
 	add_to_group("enemies")
 	if _facing == Vector2.RIGHT:
 		_facing = Vector2.from_angle(randf() * TAU)
