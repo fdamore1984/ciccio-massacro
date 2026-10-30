@@ -62,6 +62,8 @@ func _ready() -> void:
 			_frenzy = label
 			label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 		specials.add_child(label)
+	if Platform.use_touch_controls():
+		specials.add_child(_label("CONTROLS_TOUCH", 17, COLOR_KEY, true))
 	_back.text = "CONTROLS_BACK"
 	_back.custom_minimum_size = Vector2(220, 44)
 	_back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER

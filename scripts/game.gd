@@ -211,11 +211,12 @@ func _update_hordes(delta: float) -> void:
 
 
 ## Un'orda di zombie da una direzione a caso, fuori dallo schermo: tanti
-## quanti ne estrae "count" (da 50 a 200), sparsi in un cerchio più largo
+## quanti ne estrae "count" (da 50 a 200; su telefoni e tablet, anche nel
+## browser, "count_mobile", meno), sparsi in un cerchio più largo
 ## per le orde più numerose; un verso e un avviso la annunciano. Gli zombie
 ## arrivano a gruppi di "spawn_per_frame" per frame, così non c'è uno scatto.
 func _spawn_horde() -> void:
-	var count_data: Array = _horde_data["count"]
+	var count_data: Array = _horde_data["count_mobile" if Platform.is_mobile else "count"]
 	var count := randi_range(int(count_data[0]), int(count_data[1]))
 	var direction := Vector2.from_angle(randf() * TAU)
 	var center := _player.position + direction * randf_range(_horde_data["distance"][0], _horde_data["distance"][1])

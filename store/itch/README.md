@@ -39,7 +39,7 @@ godot --path . --resolution 1280x720 res://tools/store_capture.tscn -- tutorial
 | Tags | vedi sotto |
 | AI generation disclosure | Sì: codice, testi e grafica provvisoria sono stati prodotti con l'aiuto di un'IA (Claude) |
 | Languages | English, Italian |
-| Inputs | Keyboard, Mouse, Xbox controller, Playstation controller (togliere Touchscreen) |
+| Inputs | Keyboard, Mouse, Xbox controller, Playstation controller, Touchscreen |
 | Cover image | `cover_en.png` (630×500; `cover_it.png` è la versione italiana) |
 | Screenshots | `en_1_combat.png`, `en_16_frenzy.png`, `en_2_parry.png`, `en_5_challenge.png`, `en_6_inventory.png`, `en_9_slam.png`, `en_14_air_charge.png`, `en_15_h_bomb.png`, `en_19_horde.png`, `en_11_cave.png`, `en_13_map.png`, `en_12_dungeon.png`, `en_18_metro.png`, `en_7_merchant.png`, `en_8_shop.png`, `en_3_level_up.png`, `en_4_menu.png`, `en_10_controls.png`, `en_17_options.png` (in inglese, la lingua della pagina; quelle `it_*` sono le stesse in italiano: le vecchie immagini italiane sulla pagina vanno sostituite da queste) |
 
@@ -134,7 +134,7 @@ CONTROLS (defaults: change them in Options)
 - Pause menu (save, controls, tutorial, options, quit to title with confirmation): Start / Esc
 - Special attacks: power strike right after a combo = mixed combo with bonus damage; charged first power strike = stronger chained power strikes; attack in mid-air = aerial slashes; power strike in mid-air = H-bomb (only if you have one; hold to float and widen the blast); power strike during an air dash = dash strike
 
-Play with a controller (Steam Deck and MSI Claw built-in controls included) or with keyboard and mouse; touch screens are not supported. The full list of controls is in the main menu, you can remap every control in Options, next to a paged, illustrated tutorial that explains every mechanic (Frenzy included; it is in the pause menu too). The game is in English and Italian (in Italian it's called "Ciccio Massacro"): it starts in your system language and you can switch it in Options.
+Play with a controller (Steam Deck and MSI Claw built-in controls included), with keyboard and mouse or on a touch screen (on-screen stick and buttons appear as soon as you touch the screen, for example on the MSI Claw, and disappear when you pick up the controller). The full list of controls is in the main menu, you can remap every control in Options, next to a paged, illustrated tutorial that explains every mechanic (Frenzy included; it is in the pause menu too). The game is in English and Italian (in Italian it's called "Ciccio Massacro"): it starts in your system language and you can switch it in Options.
 
 PLATFORMS
 Windows (handheld gaming PCs like the MSI Claw 8 included), Linux and SteamOS (Steam Deck). Capped at a steady 60 FPS. On Linux it renders with Vulkan, falling back to OpenGL 3.3 when Vulkan is not available.
@@ -149,7 +149,7 @@ Campo *Download & install instructions* (sotto la sezione Uploads).
 ```
 HOW TO INSTALL
 
-Play with a controller (the Steam Deck and MSI Claw built-in controls work) or with keyboard and mouse.
+Play with a controller (the Steam Deck and MSI Claw built-in controls work), with keyboard and mouse or on the touch screen.
 
 Linux / Steam Deck: download the Linux file, extract it and run CheechCarnage.x86_64 (if needed, make it executable first: right click → Properties → Allow executing, or chmod +x CheechCarnage.x86_64). On Steam Deck the game always starts in fullscreen, in Desktop Mode too. Do this in Desktop Mode, then add it to Steam as a non-Steam game (Steam → Games → Add a Non-Steam Game) and always launch it from Steam: this way the built-in controller works as a gamepad, both in Game Mode and in Desktop Mode. If you launch it from the itch.io app in Desktop Mode instead, hold the Menu (Start) button for 1 second to switch the built-in controls to controller mode.
 

@@ -9,8 +9,9 @@ extends Control
 ## subito. Un tasto di un altro dispositivo, o il tempo che scade, annulla.
 ## Se il nuovo tasto è già usato da altre azioni lo si dice (alcune lo
 ## condividono apposta, come salto e interazione). Con ui_clear (X, Canc,
-## Backspace) o il clic destro sul pulsante l'azione resta senza tasti per
-## quel dispositivo (non il menù di pausa su tutti: vedi
+## Backspace), il clic destro o un tocco lungo (LONG_TOUCH_TIME) sul
+## pulsante l'azione resta senza tasti per quel dispositivo (non il menù di
+## pausa su tutti: vedi
 ## Keybinds.can_clear). In fondo si torna ai
 ## comandi predefiniti. Funziona con mouse, touch, tastiera e controller;
 ## si chiude con B, Esc o il pulsante Indietro (non mentre si aspetta un
@@ -22,6 +23,9 @@ const LISTEN_TIME := 5.0
 ## Subito dopo aver premuto il pulsante si ignorano i tasti: quello che lo
 ## ha premuto non deve diventare il nuovo comando.
 const LISTEN_GUARD := 0.15
+## Un tocco sullo schermo tenuto così a lungo su un pulsante lascia l'azione
+## senza tasti per quel dispositivo (come il clic destro).
+const LONG_TOUCH_TIME := 0.6
 const COLOR_TITLE := Color(0.85, 0.75, 0.4)
 const COLOR_HEADER := Color(1.0, 0.85, 0.4)
 const COLOR_TEXT := Color(1, 1, 1, 0.85)
@@ -42,6 +46,11 @@ var _cells := {}
 var _listen_action := ""
 var _listen_device := ""
 var _listen_time := 0.0
+## Pulsante toccato sullo schermo ("azione:dispositivo", "" se nessuno) e da
+## quanto; long_touched: il tocco lungo è già scattato.
+var _touch_cell := ""
+var _touch_time := 0.0
+var _long_touched := false
 
 
 func _ready() -> void:
@@ -145,6 +154,8 @@ func _label(text: String, font_size: int, color: Color) -> Label:
 
 func open() -> void:
 	_stop_listening()
+	_touch_cell = ""
+	_long_touched = false
 	_refresh()
 	_status.text = ""
 	visible = true
@@ -201,6 +212,12 @@ func _update_status() -> void:
 
 
 func _process(delta: float) -> void:
+	if _touch_cell != "" and not _long_touched:
+		_touch_time += delta
+		if _touch_time >= LONG_TOUCH_TIME:
+			_long_touched = true
+			var cell := _touch_cell.split(":")
+			_clear(cell[0], cell[1])
 	if _listen_action == "":
 		return
 	_listen_time += delta
@@ -262,12 +279,26 @@ func _shared_with(action: String, event: InputEvent) -> Array[String]:
 	return names
 
 
-## Clic destro su un pulsante: l'azione resta senza tasti per quel dispositivo.
+## Clic destro o tocco lungo su un pulsante: l'azione resta senza tasti
+## per quel dispositivo. I tocchi arrivano come clic sinistri emulati: dopo
+## un tocco lungo il rilascio non preme il pulsante (non si aspetta un tasto).
 func _on_cell_input(event: InputEvent, action: String, device: String) -> void:
 	var mouse := event as InputEventMouseButton
-	if mouse and mouse.pressed and mouse.button_index == MOUSE_BUTTON_RIGHT and _listen_action == "":
+	if mouse == null or _listen_action != "":
+		return
+	if mouse.pressed and mouse.button_index == MOUSE_BUTTON_RIGHT:
 		accept_event()
 		_clear(action, device)
+	elif mouse.button_index == MOUSE_BUTTON_LEFT and mouse.device == InputEvent.DEVICE_ID_EMULATION:
+		if mouse.pressed:
+			_touch_cell = action + ":" + device
+			_touch_time = 0.0
+			_long_touched = false
+		else:
+			if _long_touched:
+				accept_event()
+			_touch_cell = ""
+			_long_touched = false
 
 
 func _clear(action: String, device: String) -> void:

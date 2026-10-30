@@ -75,6 +75,7 @@
 		"first_delay": [60, 120],
 		"interval": [90, 180],
 		"count": [50, 200],
+		"count_mobile": [30, 80],
 		"distance": [900, 1150],
 		"spread": 220,
 		"spread_count": 50,

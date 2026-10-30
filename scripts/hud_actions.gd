@@ -3,6 +3,7 @@ extends Control
 ## Barra delle azioni in basso a sinistra: kit medici, taniche, batterie,
 ## scudo, bazooka, bombe H (colpo potente in aria) e inventario, ognuno con la sua icona, il tasto del
 ## controller scelto dal giocatore (vedi Keybinds), quante ne restano o la ricarica.
+## Sui dispositivi touch non serve: ci sono già i pulsanti a schermo.
 
 const SLOT := 58.0
 const GAP := 8.0

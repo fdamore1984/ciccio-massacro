@@ -3129,8 +3129,8 @@ func _draw_torch() -> void:
 
 ## Tasti del mouse premuti sul mondo (non sui pulsanti dell'interfaccia,
 ## che li consumano prima): movimento verso il cursore e mira degli
-## attacchi. Gli eventi emulati (tocchi sullo schermo) si ignorano: il touch
-## non è supportato.
+## attacchi. Gli eventi emulati (tocchi sullo schermo) si ignorano: col
+## touch ci sono i controlli a schermo (TouchControls).
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventMouseButton) or event.device == InputEvent.DEVICE_ID_EMULATION:
 		return
