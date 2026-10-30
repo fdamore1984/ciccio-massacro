@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c6rcvro3g8jts"
-path="res://.godot/imported/arsenal.png-61eb15be22788ebfb1df9fa9f205445b.ctex"
+uid="uid://bbkdt41cl7elo"
+path="res://.godot/imported/metro.png-9d791e58b9f114b07c750c257754e128.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/tutorial/arsenal.png"
-dest_files=["res://.godot/imported/arsenal.png-61eb15be22788ebfb1df9fa9f205445b.ctex"]
+source_file="res://assets/tutorial/it/metro.png"
+dest_files=["res://.godot/imported/metro.png-9d791e58b9f114b07c750c257754e128.ctex"]
 
 [params]
 

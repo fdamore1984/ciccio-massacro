@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://quptmb60ruo7"
-path="res://.godot/imported/loot.png-5b2066a034307b02b800b48bfe9d5162.ctex"
+uid="uid://hhc6gjlbl23r"
+path="res://.godot/imported/frenzy_bar.png-e49f13730851b42f25205edac6e39de5.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/tutorial/loot.png"
-dest_files=["res://.godot/imported/loot.png-5b2066a034307b02b800b48bfe9d5162.ctex"]
+source_file="res://assets/tutorial/it/frenzy_bar.png"
+dest_files=["res://.godot/imported/frenzy_bar.png-e49f13730851b42f25205edac6e39de5.ctex"]
 
 [params]
 

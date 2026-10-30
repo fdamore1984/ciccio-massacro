@@ -1,10 +1,10 @@
-# Ciccio Massacro — Game Design Document
+# Cheech Carnage (Ciccio Massacro) — Game Design Document
 
 Documento vivo: da compilare e aggiornare. Le sezioni vuote sono da definire.
 
 ## 1. Visione
 
-- **Titolo**: Ciccio Massacro
+- **Titolo**: Cheech Carnage (in italiano Ciccio Massacro)
 - **Genere**: action RPG post-apocalittico 2D, visuale isometrica, combattimento in tempo reale
 - **Piattaforme target**: Windows, Linux, SteamOS (Steam Deck) e Android. Steam per desktop e Deck, Google Play per Android. Per ora il prototipo viene pubblicato per Linux / SteamOS e Windows
 - **Pitch in una frase**: Ciccio, un sopravvissuto rosa e rotondo, armato di motosega e bazooka, si fa strada tra le rovine di una città distrutta, diventa più forte e incontra chi gli apre nuove strade.
@@ -77,6 +77,6 @@ Priorità di design indicata: il cuore del gioco sono sistema di gioco, inventar
 - **Motore**: Godot 4.4, GDScript, renderer Compatibility
 - **Isometrico**: terreno a blocchi disegnato in codice, ordinamento per profondità con Y-sort, movimento convertito dagli assi di input agli assi isometrici
 - **Input**: controller, tastiera e mouse tramite Input Map, rimappabili; UI utilizzabile con controller, tastiera e mouse
-- **Lingue**: italiano; traduzioni in `data/translations.csv` (colonna `it`, la colonna `en` resta pronta)
+- **Lingue**: italiano e inglese, scelte in Opzioni (all'inizio quella del sistema); traduzioni in `data/translations.csv` (colonne `it` ed `en`)
 - **Dati**: contenuti di gioco in `data/` (JSON o risorse), separati dal codice
 - **Repository**: ramo unico `main`, CI su GitHub Actions

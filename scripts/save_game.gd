@@ -5,18 +5,25 @@ class_name SaveGame
 ## entrambi i casi lo imposta in slot e Game scrive e legge sempre quello. Il vecchio file unico
 ## (versioni precedenti) diventa lo slot 1 la prima volta che serve.
 ##
-## La cartella user:// prende il nome dal progetto: con il cambio di nome
-## (prima "Gobelino", ora "Ciccio Massacro") i salvataggi vecchi restano
-## nella cartella accanto, con il nome di prima. La prima volta, se nella
-## cartella nuova non c'è nessun salvataggio, vengono copiati qui.
+## La cartella user:// prende il nome dal progetto: con i cambi di nome
+## (prima "Gobelino", poi "Ciccio Massacro", ora "Cheech Carnage") i file
+## vecchi restano nella cartella accanto, con il nome di prima. La prima
+## volta, se nella cartella nuova non c'è ancora niente, vengono copiati
+## qui dalla più recente delle cartelle vecchie (vedi migrate_legacy_dir).
 
 const SLOTS := 3
 const PATH := "user://savegame_%d.json"
 ## File unico delle versioni precedenti.
 const OLD_PATH := "user://savegame.json"
-## Nome della cartella dei dati delle versioni con il nome precedente del
-## gioco: si trova accanto a quella attuale (vedi _migrate_legacy_dir).
-const LEGACY_USER_DIR := "Gobelino"
+## Nomi delle cartelle dei dati delle versioni con i nomi precedenti del
+## gioco, dal più recente: si trovano accanto a quella attuale.
+const LEGACY_USER_DIRS := ["Ciccio Massacro", "Gobelino"]
+## Altri file del giocatore da copiare insieme ai salvataggi: comandi
+## personalizzati (Keybinds) e impostazioni (Settings).
+const LEGACY_EXTRA_FILES := ["keybinds.json", "settings.json"]
+## Segno che il controllo delle cartelle vecchie è già stato fatto: così
+## salvataggi eliminati dopo non tornano dalla cartella vecchia.
+const LEGACY_DONE_PATH := "user://legacy_checked"
 
 ## Slot della partita in corso (da 1 a SLOTS).
 static var slot := 1
@@ -114,31 +121,40 @@ static func summary(index: int) -> Dictionary:
 
 
 static func _migrate() -> void:
-	_migrate_legacy_dir()
+	migrate_legacy_dir()
 	if FileAccess.file_exists(OLD_PATH) and not FileAccess.file_exists(PATH % 1):
 		DirAccess.rename_absolute(ProjectSettings.globalize_path(OLD_PATH), ProjectSettings.globalize_path(PATH % 1))
 
 
-## Copia i salvataggi dalla cartella dei dati del nome precedente, se in
-## quella attuale non ce n'è nessuno (i file vecchi restano dove sono).
-static func _migrate_legacy_dir() -> void:
+## Copia salvataggi, comandi e impostazioni dalla cartella dei dati di un
+## nome precedente (la più recente che ne ha), se in quella attuale non
+## c'è ancora nessuno di questi file (i file vecchi restano dove sono). Si
+## fa una volta sola: Settings la chiama all'avvio, prima di leggere
+## lingua e comandi.
+static func migrate_legacy_dir() -> void:
 	if _legacy_checked:
 		return
 	_legacy_checked = true
-	var current := ProjectSettings.globalize_path("user://")
-	var legacy := current.trim_suffix("/").get_base_dir().path_join(LEGACY_USER_DIR)
-	if legacy == current.trim_suffix("/") or not DirAccess.dir_exists_absolute(legacy):
+	if FileAccess.file_exists(LEGACY_DONE_PATH):
 		return
 	var names: Array[String] = [OLD_PATH.get_file()]
 	for index in range(1, SLOTS + 1):
 		names.append((PATH % index).get_file())
-	for file_name in names:
-		if FileAccess.file_exists("user://" + file_name):
-			return
-	for file_name in names:
-		var from := legacy.path_join(file_name)
-		if FileAccess.file_exists(from):
-			DirAccess.copy_absolute(from, current.path_join(file_name))
+	names.append_array(LEGACY_EXTRA_FILES)
+	var current := ProjectSettings.globalize_path("user://").trim_suffix("/")
+	if not names.any(func(file_name: String) -> bool: return FileAccess.file_exists("user://" + file_name)):
+		for dir_name: String in LEGACY_USER_DIRS:
+			var legacy := current.get_base_dir().path_join(dir_name)
+			if legacy == current or not names.any(func(file_name: String) -> bool: return FileAccess.file_exists(legacy.path_join(file_name))):
+				continue
+			for file_name in names:
+				var from := legacy.path_join(file_name)
+				if FileAccess.file_exists(from):
+					DirAccess.copy_absolute(from, current.path_join(file_name))
+			break
+	var done := FileAccess.open(LEGACY_DONE_PATH, FileAccess.WRITE)
+	if done:
+		done.store_string("1")
 
 
 static func vector(values: Array) -> Vector2:

@@ -1,7 +1,8 @@
 class_name OptionsPanel
 extends Control
-## Opzioni (dal menù iniziale e da quello di pausa): rimappatura dei
-## comandi. Per ogni azione (Keybinds.ACTIONS) c'è un pulsante per la
+## Opzioni (dal menù iniziale e da quello di pausa): lingua del gioco e
+## rimappatura dei comandi. Il pulsante della lingua passa alla lingua
+## successiva (Settings.LANGUAGES), subito e per tutti i testi. Per ogni azione (Keybinds.ACTIONS) c'è un pulsante per la
 ## tastiera, uno per il mouse e uno per il controller con i tasti attuali:
 ## premendolo si aspetta il nuovo tasto di quel dispositivo (per
 ## LISTEN_TIME secondi), che prende il posto dei precedenti e si salva
@@ -30,6 +31,7 @@ const COLOR_WAITING := Color(1.0, 0.85, 0.4)
 var _grid := GridContainer.new()
 var _scroll := ScrollContainer.new()
 var _intro := Label.new()
+var _language := Button.new()
 var _status := Label.new()
 var _reset := Button.new()
 var _back := Button.new()
@@ -57,6 +59,13 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 10)
 	center.add_child(box)
 	box.add_child(_label("OPTIONS_TITLE", 34, COLOR_TITLE))
+	_language.custom_minimum_size = Vector2(320, 40)
+	_language.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_language.add_theme_font_size_override("font_size", 20)
+	_language.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_language.focus_entered.connect(Sfx.play_ui.bind("ui_move"))
+	_language.pressed.connect(_on_language_pressed)
+	box.add_child(_language)
 	_intro.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_intro.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	_intro.add_theme_font_size_override("font_size", 18)
@@ -74,7 +83,7 @@ func _ready() -> void:
 		header.add_child(label)
 	box.add_child(header)
 	# La tabella scorre e segue il pulsante selezionato (controller e tastiera).
-	_scroll.custom_minimum_size = Vector2(1000, 400)
+	_scroll.custom_minimum_size = Vector2(1000, 360)
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_scroll.follow_focus = true
 	_scroll.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -137,12 +146,10 @@ func _label(text: String, font_size: int, color: Color) -> Label:
 func open() -> void:
 	_stop_listening()
 	_refresh()
-	_intro.text = tr("OPTIONS_CONTROLS") % Keybinds.hint("ui_clear")
 	_status.text = ""
 	visible = true
 	_scroll.scroll_vertical = 0
-	var first: Button = _cells[Keybinds.ACTIONS[0] + ":keyboard"]
-	first.grab_focus.call_deferred()
+	_language.grab_focus.call_deferred()
 
 
 func close() -> void:
@@ -154,8 +161,10 @@ func close() -> void:
 	closed.emit()
 
 
-## Testi dei pulsanti con i tasti attuali.
+## Testi dei pulsanti con la lingua e i tasti attuali.
 func _refresh() -> void:
+	_language.text = tr("OPTIONS_LANGUAGE") % tr("LANGUAGE_NAME_" + Settings.language.to_upper())
+	_intro.text = tr("OPTIONS_CONTROLS") % Keybinds.hint("ui_clear")
 	for action: String in Keybinds.ACTIONS:
 		for device: String in Keybinds.DEVICES:
 			var button: Button = _cells[action + ":" + device]
@@ -280,6 +289,20 @@ func _focused_cell() -> String:
 		if _cells[cell] == focused:
 			return cell
 	return ""
+
+
+func _on_language_pressed() -> void:
+	_stop_listening()
+	Settings.set_language(Settings.next_language())
+	_status.text = ""
+	Sfx.play_ui("ui_confirm")
+
+
+## Cambio di lingua: i testi scritti qui col codice si rifanno (gli altri
+## si traducono da soli).
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED and is_node_ready():
+		_refresh()
 
 
 func _on_reset_pressed() -> void:

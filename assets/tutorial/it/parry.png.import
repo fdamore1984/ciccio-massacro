@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dt23i1qexqvd8"
-path="res://.godot/imported/move.png-66732d84d8bb2a9ef6a8eb4a01c36e7a.ctex"
+uid="uid://n2ycsnbqyaqw"
+path="res://.godot/imported/parry.png-c9a0878912a3d8ca7e8db177977f4477.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/tutorial/move.png"
-dest_files=["res://.godot/imported/move.png-66732d84d8bb2a9ef6a8eb4a01c36e7a.ctex"]
+source_file="res://assets/tutorial/it/parry.png"
+dest_files=["res://.godot/imported/parry.png-c9a0878912a3d8ca7e8db177977f4477.ctex"]
 
 [params]
 

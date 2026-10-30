@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dr5stqqhah4dx"
-path="res://.godot/imported/parry.png-89ff038ce0c090f94094a54458ff76dd.ctex"
+uid="uid://bi78r5sdusdi2"
+path="res://.godot/imported/progress.png-aac15779b60abe7b9d85f4d23e6ee8f7.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/tutorial/parry.png"
-dest_files=["res://.godot/imported/parry.png-89ff038ce0c090f94094a54458ff76dd.ctex"]
+source_file="res://assets/tutorial/it/progress.png"
+dest_files=["res://.godot/imported/progress.png-aac15779b60abe7b9d85f4d23e6ee8f7.ctex"]
 
 [params]
 

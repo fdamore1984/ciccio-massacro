@@ -1,7 +1,8 @@
 extends Node
 ## Genera copertina e screenshot per la pagina itch.io (store/itch/), in
-## italiano (la lingua del gioco), componendo scene di gioco reali, e le
-## immagini delle pagine del tutorial (assets/tutorial/, vedi TutorialPanel).
+## italiano e in inglese (le lingue del gioco), componendo scene di gioco
+## reali, e le immagini delle pagine del tutorial (assets/tutorial/, una
+## cartella per lingua, vedi TutorialPanel).
 ## Va rilanciato a ogni modifica visibile del gioco. Serve una finestra (non --headless):
 ##
 ##   godot --path . --resolution 1280x720 res://tools/store_capture.tscn -- screenshots
@@ -11,8 +12,8 @@ extends Node
 ## Non fa parte del gioco: la cartella tools/ è esclusa dagli export.
 
 const OUTPUT := "res://store/itch/"
-const LANGUAGES := ["it"]
-const SUBTITLE := {"it": "Action RPG · prototipo"}
+const LANGUAGES := ["it", "en"]
+const SUBTITLE := {"it": "Action RPG · prototipo", "en": "Action RPG · prototype"}
 const COVER_SIZE := Vector2i(630, 500)
 ## Immagini del tutorial: più piccole, e quali scene diventano quale pagina
 ## (nome dello screenshot senza la lingua -> immagine del tutorial).
@@ -42,6 +43,8 @@ func _ready() -> void:
 		mode = OS.get_cmdline_user_args()[0]
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUTPUT))
 	for language: String in LANGUAGES:
+		# Senza Settings.set_language: le foto non cambiano la lingua salvata.
+		Settings.language = language
 		TranslationServer.set_locale(language)
 		if mode == "cover":
 			await _capture_cover(language)
@@ -421,7 +424,7 @@ func _capture_frenzy(language: String) -> void:
 
 
 ## Tutorial: corsa di notte con la torcia elettrica accesa.
-func _capture_move(_language: String) -> void:
+func _capture_move(language: String) -> void:
 	await _start_game(Vector2(0, -20), 1.3)
 	_player.level = 2
 	_hud_stats()
@@ -436,12 +439,12 @@ func _capture_move(_language: String) -> void:
 	_player._torch.aim(_player.facing)
 	_player.queue_redraw()
 	_enemy("scout", _player.position + Vector2(330, 60), Enemy.State.CHASE, 0.0)
-	await _save("t_move.png")
+	await _save("%s_move.png" % language)
 	_end_game()
 
 
 ## Tutorial: capriola sotto il colpo di un bruto.
-func _capture_dodge(_language: String) -> void:
+func _capture_dodge(language: String) -> void:
 	await _start_game(Vector2(0, 0), 1.4)
 	_player.level = 3
 	_hud_stats()
@@ -452,13 +455,13 @@ func _capture_dodge(_language: String) -> void:
 	_player._dodge_direction = Vector2(-1, 0.3).normalized()
 	_player.facing = Vector2(-1, 0.3).normalized()
 	_player.queue_redraw()
-	await _save("t_dodge.png")
+	await _save("%s_dodge.png" % language)
 	_end_game()
 
 
 ## Tutorial: la barra della Frenesia piena (pulsa e mostra L1 + R1) e
 ## l'anello rosso attorno a Ciccio, in mezzo alla mischia.
-func _capture_frenzy_bar(_language: String) -> void:
+func _capture_frenzy_bar(language: String) -> void:
 	await _start_game(Vector2(0, 20), 1.2)
 	_player.level = 4
 	_hud_stats()
@@ -471,13 +474,13 @@ func _capture_frenzy_bar(_language: String) -> void:
 	_player._set_lock_target(_enemy("warrior", _player.position + Vector2(95, -15), Enemy.State.GUARD, 0.1))
 	_enemy("scout", _player.position + Vector2(-180, 80), Enemy.State.CHASE, 0.0)
 	_enemy("caster", _player.position + Vector2(260, -150), Enemy.State.WINDUP, 0.5)
-	await _save("t_frenzy_bar.png")
+	await _save("%s_frenzy_bar.png" % language)
 	_end_game()
 
 
 ## Tutorial: Ciccio usa un kit medico con poca vita e poca batteria, un
 ## predone gli corre addosso.
-func _capture_supplies(_language: String) -> void:
+func _capture_supplies(language: String) -> void:
 	await _start_game(Vector2(0, 0), 1.3)
 	_player.level = 3
 	_hud_stats()
@@ -491,13 +494,13 @@ func _capture_supplies(_language: String) -> void:
 	(_game.get_node("HUD") as Hud).set_health(_player.health, _player.max_health)
 	_enemy("warrior", _player.position + Vector2(170, 40), Enemy.State.CHASE, 0.0)
 	await _frames(30)
-	await _save("t_supplies.png")
+	await _save("%s_supplies.png" % language)
 	_end_game()
 
 
 ## Tutorial: predoni che caricano l'attacco (bagliore rosso, laser del
 ## fuciliere) e uno con la guardia alzata.
-func _capture_enemies(_language: String) -> void:
+func _capture_enemies(language: String) -> void:
 	await _start_game(Vector2(0, 0), 1.15)
 	_player.level = 4
 	_hud_stats()
@@ -507,7 +510,7 @@ func _capture_enemies(_language: String) -> void:
 	_enemy("brute", origin + Vector2(-140, 60), Enemy.State.WINDUP, 0.7)
 	_enemy("archer", origin + Vector2(300, -140), Enemy.State.WINDUP, 0.7)
 	_enemy("golem", origin + Vector2(-260, -130), Enemy.State.CHASE, 0.0)
-	await _save("t_enemies.png")
+	await _save("%s_enemies.png" % language)
 	_end_game()
 
 
@@ -689,7 +692,7 @@ func _capture_cover(language: String) -> void:
 	band.size = Vector2(2000, 300)
 	layer.add_child(band)
 	var width := get_viewport().get_visible_rect().size.x
-	var title := _label("Ciccio Massacro", 120, Color(1.0, 0.55, 0.74), width, 45.0)
+	var title := _label(tr("GAME_TITLE"), 120, Color(1.0, 0.55, 0.74), width, 45.0)
 	title.add_theme_constant_override("outline_size", 18)
 	title.add_theme_color_override("font_outline_color", Color(0.1, 0.03, 0.05))
 	layer.add_child(title)
@@ -785,7 +788,9 @@ func _save(file: String) -> void:
 	if page == "":
 		return
 	image.resize(TUTORIAL_SIZE.x, TUTORIAL_SIZE.y, Image.INTERPOLATE_LANCZOS)
-	image.save_png(TUTORIAL_OUTPUT + page)
+	var language := file.substr(0, file.find("_"))
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(TUTORIAL_OUTPUT + language))
+	image.save_png(TUTORIAL_OUTPUT + language + "/" + page)
 
 
 func _frames(count: int) -> void:

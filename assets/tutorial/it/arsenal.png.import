@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c2gt5oqjp2d"
-path="res://.godot/imported/dodge.png-0012dfb007fac61c522ff8831ffa516e.ctex"
+uid="uid://buvff5vqiyu2u"
+path="res://.godot/imported/arsenal.png-18487afeb6f1ee1fcd1af0ff9e0e73a7.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/tutorial/dodge.png"
-dest_files=["res://.godot/imported/dodge.png-0012dfb007fac61c522ff8831ffa516e.ctex"]
+source_file="res://assets/tutorial/it/arsenal.png"
+dest_files=["res://.godot/imported/arsenal.png-18487afeb6f1ee1fcd1af0ff9e0e73a7.ctex"]
 
 [params]
 
