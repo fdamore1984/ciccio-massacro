@@ -255,7 +255,7 @@ TUTORIAL_DODGE_TEXT,"{dodge} dodges: a roll on the ground, a dash in mid-air. Fo
 TUTORIAL_FRENZY_TITLE,Frenzy,La Frenesia
 TUTORIAL_FRENZY_TEXT,"The red bar in the top-left panel is Frenzy. It grows with every chainsaw hit that lands, even when the enemy blocks it with their guard; power strikes and ground attacks fill it faster. If you stop attacking for 4 seconds it slowly drains: stay in the fight! When it is full the bar pulses, {parry} + {attack} appears on it and a red ring surrounds Cheech.","La barra rossa nel pannello in alto a sinistra è la Frenesia. Cresce a ogni colpo di motosega che va a segno, anche se il nemico lo para con la guardia; i colpi potenti e gli attacchi a terra la caricano di più. Se smetti di attaccare per 4 secondi cala piano piano: resta nella mischia! Quando è piena la barra pulsa, compare la scritta {parry} + {attack} e Ciccio è circondato da un anello rosso."
 TUTORIAL_SPECIAL_TITLE,Frenzy special attack,Attacco speciale della Frenesia
-TUTORIAL_SPECIAL_TEXT,"With a full Frenzy bar press {parry} and {attack} together. Time stops: the enemies freeze, the background goes dark, Cheech roars in a red glow and the camera zooms in. Then he teleports next to the nearest enemy and strikes in a flurry; when it falls he moves on to the next one. Up to 10 hits (+2 with every ""Frenzy strikes"" upgrade); with no enemies in reach the flurry ends early. You can't be hit during the attack; at the end Frenzy drops to zero.","Con la Frenesia piena premi {parry} e {attack} insieme. Il tempo si ferma: i nemici restano immobili, lo sfondo si oscura, Ciccio urla avvolto da un bagliore rosso e la telecamera si avvicina. Poi si teletrasporta accanto al nemico più vicino e lo colpisce a raffica; quando cade passa al successivo. Fino a 10 colpi (+2 con ogni potenziamento ""Colpi della Frenesia""); senza nemici a tiro la raffica finisce prima. Durante l'attacco sei invulnerabile; alla fine la Frenesia si azzera."
+TUTORIAL_SPECIAL_TEXT,"With a full Frenzy bar press {parry} and {attack} together (on touch screens, the two buttons at once). Time stops: the enemies freeze, the background goes dark, Cheech roars in a red glow and the camera zooms in. Then he teleports next to the nearest enemy and strikes in a flurry; when it falls he moves on to the next one. Up to 10 hits (+2 with every ""Frenzy strikes"" upgrade); with no enemies in reach the flurry ends early. You can't be hit during the attack; at the end Frenzy drops to zero.","Con la Frenesia piena premi {parry} e {attack} insieme (sugli schermi touch, i due pulsanti insieme). Il tempo si ferma: i nemici restano immobili, lo sfondo si oscura, Ciccio urla avvolto da un bagliore rosso e la telecamera si avvicina. Poi si teletrasporta accanto al nemico più vicino e lo colpisce a raffica; quando cade passa al successivo. Fino a 10 colpi (+2 con ogni potenziamento ""Colpi della Frenesia""); senza nemici a tiro la raffica finisce prima. Durante l'attacco sei invulnerabile; alla fine la Frenesia si azzera."
 TUTORIAL_SUPPLIES_TITLE,Battery and supplies,Batteria e scorte
 TUTORIAL_SUPPLIES_TEXT,"The green bar is your battery: attacking, dodging, jumping, parrying and running drain it, and it recharges by itself as soon as you stop. When it's empty you can't attack or dodge, and a parry can break your guard. Your supplies are in the bar at the bottom: medkit {potion} (health), fuel can {mana_potion} (fuel), spare battery {battery_potion}. Using them takes a moment: enemies rush in to punish you.","La barra verde è la batteria: attaccare, schivare, saltare, parare e correre la consumano, e si ricarica da sola appena ti fermi. A zero non attacchi né schivi, e una parata può romperti la guardia. Le scorte sono nella barra in basso: kit medico {potion} (vita), tanica {mana_potion} (carburante), batteria di ricambio {battery_potion}. Usarle richiede un attimo: i nemici ne approfittano per attaccarti."
 TUTORIAL_ARSENAL_TITLE,"Bazooka, shield and H-bombs","Bazooka, scudo e bombe H"
@@ -307,7 +307,7 @@ OPTIONS_TITLE,Options,Opzioni
 OPTIONS_BACK,Back,Indietro
 OPTIONS_BOUND,"""%s"" set to %s","""%s"" impostato su %s"
 OPTIONS_CANCELLED,Cancelled: nothing changed,Annullato: nessuna modifica
-OPTIONS_CONTROLS,"Controls: select a binding, then press the new key, mouse button or controller button (%s or right click: leave it empty)","Comandi: scegli un tasto, poi premi il nuovo tasto della tastiera, del mouse o del controller (%s o clic destro: lascialo vuoto)"
+OPTIONS_CONTROLS,"Controls: select a binding, then press the new key, mouse button or controller button (%s, right click or a long touch: leave it empty)","Comandi: scegli un tasto, poi premi il nuovo tasto della tastiera, del mouse o del controller (%s, clic destro o un tocco lungo: lascialo vuoto)"
 OPTIONS_DEVICE_CONTROLLER,controller button or stick,tasto o levetta del controller
 OPTIONS_DEVICE_KEYBOARD,key,tasto della tastiera
 OPTIONS_DEVICE_MOUSE,mouse button,tasto del mouse
@@ -325,3 +325,24 @@ GAME_TITLE,Cheech Carnage,Ciccio Massacro
 OPTIONS_LANGUAGE,Language: %s,Lingua: %s
 LANGUAGE_NAME_IT,Italiano,Italiano
 LANGUAGE_NAME_EN,English,English
+TOUCH_ATTACK,Attack,Attacco
+TOUCH_HEAVY,Power,Potente
+TOUCH_PARRY,Parry,Parata
+TOUCH_DODGE,Dodge,Schiva
+TOUCH_JUMP,Jump,Salto
+TOUCH_RUN,Run,Corsa
+TOUCH_FOCUS,Focus,Focus
+TOUCH_POTION,Medkit,Kit
+TOUCH_SHIELD,Shield,Scudo
+TOUCH_SPELL,Bazooka,Bazooka
+TOUCH_MANA,Fuel,Tanica
+TOUCH_BATTERY,Battery,Batteria
+TOUCH_INVENTORY,Bag,Zaino
+TOUCH_LOCK,Lock,Aggancia
+TOUCH_MAP,Map,Mappa
+TOUCH_MENU,Menu,Menù
+CONTROLS_TOUCH,On touch screens use the on-screen buttons,Sugli schermi touch usa i pulsanti a schermo
+CLOUD_SYNCING,Syncing saves with your ufotizio.com account…,Sincronizzo i salvataggi con il tuo account ufotizio.com…
+CLOUD_LINKED,Saves on the ufotizio.com account %s,Salvataggi sull'account ufotizio.com %s
+CLOUD_LOCAL,Not signed in to ufotizio.com: saves stay in this browser,Accesso a ufotizio.com non fatto: i salvataggi restano in questo browser
+CLOUD_FAILED,"Can't reach your ufotizio.com account: for now saves stay in this browser","Account ufotizio.com non raggiungibile: per ora i salvataggi restano in questo browser"

@@ -19,6 +19,8 @@ const CARD_ICON_SIZE := 64.0
 const POWER_UPS_FONT_SIZE := 14
 const POWER_UPS_MARGIN := 16.0
 const COLOR_POWER_UPS_PANEL := Color(0.05, 0.07, 0.05, 0.8)
+## Con i controlli touch la riga sta sotto la minimappa.
+const POWER_UPS_TOUCH_TOP := 234.0
 ## Per quanto resta il messaggio di fine sfida.
 const CHALLENGE_FLASH_TIME := 3.5
 ## A ogni livello si sceglie tra questi potenziamenti, presi a caso; ogni
@@ -130,6 +132,7 @@ func _ready() -> void:
 	_build_power_ups_panel()
 	add_child(_actions)
 	move_child(_actions, 1)
+	_actions.visible = not Platform.use_touch_controls()
 	# Vita bassa e modalità focus: il primo figlio di tutti, così legge lo
 	# schermo col solo mondo disegnato e l'interfaccia resta sopra, intatta.
 	move_child(_vignette, 0)
@@ -150,6 +153,7 @@ func _process(delta: float) -> void:
 	# Sparisce appena il gioco vede un controller (per esempio dopo aver
 	# tenuto premuto Menu sullo Steam Deck).
 	_deck_hint.visible = Platform.needs_deck_controller_hint()
+	_actions.visible = not Platform.use_touch_controls()
 	if player == null:
 		return
 	_inventory_panel.player = player
@@ -210,26 +214,32 @@ func _update_power_ups() -> void:
 	_fit_power_ups.call_deferred()
 
 
-## In basso a destra.
+## In basso a destra; con i controlli touch lì ci sono i pulsanti, quindi
+## sotto la minimappa.
 func _place_power_ups() -> void:
-	var preset := Control.PRESET_BOTTOM_RIGHT
+	var touch := Platform.use_touch_controls()
+	var preset := Control.PRESET_TOP_RIGHT if touch else Control.PRESET_BOTTOM_RIGHT
 	if _power_ups_preset == preset:
 		return
 	_power_ups_preset = preset
 	_power_ups_panel.set_anchors_preset(preset)
 	_power_ups_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_power_ups_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_power_ups_panel.grow_vertical = Control.GROW_DIRECTION_END if touch else Control.GROW_DIRECTION_BEGIN
 	_fit_power_ups()
 
 
-## Il bordo destro e quello in basso restano fermi: con più icone il
-## pannello si allarga verso sinistra, con meno si stringe.
+## Il bordo destro (e quello in basso, o in alto con il touch) resta fermo:
+## con più icone il pannello si allarga verso sinistra, con meno si stringe.
 func _fit_power_ups() -> void:
 	var needed := _power_ups_panel.get_combined_minimum_size()
 	_power_ups_panel.offset_right = -POWER_UPS_MARGIN
 	_power_ups_panel.offset_left = -POWER_UPS_MARGIN - needed.x
-	_power_ups_panel.offset_bottom = -POWER_UPS_MARGIN
-	_power_ups_panel.offset_top = -POWER_UPS_MARGIN - needed.y
+	if _power_ups_preset == Control.PRESET_TOP_RIGHT:
+		_power_ups_panel.offset_top = POWER_UPS_TOUCH_TOP
+		_power_ups_panel.offset_bottom = POWER_UPS_TOUCH_TOP + needed.y
+	else:
+		_power_ups_panel.offset_bottom = -POWER_UPS_MARGIN
+		_power_ups_panel.offset_top = -POWER_UPS_MARGIN - needed.y
 
 
 ## Mette la riga dei potenziamenti attivi su un pannello scuro, perché si

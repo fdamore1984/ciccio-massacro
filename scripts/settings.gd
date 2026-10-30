@@ -5,7 +5,8 @@ extends Node
 ## user://settings.json; senza il file (prima partita, versioni precedenti)
 ## vale quella del sistema: italiano se è l'italiano, inglese per tutte le
 ## altre. All'avvio applica anche i comandi personalizzati dal giocatore
-## (vedi Keybinds).
+## (vedi Keybinds). Nel browser le impostazioni seguono l'account del sito
+## (vedi Cloud): quando ne arrivano di nuove si rileggono (load_saved).
 
 const PATH := "user://settings.json"
 ## Lingue del gioco, nell'ordine in cui si scorrono in Opzioni.
@@ -18,6 +19,11 @@ var language := FALLBACK_LANGUAGE
 func _ready() -> void:
 	# Prima di leggere le impostazioni: i file del nome precedente del gioco.
 	SaveGame.migrate_legacy_dir()
+	load_saved()
+
+
+## Lingua e comandi salvati (o quelli predefiniti).
+func load_saved() -> void:
 	language = _system_language()
 	if FileAccess.file_exists(PATH):
 		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(PATH))
@@ -35,7 +41,10 @@ func set_language(code: String) -> void:
 	_apply_language()
 	var file := FileAccess.open(PATH, FileAccess.WRITE)
 	if file:
-		file.store_string(JSON.stringify({"language": language}, "\t"))
+		var text := JSON.stringify({"language": language}, "\t")
+		file.store_string(text)
+		file.close()
+		Cloud.push(PATH.get_file(), text)
 
 
 ## Lingua dei testi e nome del gioco nel titolo della finestra ("Ciccio
