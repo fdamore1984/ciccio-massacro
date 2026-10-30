@@ -1,7 +1,7 @@
 # Regole di lavoro per Cheech Carnage (Ciccio Massacro)
 
 - **Lingua**: tutto ciò che vede il giocatore è in italiano e in inglese
-  (si sceglie in Opzioni). I testi del gioco stanno in
+  (si sceglie in Opzioni; nel browser vale la lingua del sito). I testi del gioco stanno in
   `data/translations.csv` (colonne `it` ed `en`, sempre allineate: ogni
   testo nuovo o cambiato va scritto in tutte e due) e nel codice si usano
   con `tr("CHIAVE")`; mai testi scritti nel codice. Il nome del gioco è
@@ -28,7 +28,7 @@
 - **Input**: solo azioni dell'Input Map; tutto deve funzionare con
   controller, con tastiera e mouse e col touch (menù compresi; il touch con
   i controlli a schermo di `scripts/touch_controls.gd`, serve anche per
-  giocare dal browser), e i comandi si rimappano dal pannello Opzioni (vedi
+  giocare dal browser), e i comandi si rimappano da Comandi → Modifica (vedi
   `scripts/keybinds.gd`).
 - **Versione web**: il preset "Web" è per il sito ufotizio.com (vedi
   `docs/web.md`): si pubblica sul sito caricando l'export nel bucket R2
