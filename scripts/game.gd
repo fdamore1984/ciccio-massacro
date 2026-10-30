@@ -42,8 +42,13 @@ const MENU_SCENE := "res://scenes/menu.tscn"
 
 ## All'avvio i nemici sono sparsi a questa distanza dal giocatore.
 const START_SPAWN_RANGE := Vector2(450.0, 1300.0)
-## Poi ricompaiono fuori dall'inquadratura.
+## Poi ricompaiono fuori dall'inquadratura: a questa distanza e, se cade
+## ancora sullo schermo (la telecamera allontanata in esplorazione, gli
+## schermi larghi), si riprova fino a SPAWN_TRIES volte un punto fuori
+## dalla vista allargata di SPAWN_VIEW_MARGIN pixel.
 const SPAWN_RANGE := Vector2(850.0, 1400.0)
+const SPAWN_TRIES := 8
+const SPAWN_VIEW_MARGIN := 120.0
 const DESPAWN_DISTANCE := 2000.0
 const MAINTAIN_INTERVAL := 1.0
 const GAME_OVER_DELAY := 2.5
@@ -189,7 +194,7 @@ func _maintain_enemies() -> void:
 		elif not enemy.is_horde():
 			alive += 1
 	for i in EnemyTypes.population(_player.level) - alive:
-		_spawn_enemy(EnemyTypes.pick_random(_player.level), _random_position(SPAWN_RANGE), _player.level)
+		_spawn_enemy(EnemyTypes.pick_random(_player.level), _random_position(SPAWN_RANGE, true), _player.level)
 
 
 ## Conto alla rovescia dell'orda: si ferma durante le sfide, l'attacco
@@ -228,10 +233,11 @@ func _spawn_horde() -> void:
 		zombie.alert()
 
 
-## Nemici a caso attorno al giocatore, quanti ne vuole il suo livello.
-func _populate(distance_range: Vector2) -> void:
+## Nemici a caso attorno al giocatore, quanti ne vuole il suo livello
+## (out_of_view: fuori dall'inquadratura, vedi _random_position).
+func _populate(distance_range: Vector2, out_of_view := false) -> void:
 	for i in EnemyTypes.population(_player.level):
-		_spawn_enemy(EnemyTypes.pick_random(_player.level), _random_position(distance_range), _player.level)
+		_spawn_enemy(EnemyTypes.pick_random(_player.level), _random_position(distance_range, out_of_view), _player.level)
 
 
 func _update_challenge(delta: float) -> void:
@@ -448,7 +454,7 @@ func _enter_depth(depth: int, at: Vector2) -> void:
 
 func _leave_dungeon() -> void:
 	await _prepare_region(tr("LOADING_SURFACE"), _return_to_surface)
-	_populate(SPAWN_RANGE)
+	_populate(SPAWN_RANGE, true)
 
 
 func _return_to_surface() -> void:
@@ -725,9 +731,16 @@ func _finish_challenge() -> void:
 	_player.add_experience(xp)
 
 
-func _random_position(distance_range: Vector2) -> Vector2:
-	var offset := Vector2.from_angle(randf() * TAU) * randf_range(distance_range.x, distance_range.y)
-	return _player.position + offset
+## Punto a caso attorno al giocatore a quella distanza; con out_of_view
+## fuori dall'inquadratura (vedi SPAWN_RANGE), se si trova.
+func _random_position(distance_range: Vector2, out_of_view := false) -> Vector2:
+	var view := (get_viewport().get_canvas_transform().affine_inverse() * get_viewport().get_visible_rect()).grow(SPAWN_VIEW_MARGIN)
+	var at := _player.position
+	for i in SPAWN_TRIES if out_of_view else 1:
+		at = _player.position + Vector2.from_angle(randf() * TAU) * randf_range(distance_range.x, distance_range.y)
+		if not view.has_point(at):
+			break
+	return at
 
 
 func _spawn_enemy(type_id: String, at: Vector2, threat_level := 1) -> Enemy:

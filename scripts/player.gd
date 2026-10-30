@@ -318,6 +318,15 @@ const CAMERA_SMOOTHING := 7.0
 const CAMERA_LOOK_AHEAD := 0.18
 const CAMERA_LOOK_AHEAD_MAX := 70.0
 const CAMERA_LOOK_AHEAD_FOLLOW := 2.5
+## Zoom della telecamera (voce "camera" di data/world.json): più lontano in
+## esplorazione, per vedere più città, più vicino in combattimento, cioè
+## con un nemico agganciato o un nemico vivo che ha notato il giocatore
+## (Enemy.is_engaged) entro "combat_range" pixel. Si avvicina in
+## "zoom_in_time" secondi e si allontana in "zoom_out_time" solo dopo
+## "combat_linger" secondi senza nemici, così non va avanti e indietro. Il
+## controllo dei nemici si fa ogni COMBAT_CHECK_INTERVAL secondi. Lo zoom
+## dell'attacco speciale si moltiplica a questo (vedi _special_zoom).
+const COMBAT_CHECK_INTERVAL := 0.2
 ## Il corpo si inclina nella direzione di corsa e si schiaccia atterrando.
 const LEAN_ANGLE := 0.12
 const SQUASH_AMOUNT := 0.22
@@ -679,14 +688,19 @@ var max_special_hits := START_SPECIAL_HITS
 ## Attacco speciale in corso: colpi già dati, nemico che si sta colpendo,
 ## da dove ci si è teletrasportati all'ultimo colpo (rispetto alla posizione
 ## attuale, per la scia), buio dello sfondo (0-1, vedi special_darkness) e
-## zoom della telecamera da ripristinare alla fine.
+## quanto avvicina la telecamera (1 fuori dall'attacco, vedi _update_zoom).
 var _special_hits := 0
 var _special_target: Enemy
 var _special_from := Vector2.ZERO
 var _special_last_hit := 0.0
 var _special_dark := 0.0
-var _special_zoom := Vector2.ONE
+var _special_zoom := 1.0
 var _zoom_tween: Tween
+## Zoom tra esplorazione (0) e combattimento (1), secondi rimasti prima di
+## tornare in esplorazione e tempo fino al prossimo controllo dei nemici.
+var _combat_zoom := 0.0
+var _combat_linger := 0.0
+var _combat_check := 0.0
 ## Altezza del terreno sotto il personaggio (vedi World.elevation_at).
 var ground_elevation := 0.0
 
@@ -967,6 +981,7 @@ func _physics_process(delta: float) -> void:
 			ahead = ((lock_target.global_position - global_position) * LOCK_CAMERA_SHARE).limit_length(LOCK_CAMERA_MAX)
 		_look_ahead = _look_ahead.lerp(ahead, minf(CAMERA_LOOK_AHEAD_FOLLOW * delta, 1.0))
 		_camera.position = Vector2(0, _camera_height) + _look_ahead
+		_update_zoom(delta)
 		# Il tremolio va sullo scostamento, che non viene ammorbidito.
 		_shake = move_toward(_shake, 0.0, CAMERA_SHAKE_DECAY * delta)
 		_camera.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * CAMERA_SHAKE * _shake * _shake
@@ -2066,20 +2081,49 @@ func _start_special() -> void:
 	dark.tween_interval(SPECIAL_DARK_HOLD)
 	dark.tween_property(self, "_special_dark", 0.0, SPECIAL_DARK_OUT)
 	if _camera:
-		_special_zoom = _camera.zoom
-		_tween_zoom(_special_zoom * SPECIAL_ZOOM, SPECIAL_ZOOM_IN_TIME)
+		_tween_zoom(SPECIAL_ZOOM, SPECIAL_ZOOM_IN_TIME)
 	_shake = maxf(_shake, 0.4)
 	Sfx.play("frenzy_roar", global_position)
 	Sfx.play("heavy_swing", global_position, 0.7)
 	special_started.emit()
 
 
-## Zoom della telecamera verso to in time secondi, con una curva morbida.
-func _tween_zoom(to: Vector2, time: float) -> void:
+## Zoom dell'attacco speciale verso to in time secondi, con una curva morbida.
+func _tween_zoom(to: float, time: float) -> void:
 	if _zoom_tween:
 		_zoom_tween.kill()
 	_zoom_tween = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	_zoom_tween.tween_property(_camera, "zoom", to, time)
+	_zoom_tween.tween_property(self, "_special_zoom", to, time)
+
+
+## Zoom della telecamera: esplorazione o combattimento (vedi
+## COMBAT_CHECK_INTERVAL), moltiplicato per quello dell'attacco speciale.
+func _update_zoom(delta: float) -> void:
+	var data: Dictionary = World.DATA.data["camera"]
+	_combat_check -= delta
+	if _combat_check <= 0.0:
+		_combat_check = COMBAT_CHECK_INTERVAL
+		if _in_combat(float(data["combat_range"])):
+			_combat_linger = float(data["combat_linger"])
+	_combat_linger = maxf(_combat_linger - delta, 0.0)
+	if _combat_linger > 0.0:
+		_combat_zoom = move_toward(_combat_zoom, 1.0, delta / float(data["zoom_in_time"]))
+	else:
+		_combat_zoom = move_toward(_combat_zoom, 0.0, delta / float(data["zoom_out_time"]))
+	var zoom := lerpf(float(data["explore_zoom"]), float(data["combat_zoom"]), smoothstep(0.0, 1.0, _combat_zoom))
+	_camera.zoom = Vector2.ONE * zoom * _special_zoom
+
+
+## C'è da combattere: un nemico agganciato, o uno vivo che ha notato il
+## giocatore entro reach pixel.
+func _in_combat(reach: float) -> bool:
+	if is_instance_valid(lock_target) and not lock_target.is_dead():
+		return true
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as Enemy
+		if not enemy.is_dead() and enemy.is_engaged() and enemy.global_position.distance_squared_to(global_position) < reach * reach:
+			return true
+	return false
 
 
 ## Dopo la cinematica un colpo ogni SPECIAL_HIT_INTERVAL secondi, fino a
@@ -2143,7 +2187,7 @@ func _special_strike() -> void:
 ## attimo di invulnerabilità).
 func _finish_special() -> void:
 	if _camera:
-		_tween_zoom(_special_zoom, SPECIAL_ZOOM_OUT_TIME)
+		_tween_zoom(1.0, SPECIAL_ZOOM_OUT_TIME)
 	Enemy.frozen = false
 	_special_target = null
 	_special_from = Vector2.ZERO
