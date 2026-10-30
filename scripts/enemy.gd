@@ -32,9 +32,9 @@ extends Node2D
 ## bandana, berretto, occhiali, maschera...), scelti da un seme salvato con
 ## il nemico (vedi _apply_look).
 ##
-## Vita a punti, come quella del giocatore: ogni tipo ha pochi punti vita
-## ("points" in data/enemies.json, che crescono un poco col livello di
-## minaccia) mostrati a segmenti sopra la testa. Un colpo toglie 1 punto,
+## Vita a punti, come quella del giocatore: ogni tipo ha i suoi punti vita
+## ("points" in data/enemies.json, che crescono col livello di minaccia;
+## quelli degli zombie delle orde no) mostrati a segmenti sopra la testa. Un colpo toglie 1 punto,
 ## 2 o 3 i colpi molto forti: il danno del colpo, meno l'armatura, diviso
 ## per POINT_DAMAGE volte il primo colpo del giocatore al livello 1,
 ## cresciuto col livello di minaccia del nemico ("hit_damage", più piano
@@ -78,6 +78,9 @@ const HEAVY_KNOCKBACK_FACTOR := 1.6
 ## colpo del giocatore al livello 1, e punti al più per colpo.
 const POINT_DAMAGE := 1.25
 const MAX_POINTS_PER_HIT := 3
+## Versione del bilanciamento della vita (punti ed enemy_scaling): i nemici
+## salvati con una versione precedente si ricalcolano (vedi load_state).
+const BALANCE := 2
 ## Dopo un colpo si resta invulnerabili per questo tempo, lampeggiando
 ## (molto meno del giocatore: le combo devono restare veloci).
 const HURT_INVULNERABLE_TIME := 0.12
@@ -384,7 +387,7 @@ func setup(id: String, level := 1) -> void:
 	_type = EnemyTypes.get_type(id)
 	threat_level = maxi(level, 1)
 	radius = _type["radius"]
-	max_health = maxi(roundi(EnemyTypes.scaled("points", _type["points"], threat_level)), 1)
+	max_health = _max_health_at(threat_level)
 	health = max_health
 	xp_reward = roundi(EnemyTypes.scaled("xp", _type["xp"], threat_level))
 	damage = floori(EnemyTypes.scaled("damage", _type["damage"], threat_level))
@@ -399,13 +402,21 @@ func setup(id: String, level := 1) -> void:
 		_magic_cooldown = randf_range(1.5, 3.0)
 
 
+## Punti vita del tipo al livello di minaccia. Gli zombie delle orde non
+## crescono: muoiono sempre con un colpo.
+func _max_health_at(level: int) -> int:
+	if is_horde():
+		return maxi(int(_type["points"]), 1)
+	return maxi(roundi(EnemyTypes.scaled("points", _type["points"], level)), 1)
+
+
 ## Stato da salvare: tipo, posizione esatta, vita e valori cambiati dalla
 ## scena di gioco (boss più forte, nemici evocati).
 func save_state() -> Dictionary:
 	return {
 		"type": type_id, "position": SaveGame.array(position), "health": health, "max_health": max_health, "points": true,
 		"xp": xp_reward, "damage": damage, "loot": drops_loot, "minion": is_minion,
-		"level": threat_level, "armor": armor,
+		"level": threat_level, "armor": armor, "balance": BALANCE,
 		"facing": SaveGame.array(_facing), "look": _look_seed,
 	}
 
@@ -414,17 +425,21 @@ func save_state() -> Dictionary:
 ## alla scena); i campi mancanti restano quelli del tipo.
 func load_state(data: Dictionary) -> void:
 	position = SaveGame.vector(data["position"])
-	if data.get("points", false):
+	threat_level = maxi(int(data.get("level", threat_level)), 1)
+	if data.get("points", false) and int(data.get("balance", 1)) >= BALANCE:
 		max_health = maxi(int(data.get("max_health", max_health)), 1)
 		health = clampi(int(data.get("health", max_health)), 1, max_health)
+		armor = float(data.get("armor", armor))
 	else:
-		# Salvataggio di prima della vita a punti: si tiene la stessa parte di vita.
+		# Salvataggio di prima della vita a punti o del bilanciamento
+		# attuale: vita e armatura di adesso al livello del nemico, con la
+		# stessa parte di vita rimasta.
 		var share := float(data.get("health", 1)) / maxf(float(data.get("max_health", 1)), 1.0)
+		max_health = _max_health_at(threat_level)
 		health = clampi(ceili(share * max_health), 1, max_health)
+		armor = EnemyTypes.armor(float(_type.get("armor", 0.0)), threat_level)
 	xp_reward = int(data.get("xp", xp_reward))
 	damage = int(data.get("damage", damage))
-	threat_level = int(data.get("level", threat_level))
-	armor = float(data.get("armor", armor))
 	drops_loot = bool(data.get("loot", drops_loot))
 	if data.has("look"):
 		_apply_look(int(data["look"]))

@@ -52,12 +52,12 @@
 		"reveal_step": 32
 	},
 	"enemy_scaling": {
-		"points": 0.05,
-		"hit_damage": 0.22,
+		"points": 0.08,
+		"hit_damage": 0.25,
 		"damage": 0.05,
 		"xp": 0.1,
-		"armor": 0.01,
-		"armor_max": 0.5
+		"armor": 0.005,
+		"armor_max": 0.4
 	},
 	"population": {
 		"count": [8, 0.7],
