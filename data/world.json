@@ -51,13 +51,21 @@
 		"reveal_interval": 0.2,
 		"reveal_step": 32
 	},
+	"camera": {
+		"explore_zoom": 0.8,
+		"combat_zoom": 1.0,
+		"combat_range": 700,
+		"combat_linger": 2.0,
+		"zoom_in_time": 0.5,
+		"zoom_out_time": 1.2
+	},
 	"enemy_scaling": {
-		"points": 0.05,
-		"hit_damage": 0.22,
+		"points": 0.08,
+		"hit_damage": 0.25,
 		"damage": 0.05,
 		"xp": 0.1,
-		"armor": 0.01,
-		"armor_max": 0.5
+		"armor": 0.005,
+		"armor_max": 0.4
 	},
 	"population": {
 		"count": [8, 0.7],

@@ -26,6 +26,8 @@ const COLOR_KEY := Color(0.75, 0.9, 1.0)
 
 var _back := Button.new()
 var _grid := GridContainer.new()
+## Riga dell'attacco speciale della Frenesia, coi tasti scelti dal giocatore.
+var _frenzy: Label
 
 
 func _ready() -> void:
@@ -55,8 +57,9 @@ func _ready() -> void:
 	for key: String in SPECIALS:
 		var label := _label(key, 17, COLOR_TEXT, true)
 		if key == "CONTROLS_SPECIAL_FRENZY":
-			# L'attacco speciale è parata + attacco insieme: tasti dall'Input Map.
-			label.text = tr(key) % [Keybinds.hint("parry"), Keybinds.hint("attack")]
+			# L'attacco speciale è parata + attacco insieme: tasti dall'Input
+			# Map, scritti a ogni apertura (vedi _fill).
+			_frenzy = label
 			label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 		specials.add_child(label)
 	_back.text = "CONTROLS_BACK"
@@ -67,8 +70,9 @@ func _ready() -> void:
 	box.add_child(_back)
 
 
-## Riempie la tabella con i tasti attuali.
+## Riempie la tabella con i tasti attuali, nella lingua attuale.
 func _fill() -> void:
+	_frenzy.text = tr("CONTROLS_SPECIAL_FRENZY") % [Keybinds.hint("parry"), Keybinds.hint("attack")]
 	for child in _grid.get_children():
 		_grid.remove_child(child)
 		child.queue_free()

@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="Ciccio Massacro"
+config/name="Cheech Carnage"
 config/description="Action RPG post-apocalittico 2D."
 config/version="0.1.0"
 run/main_scene="res://scenes/menu.tscn"

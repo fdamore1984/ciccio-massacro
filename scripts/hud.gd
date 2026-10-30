@@ -161,6 +161,11 @@ func _process(delta: float) -> void:
 	_update_power_ups()
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED and is_node_ready():
+		_deck_hint.text = tr("DECK_HINT")
+
+
 ## Riga compatta in basso a destra: un'icona per ogni effetto temporaneo
 ## (parata perfetta con i secondi rimasti, scudo, torcia accesa) e per ogni
 ## potenziamento scelto, con quante volte è stato preso.
