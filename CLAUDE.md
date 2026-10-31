@@ -38,6 +38,12 @@
   salvataggi nel browser passano da `scripts/cloud.gd`: ogni nuovo file del
   giocatore in `user://` va aggiunto a `Cloud.files()` e caricato con
   `Cloud.push` / `Cloud.remove`.
+- **Devlog e copertine su ufotizio.com**: a ogni novità del gioco aggiungi
+  una voce in cima a `public/assets/devlog.js` del repo ufotizio-site (in
+  italiano e in inglese) e aggiorna le copertine della home
+  (`public/assets/ciccio-massacro-it.png` / `-en.png`, copie di
+  `store/itch/cover_it.png` / `cover_en.png`); il sito si pubblica a ogni
+  push su `main` di ufotizio-site.
 - **Asset provvisori**: grafica geometrica disegnata in codice e suoni
   sintetizzati in `scripts/sfx.gd`, finché non arrivano gli asset definitivi.
 - **Verifica prima di pubblicare**: import e avvio senza errori né warning
