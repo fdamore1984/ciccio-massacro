@@ -7,7 +7,7 @@ Documento vivo: da compilare e aggiornare. Le sezioni vuote sono da definire.
 - **Titolo**: Cheech Carnage (in italiano Ciccio Massacro)
 - **Genere**: action RPG post-apocalittico 2D, visuale isometrica, combattimento in tempo reale
 - **Piattaforme target**: Windows, Linux, SteamOS (Steam Deck) e Android. Steam per desktop e Deck, Google Play per Android. Per ora il prototipo viene pubblicato per Linux / SteamOS e Windows
-- **Pitch in una frase**: Ciccio, un sopravvissuto rosa e rotondo, armato di motosega e bazooka, si fa strada tra le rovine di una città distrutta, diventa più forte e incontra chi gli apre nuove strade.
+- **Pitch in una frase**: Ciccio, un sopravvissuto rotondo color pesca dal ghigno cattivo, armato di motosega e bazooka, si fa strada tra le rovine di una città distrutta, diventa più forte e incontra chi gli apre nuove strade.
 - **Pubblico**: _da definire_
 - **Durata stimata**: _da definire (consigliato 5-10 ore per il primo titolo)_
 
@@ -15,12 +15,12 @@ Documento vivo: da compilare e aggiornare. Le sezioni vuote sono da definire.
 
 - **Mondo**: una città distrutta da una catastrofe: strade d'asfalto spaccate, grattacieli in rovina, fessure aperte dai terremoti, edifici abbandonati da esplorare piano per piano. Dettagli da definire
 - **Epoca e atmosfera**: post-apocalittica moderna
-- **Tono**: splatter e ironico (il nome, il protagonista rosa, il sangue abbondante); _da precisare_
+- **Tono**: splatter e ironico (il nome, il protagonista con il ghigno, il sangue abbondante); _da precisare_
 - **Riferimenti e ispirazioni**: _da definire_
 
 ## 3. Protagonista e personaggi
 
-- **Protagonista**: Ciccio, un sopravvissuto rosa carne e rotondo, che si sporca di sangue a ogni uccisione e a ogni ferita (gli schizzi se ne vanno in fretta) con braccia e gambe sottili, armato di una motosega (corpo a corpo) e di un bazooka (missili a ricerca). Non parla e ride grasso quando abbatte un boss
+- **Protagonista**: Ciccio, una palla color pesca con occhioni cattivi e un ghigno pieno di denti (dal disegno di Valentina), che si sporca di sangue a ogni uccisione e a ogni ferita (gli schizzi se ne vanno in fretta) con braccia e gambe lunghe come linee e guanti bianchi, armato di una motosega (corpo a corpo) e di un bazooka (missili a ricerca). Non parla e ride grasso quando abbatte un boss
 - **Nemici**: bande di predoni tondi come Ciccio, ognuno con taglia, colore della pelle e accessori (capelli, bandane, berretti, occhiali, maschere) casuali, con armi improvvisate (manganelli, mazze da baseball, tubi, mazze da demolizione) e armi da fuoco (pistole, fucili); il signore della guerra di ogni edificio
 - **Personaggi chiave**: personaggi incontrati nella città che introducono nuove quest (per ora solo i commercianti). Elenco _da definire_
 - **Fazioni**: _da definire_
