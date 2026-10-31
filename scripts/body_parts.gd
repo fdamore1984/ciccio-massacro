@@ -38,9 +38,11 @@ static func draw_legs(canvas: CanvasItem, hip_y: float, foot_y: float, spacing: 
 		var swing := direction * sin(phase + (PI if side > 0.0 else 0.0)) * stride
 		var hip := Vector2(side * spacing, hip_y)
 		var foot := Vector2(side * spacing, foot_y) + Vector2(swing.x, swing.y * 0.5)
-		canvas.draw_line(hip, foot, color, width)
+		# Contorno a inchiostro sotto la gamba e il piede (stile fumetto).
+		canvas.draw_line(hip, foot, Color(Shapes.INK, color.a), width + Shapes.INK_WIDTH * 1.5)
 		if feet:
-			Shapes.disc(canvas, foot, width * 0.6, color.darkened(0.25))
+			Shapes.ink_disc(canvas, foot, width * 0.6, color.darkened(0.25), Shapes.INK_WIDTH * 0.75)
+		canvas.draw_line(hip, foot, color, width)
 
 
 ## Motosega impugnata in origin (impugnatura posteriore) e puntata
@@ -55,6 +57,11 @@ static func draw_chainsaw(canvas: CanvasItem, origin: Vector2, angle: float, len
 	var body_end := origin + direction * length * 0.36
 	var bar := width * 0.72
 	var tip := origin + direction * (length - bar)
+	# Contorno a inchiostro: sagoma di motore e barra un po' più grande, sotto.
+	var ink := Color(Shapes.INK, tint.a)
+	canvas.draw_line(origin - direction * width, body_end, ink, engine * 2.0 + Shapes.INK_WIDTH * 1.4)
+	canvas.draw_line(body_end, tip, ink, bar * 2.0 + Shapes.INK_WIDTH * 1.4)
+	Shapes.disc(canvas, tip, bar + Shapes.INK_WIDTH * 0.7, ink)
 	# Impugnatura posteriore ad anello.
 	canvas.draw_polyline(PackedVector2Array([origin + side * engine * 0.7, origin - direction * width * 0.9 + side * engine * 0.7,
 			origin - direction * width * 0.9 - side * engine * 0.5, origin - side * engine * 0.5]), COLOR_SAW_GRIP, maxf(width * 0.45, 1.5))
@@ -96,6 +103,8 @@ static func draw_club(canvas: CanvasItem, origin: Vector2, angle: float, length:
 	var direction := Vector2.from_angle(angle)
 	var side := direction.orthogonal()
 	var tip := origin + direction * length
+	# Contorno a inchiostro: un manico nero un po' più largo, sotto.
+	canvas.draw_line(origin - direction * Shapes.INK_WIDTH * 0.7, tip + direction * Shapes.INK_WIDTH * 0.7, Color(Shapes.INK, tint.a), width + Shapes.INK_WIDTH * 1.4)
 	match kind:
 		"baton":
 			canvas.draw_line(origin, tip, COLOR_RUBBER * tint, width * 0.8)
@@ -138,6 +147,8 @@ static func draw_gun(canvas: CanvasItem, origin: Vector2, angle: float, length: 
 	var direction := Vector2.from_angle(angle)
 	var side := direction.orthogonal()
 	var muzzle := origin + direction * length
+	# Contorno a inchiostro: la canna nera un po' più larga, sotto.
+	canvas.draw_line(origin - direction * width, muzzle + direction * Shapes.INK_WIDTH * 0.7, Shapes.INK, width * 1.2 + Shapes.INK_WIDTH * 1.4)
 	match kind:
 		"rifle", "shotgun":
 			var stock := origin - direction * length * 0.3
