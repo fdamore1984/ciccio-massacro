@@ -72,6 +72,8 @@ Cheech Carnage is a 2D post-apocalyptic action RPG with an isometric view: carve
 Fast, deadly Souls-like combat: combos, parries, dodges, jumps and the Frenzy special attack. Prototype with placeholder graphics and sounds.
 
 Controller, keyboard and mouse or touch. English and Italian. Windows, Linux and Steam Deck.
+
+Play it right in your browser, with your saves on every device: https://ufotizio.com/en/cheech-carnage
 ```
 
 ---
