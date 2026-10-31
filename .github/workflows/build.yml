@@ -59,8 +59,20 @@ jobs:
         run: |
           mkdir -p build/${{ matrix.dir }}
           godot --headless --verbose ${{ matrix.mode }} "${{ matrix.preset }}"
-          # Elenco dei file prodotti: ogni build deve essere un file solo
-          # (la versione Web è una cartella con index.html).
+          # Per l'app di itch.io: il manifesto dice quale file avviare (così
+          # un cambio di nome dell'eseguibile non rompe l'avvio). Su Linux
+          # resta anche il nome vecchio, CiccioMassacro.x86_64, come
+          # collegamento: i giochi non Steam aggiunti a Steam (per esempio
+          # sullo Steam Deck in modalità gioco) puntano ancora a quello.
+          if [ -f "tools/itch/${{ matrix.dir }}.itch.toml" ]; then
+            cp "tools/itch/${{ matrix.dir }}.itch.toml" build/${{ matrix.dir }}/.itch.toml
+          fi
+          if [ "${{ matrix.dir }}" = "linux" ]; then
+            ln -s CheechCarnage.x86_64 build/linux/CiccioMassacro.x86_64
+          fi
+          # Elenco dei file prodotti: ogni build deve essere un eseguibile
+          # solo, più il manifesto per itch.io (la versione Web è una
+          # cartella con index.html).
           ls -la build/${{ matrix.dir }}
 
       # Lo spazio per gli artefatti dell'account GitHub è limitato: se è
