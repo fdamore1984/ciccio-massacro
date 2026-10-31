@@ -18,6 +18,8 @@ const FONT_SIZE := 20
 const SMALL_FONT_SIZE := 17
 const OUTLINE_SIZE := 6
 const COLOR_OUTLINE := UiStyle.INK
+## Raggio della palla di Ciccio nel ritratto.
+const PORTRAIT_RADIUS := 25.0
 const COLOR_HEALTH := Color(0.9, 0.25, 0.25)
 const COLOR_HEALTH_LOW := Color(1.0, 0.45, 0.2)
 const COLOR_BATTERY := Color(0.4, 0.85, 0.35)
@@ -117,15 +119,19 @@ func _draw() -> void:
 	_text(font, str(kills), saw + Vector2(12, 6), FONT_SIZE, COLOR_TEXT)
 
 
-## Ritratto di Ciccio (forma geometrica rosa) con il livello in un distintivo.
+## Ritratto di Ciccio (la palla color pesca con gli occhi cattivi e il
+## ghigno, vedi PlayerLook) con il livello in un distintivo.
 func _draw_portrait(font: Font) -> void:
 	var center := Vector2(52, 50)
 	Shapes.disc(self, center, 37.0, COLOR_OUTLINE)
 	Shapes.disc(self, center, 33.0, UiStyle.SOFT)
-	draw_circle(center + Vector2(0, 4), 24.0, Player.COLOR_BODY)
-	draw_colored_polygon(PackedVector2Array([center + Vector2(26, 4), center + Vector2(12, -4), center + Vector2(12, 12)]), Player.COLOR_BODY.darkened(0.3))
-	draw_circle(center + Vector2(-6, -2), 3.5, Color(0.1, 0.1, 0.1))
-	draw_circle(center + Vector2(8, -2), 3.5, Color(0.1, 0.1, 0.1))
+	var zoom := PORTRAIT_RADIUS / PlayerLook.RADIUS
+	draw_set_transform(center + Vector2(0, 4), 0.0, Vector2(zoom, zoom))
+	var look := PlayerLook.face(Vector2.DOWN)
+	PlayerLook.draw_ball(self, Player.COLOR_BODY)
+	PlayerLook.draw_grin(self, look)
+	PlayerLook.draw_eyes(self, look, Player.COLOR_BODY)
+	draw_set_transform(Vector2.ZERO)
 	var badge := center + Vector2(26, 28)
 	Shapes.disc(self, badge, 16.0, COLOR_OUTLINE)
 	Shapes.disc(self, badge, 13.0, UiStyle.ACCENT)

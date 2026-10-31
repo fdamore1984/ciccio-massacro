@@ -70,9 +70,7 @@ signal special_finished
 
 enum State { NORMAL, ATTACK, PARRY, DODGE, SLIDE, HURT, DEAD, SLAM, FALL, RECOIL, DRINK, SPECIAL }
 
-const RADIUS := 22.0
-## Grandezza degli occhi rispetto al corpo.
-const EYE_SIZE := 0.24
+const RADIUS := PlayerLook.RADIUS
 const START_HEALTH := 5
 ## Vita massima in più ogni tanti livelli, oltre ai potenziamenti: tiene
 ## il passo con il danno dei nemici, che cresce con il livello.
@@ -471,17 +469,19 @@ const INVULNERABLE_BLINK := 0.08
 const INVULNERABLE_ALPHA := 0.35
 
 ## Gambe: il corpo sta sopra di LEG_LENGTH; i passi seguono la velocità.
-## Corte e larghe: le gambe sono distanti LEG_SPACING dal centro e spesse LEG_WIDTH.
-const LEG_LENGTH := 11.0
+## Lunghe e sottili (una linea, vedi PlayerLook.draw_legs), distanti
+## LEG_SPACING dal centro.
+const LEG_LENGTH := 19.0
 const LEG_SPACING := 9.0
-const LEG_WIDTH := 3.2
 const WALK_CYCLE := 0.08
 const STRIDE := 7.0
-## Braccia e gambe sono semplici linee nere, corte e sottili; le braccia
-## vanno dalle spalle alle mani (al più ARM_LENGTH).
-const COLOR_LIMBS := Color(0.05, 0.05, 0.06)
-const LIMB_WIDTH := 2.5
-const ARM_LENGTH := 26.0
+## Le gambe raccolte in aria scendono di LEG_TUCK sotto i fianchi.
+const LEG_TUCK := 14.0
+## Nello slam il corpo si inclina in avanti calando (radianti).
+const SLAM_LEAN := 0.38
+## Ogni quanti secondi Ciccio sbatte le palpebre, e per quanto.
+const BLINK_EVERY := 3.2
+const BLINK_TIME := 0.13
 ## Motosega: lunghezza e larghezza della barra (il colpo potente la porta
 ## più avanti). La catena scorre lenta a riposo, veloce attaccando.
 const SAW_LENGTH := 46.0
@@ -492,7 +492,8 @@ const SAW_CHAIN_FAST := 140.0
 ## Sangue perso quando si viene colpiti (gocce).
 const BLEED_DROPS := 26
 
-const COLOR_BODY := Color(0.98, 0.74, 0.66)
+## Color pesca, come nel disegno di Valentina (vedi PlayerLook).
+const COLOR_BODY := Color(0.92, 0.66, 0.5)
 ## Sangue sul corpo (vedi BodyBlood): ogni nemico ucciso sporca il corpo di
 ## BLOOD_PER_KILL e ogni ferita di BLOOD_PER_WOUND (fino a 1), che poi si
 ## pulisce (BLOOD_CLEAN al secondo: da sporco del tutto a pulito in 40
@@ -656,8 +657,19 @@ var blood_stain: float:
 var _blood := BodyBlood.new(0, BLOOD_SPOTS, BLOOD_CLEAN)
 var _wounds := Wounds.new()
 var _voice := Voice.new()
+## Mani (vedi _draw_gear): sulla motosega o, per l'altra mano, su torcia o scorta.
 var _grip := Vector2.ZERO
 var _off_hand := Vector2.ZERO
+## In questo fotogramma la motosega è in mano, impugnata in _saw_origin.
+var _has_saw := false
+var _saw_origin := Vector2.ZERO
+## Disegni rimandati finché non si sa se vanno dietro o davanti alla palla:
+## motosega (con carica e luccichio) e l'oggetto nell'altra mano.
+var _saw_draws: Array[Callable] = []
+var _item_draws: Array[Callable] = []
+## L'altra mano regge torcia o scorta (allora il suo guanto va con quella).
+var _off_hand_busy := false
+var _item_in_front := false
 ## Carica del colpo potente (0-1) e se il tasto è ancora tenuto premuto.
 var _charge := 0.0
 var _charging := false
@@ -717,6 +729,7 @@ func _ready() -> void:
 		_torch.aim(facing)
 		add_child(_torch)
 	if not _silhouette.is_inside_tree():
+		_silhouette.show_eyes = true
 		add_child(_silhouette)
 	if not _voice.is_inside_tree():
 		_voice.tone = VOICE_TONE
@@ -2697,9 +2710,10 @@ func _draw() -> void:
 	if _state == State.SPECIAL:
 		_draw_special_streak(body)
 	if _state != State.SLIDE and not rolling:
-		var foot_y := RADIUS * 0.85 - (6.0 if is_airborne() else 0.0)
-		BodyParts.draw_legs(self, -LEG_LENGTH + RADIUS * 0.55, foot_y, LEG_SPACING, LEG_WIDTH, _walk_phase,
-				_velocity.normalized(), STRIDE if walking else 0.0, Color(COLOR_LIMBS, body.a), false)
+		# Dopo lo slam le gambe si allargano per l'impatto.
+		var spread := 1.0 - clampf(_state_time / SLAM_RECOVERY, 0.0, 1.0) if _state == State.SLAM and _slam_landed else 0.0
+		PlayerLook.draw_legs(self, -LEG_LENGTH + RADIUS * 0.62, RADIUS * 0.85, LEG_SPACING, _walk_phase,
+				_velocity.normalized(), STRIDE if walking else 0.0, facing, is_airborne(), spread, body.a)
 	# Il corpo ondeggia camminando, si inclina nella direzione di corsa, si
 	# allunga salendo e si schiaccia atterrando.
 	var bob := absf(sin(_walk_phase)) * 2.5 if walking else 0.0
@@ -2737,16 +2751,39 @@ func _draw() -> void:
 		body = _blood.tint(body)
 		if soot > 0.0:
 			body = Color(body.lerp(COLOR_SOOT, soot * SOOT_STRENGTH), body.a)
-	# Guardando verso nord il "naso", la motosega, le braccia, la torcia e
-	# le scorte sono dietro al corpo, che li copre (vedi BodyParts.gear_behind).
-	var behind := BodyParts.gear_behind(facing)
-	if behind:
-		_draw_gear(body)
-	Shapes.ink_disc(self, Vector2.ZERO, RADIUS, body)
+	# Ordine dei disegni (vedi PlayerLook): braccia sempre dietro alla palla;
+	# motosega e oggetti dietro o davanti secondo dove sono le mani; poi
+	# bocca e, per ultimi, gli occhi, che così non vengono mai coperti.
+	var look := PlayerLook.face(facing)
+	var alive := _state != State.DEAD
+	var saw_front := false
+	if alive:
+		_draw_gear()
+		saw_front = PlayerLook.saw_in_front(facing, _saw_origin, [_grip, _off_hand], look) if _has_saw \
+				else not BodyParts.gear_behind(facing)
+		PlayerLook.draw_arms(self, _grip, _off_hand, body.a)
+		if not saw_front:
+			_flush_saw(body.a)
+		if not _item_in_front:
+			_flush_item(body.a)
+	PlayerLook.draw_ball(self, body)
 	_blood.draw(self, RADIUS, body.a)
 	_wounds.draw(self, RADIUS, body.a)
-	if not behind:
-		_draw_gear(body)
+	if look["visible"]:
+		if alive:
+			PlayerLook.draw_grin(self, look, _mouth_open(), body.a)
+		else:
+			PlayerLook.draw_dead_mouth(self, look, body.a)
+	if alive:
+		if saw_front:
+			_flush_saw(body.a)
+		if _item_in_front:
+			_flush_item(body.a)
+	if look["visible"]:
+		if alive:
+			PlayerLook.draw_eyes(self, look, body, _blinking())
+		else:
+			PlayerLook.draw_dead_eyes(self, look, body.a)
 
 	# Scudo attivo: piastre di kevlar esagonali attorno al personaggio.
 	if shield_active and _state != State.DEAD:
@@ -2774,37 +2811,89 @@ func _draw_h_bomb() -> void:
 		_draw_charge_ring()
 	var glow := _charge if _charging else 0.0
 	HBombBlast.draw_bomb(self, H_BOMB_HELD, H_BOMB_LENGTH, glow, facing.x < 0.0)
+	PlayerLook.draw_glove(self, _grip)
+	PlayerLook.draw_glove(self, _off_hand)
 
 
-## "Naso" che indica la direzione e, da vivo, la motosega, la scorta in
-## uso, la torcia elettrica e le braccia.
-func _draw_gear(body: Color) -> void:
-	var tip := facing * (RADIUS + 12.0)
-	var side := facing.orthogonal() * 9.0
-	var ink := facing.orthogonal() * (9.0 + Shapes.INK_WIDTH)
-	draw_primitive(PackedVector2Array([tip + facing * Shapes.INK_WIDTH * 1.6, facing * RADIUS * 0.5 + ink, facing * RADIUS * 0.5 - ink]),
-			PackedColorArray([Color(Shapes.INK, body.a)]), PackedVector2Array())
-	draw_primitive(PackedVector2Array([tip, facing * RADIUS * 0.6 + side, facing * RADIUS * 0.6 - side]), PackedColorArray([body.darkened(0.3)]), PackedVector2Array())
-	if _state != State.DEAD:
-		# Occhi grandi da fumetto che guardano dove va Ciccio.
-		Shapes.eyes(self, facing * RADIUS * 0.25 + Vector2(0, -RADIUS * 0.2), RADIUS * EYE_SIZE, facing, false, body.a)
-		_grip = facing.orthogonal() * RADIUS * 0.8
-		_off_hand = -_grip
-		_draw_weapon()
-		if _state == State.DRINK:
-			_draw_flask()
-		if torch_on and not holding_h_bomb():
-			_draw_torch()
-		_draw_arms(body.a)
+## Motosega, scorta in uso e torcia elettrica: decide dove stanno le mani
+## e prepara i disegni (vedi _flush_saw e _flush_item), disegnando subito
+## solo scie e anelli di carica, che stanno comunque attorno al corpo.
+func _draw_gear() -> void:
+	_saw_draws.clear()
+	_item_draws.clear()
+	_has_saw = false
+	_off_hand_busy = false
+	_item_in_front = not BodyParts.gear_behind(facing)
+	# Mani vuote: ai fianchi, un po' in basso.
+	_grip = Vector2(RADIUS * 1.3, RADIUS * 0.4)
+	_off_hand = Vector2(-RADIUS * 1.3, RADIUS * 0.4)
+	_draw_weapon()
+	if _state == State.DRINK:
+		_draw_flask()
+	if torch_on and not holding_h_bomb():
+		_draw_torch()
 
 
-## Usando una scorta l'altra mano la porta al corpo: il kit medico
+## Disegna la motosega preparata, con i guanti che la tengono.
+func _flush_saw(alpha: float) -> void:
+	for draw_call in _saw_draws:
+		draw_call.call()
+	if holding_h_bomb():
+		return
+	PlayerLook.draw_glove(self, _grip, alpha)
+	if not _off_hand_busy:
+		PlayerLook.draw_glove(self, _off_hand, alpha)
+
+
+## Disegna l'oggetto nell'altra mano (scorta o torcia) col suo guanto.
+func _flush_item(alpha: float) -> void:
+	for draw_call in _item_draws:
+		draw_call.call()
+	if _off_hand_busy:
+		PlayerLook.draw_glove(self, _off_hand, alpha)
+
+
+## Quanto è spalancata la bocca (0-1): urla colpendo, calando lo slam,
+## nell'attacco speciale e quando viene colpito.
+func _mouth_open() -> float:
+	match _state:
+		State.ATTACK:
+			var windup := (HEAVY_WINDUP if _attack_heavy else ATTACK_WINDUP) / _attack_speed
+			var active := (HEAVY_ACTIVE if _attack_heavy else ATTACK_ACTIVE) / _attack_speed
+			if _state_time < windup:
+				return 0.0
+			return 1.0 - clampf((_state_time - windup - active) / (active * 2.0), 0.0, 1.0)
+		State.SLAM:
+			if _slam_landed:
+				return 1.0 - clampf(_state_time / SLAM_RECOVERY, 0.0, 1.0)
+			return 1.0 if _height_velocity < 0.0 else 0.35
+		State.SPECIAL, State.HURT:
+			return 1.0
+	return 0.0
+
+
+## Sbatte le palpebre ogni tanto, quando è tranquillo.
+func _blinking() -> bool:
+	if _state != State.NORMAL:
+		return false
+	return fposmod(Time.get_ticks_msec() / 1000.0, BLINK_EVERY) > BLINK_EVERY - BLINK_TIME
+
+
+## Usando una scorta l'altra mano la porta alla bocca: il kit medico
 ## bianco con la croce rossa, la tanica rossa del carburante o la lattina
-## verde dell'energetico, che arriva alla bocca.
+## verde dell'energetico.
 func _draw_flask() -> void:
 	var t := clampf(_state_time / DRINK_EFFECT_TIME, 0.0, 1.0)
-	var at := facing * RADIUS * lerpf(1.2, 0.7, t) + Vector2(0, lerpf(4.0, -8.0, t))
-	match _drinking:
+	var mouth: Vector2 = PlayerLook.face(facing)["mouth"]
+	var at := (facing * RADIUS * 1.3 + Vector2(0, 6.0)).lerp(mouth + Vector2(0, 4.0), t)
+	_item_draws.append(_draw_flask_item.bind(_drinking, at))
+	_off_hand = at
+	_off_hand_busy = true
+
+
+## Scorta in mano in at (vedi _draw_flask).
+func _draw_flask_item(kind: String, at: Vector2) -> void:
+	match kind:
 		"potion":
 			draw_rect(Rect2(at - Vector2(9, 7), Vector2(18, 14)), Color(0, 0, 0, 0.6))
 			draw_rect(Rect2(at - Vector2(8, 6), Vector2(16, 12)), COLOR_MEDKIT)
@@ -2820,29 +2909,32 @@ func _draw_flask() -> void:
 			draw_rect(Rect2(at - Vector2(7, 8), Vector2(14, 16)), COLOR_FUEL_CAN)
 			draw_line(at + Vector2(-7, -8), at + Vector2(7, 8), COLOR_FUEL_CAN.darkened(0.3), 2.0)
 			draw_line(at + Vector2(4, -8), at + Vector2(8, -13), Color(0.3, 0.3, 0.3), 3.0)
-	_off_hand = at
-
-
-## Braccia: linee nere sottili dalle spalle alle mani (vedi _grip e
-## _off_hand), accorciate se le mani sono più lontane di ARM_LENGTH.
-func _draw_arms(alpha: float) -> void:
-	var shoulder := facing.orthogonal() * RADIUS * 0.7
-	if _grip.dot(shoulder) < 0.0:
-		shoulder = -shoulder
-	var color := Color(COLOR_LIMBS, alpha)
-	for pair: Array in [[shoulder, _grip], [-shoulder, _off_hand]]:
-		var from: Vector2 = pair[0]
-		var to := from + ((pair[1] as Vector2) - from).limit_length(ARM_LENGTH)
-		draw_line(from, to, Color(Shapes.INK, alpha), LIMB_WIDTH + Shapes.INK_WIDTH * 1.5)
-		draw_line(from, to, color, LIMB_WIDTH)
 
 
 ## Motosega in mano (hand: impugnatura posteriore): ricorda dove sono le
-## mani per le braccia (l'altra mano sulla maniglia anteriore).
+## mani (sulla maniglia superiore) e prepara il disegno (vedi _flush_saw).
 func _draw_saw(hand: Vector2, angle: float, length: float, width: float, tint: Color) -> void:
-	BodyParts.draw_chainsaw(self, hand, angle, length, width, tint, _saw_phase)
-	_grip = hand
-	_off_hand = hand + Vector2.from_angle(angle) * length * 0.2
+	var hands := PlayerLook.saw_hands(hand, angle, length, width)
+	_grip = hands[0]
+	_off_hand = hands[1]
+	_has_saw = true
+	_saw_origin = hand
+	var phase := _saw_phase
+	_saw_draws.append(func() -> void: PlayerLook.draw_chainsaw(self, hand, angle, length, width, tint, phase))
+
+
+## Da a verso b passando per il raggio intorno alla palla (mai dentro):
+## angolo e distanza dal centro interpolati a parte.
+static func _around(a: Vector2, b: Vector2, t: float) -> Vector2:
+	return Vector2.from_angle(lerp_angle(a.angle(), b.angle(), t)) * lerpf(a.length(), b.length(), t)
+
+
+## Arco da from verso to girando nel verso turn (1 orario sullo schermo, -1 antiorario).
+static func _arc_delta(from: float, to: float, turn: float) -> float:
+	var delta := fposmod(to - from, TAU)
+	if turn > 0.0 or delta == 0.0:
+		return delta
+	return delta - TAU
 
 
 ## Motosega: a riposo è tenuta di lato; nell'attacco si porta indietro
@@ -2871,14 +2963,14 @@ func _draw_weapon() -> void:
 		# In parata la motosega è di traverso davanti al corpo: si illumina
 		# all'inizio (quando la parata sarebbe perfetta) e quando para un colpo.
 		var across := -facing.orthogonal()
-		var center := facing * RADIUS * 0.95
+		var center := facing * RADIUS * 1.3
 		if _state_time <= PERFECT_PARRY_WINDOW or _block_flash > 0.0:
 			tint = Color(1.3, 1.3, 1.4)
 		_draw_saw(center - across * SAW_LENGTH * 0.45, across.angle(), SAW_LENGTH, SAW_WIDTH, tint)
 		return
 	if _state != State.ATTACK:
-		var rest := facing.angle() + 0.6
-		_draw_saw(facing.orthogonal() * RADIUS * 0.8, rest, SAW_LENGTH, SAW_WIDTH, tint)
+		var rest := PlayerLook.rest_hold(facing)
+		_draw_saw(rest[0], rest[1], SAW_LENGTH, SAW_WIDTH, tint)
 		return
 	if not _attack_heavy and not _air_attack:
 		_draw_attack_saw(tint)
@@ -2905,9 +2997,10 @@ func _draw_weapon() -> void:
 		var alpha := 0.85 if _attack_heavy else 0.5 + 0.15 * (_combo_step - 1)
 		BodyParts.draw_trail(self, Vector2.ZERO, start, angle, RADIUS + 6.0, _attack_range() + RADIUS, Color(slash, minf(alpha, 0.9)))
 	var length := HEAVY_SAW_LENGTH if _attack_heavy else SAW_LENGTH
-	_draw_saw(Vector2.from_angle(angle) * RADIUS * 0.8, angle, length, SAW_WIDTH * (1.3 if _attack_heavy else 1.0), tint)
+	var hand := Vector2.from_angle(angle) * RADIUS * PlayerLook.HAND_SWING
+	_draw_saw(hand, angle, length, SAW_WIDTH * (1.3 if _attack_heavy else 1.0), tint)
 	if _attack_heavy and _charging:
-		_draw_charge_heat(Vector2.from_angle(angle) * RADIUS * 0.8, angle, length)
+		_saw_draws.append(_draw_charge_heat.bind(hand, angle, length))
 
 
 ## Colpo normale a terra: carica (la motosega si porta indietro e la punta
@@ -2931,9 +3024,14 @@ func _draw_attack_saw(tint: Color) -> void:
 	var reach := _attack_range() + RADIUS
 	var slash := COLOR_EMPOWERED if _attack_speed > 1.0 else COLOR_SLASH
 	var trail_alpha := minf(0.55 + 0.12 * (_combo_step - 1), 0.9)
-	var rest := forward + 0.6
+	# Si parte dalla posa a riposo e ci si torna; in mezzo le mani girano
+	# attorno alla palla (vedi _around), senza passarci davanti.
+	var rest_pose := PlayerLook.rest_hold(facing)
+	var rest_hand: Vector2 = rest_pose[0]
+	var rest: float = rest_pose[1]
 	var angle := forward
 	var hand := Vector2.ZERO
+	var to_rest := 0.0
 	var length := SAW_LENGTH
 	match ATTACK_STYLES[_attack_style]:
 		"slash", "backhand":
@@ -2944,6 +3042,7 @@ func _draw_attack_saw(tint: Color) -> void:
 			match phase:
 				0:
 					angle = lerp_angle(rest, from - side * 0.6, ease(t, 0.5))
+					to_rest = 1.0 - ease(t, 0.5)
 				1:
 					angle = lerpf(from - side * 0.6, to, ease(t, 0.45))
 					BodyParts.draw_trail(self, Vector2.ZERO, from, clampf(angle, minf(from, to), maxf(from, to)), RADIUS + 6.0, reach, Color(slash, trail_alpha))
@@ -2951,8 +3050,8 @@ func _draw_attack_saw(tint: Color) -> void:
 					# Accompagnamento oltre la fine dell'arco, poi in guardia.
 					angle = lerpf(to, to + side * 0.4, ease(minf(t / 0.35, 1.0), 0.5)) if t < 0.35 \
 							else lerp_angle(to + side * 0.4, rest, ease((t - 0.35) / 0.65, 2.0))
+					to_rest = 0.0 if t < 0.35 else ease((t - 0.35) / 0.65, 2.0)
 					BodyParts.draw_trail(self, Vector2.ZERO, from, to, RADIUS + 6.0, reach, Color(slash, trail_alpha * 0.5 * (1.0 - t)))
-			hand = Vector2.from_angle(angle) * RADIUS * 0.8
 		"chop":
 			# Dall'alto: la motosega si alza sopra la testa e cala in avanti.
 			var up := -PI / 2.0
@@ -2960,18 +3059,15 @@ func _draw_attack_saw(tint: Color) -> void:
 			match phase:
 				0:
 					angle = lerp_angle(rest, up - 0.25, ease(t, 0.5))
-					hand = Vector2(0, -RADIUS * 0.9 * ease(t, 0.5))
+					to_rest = 1.0 - ease(t, 0.5)
 				1:
 					angle = lerpf(up - 0.25, down, ease(t, 0.35))
-					hand = Vector2(0, -RADIUS * 0.9 * (1.0 - t)) + facing * RADIUS * 0.6 * t
 					length = SAW_LENGTH * (1.0 + 0.15 * t)
 					BodyParts.draw_trail(self, Vector2.ZERO, up, angle, RADIUS * 0.5, reach, Color(slash, trail_alpha * 0.8))
 				2:
 					angle = down if t < 0.4 else lerp_angle(down, rest, ease((t - 0.4) / 0.6, 2.0))
-					hand = facing * RADIUS * 0.6 * (1.0 - t)
+					to_rest = 0.0 if t < 0.4 else ease((t - 0.4) / 0.6, 2.0)
 					length = SAW_LENGTH * 1.15
-			if hand == Vector2.ZERO:
-				hand = Vector2.from_angle(angle) * RADIUS * 0.8
 		"thrust":
 			# Affondo: la motosega si ritrae, poi scatta dritta in avanti.
 			var side_offset := facing.orthogonal() * RADIUS * 0.5
@@ -2981,7 +3077,7 @@ func _draw_attack_saw(tint: Color) -> void:
 					hand = side_offset - facing * RADIUS * 0.5 * ease(t, 0.5)
 				1:
 					angle = forward
-					hand = side_offset.lerp(Vector2.ZERO, t) + facing * lerpf(-RADIUS * 0.5, RADIUS * 0.9, ease(t, 0.3))
+					hand = side_offset.lerp(Vector2.ZERO, t) + facing * lerpf(-RADIUS * 0.5, RADIUS * PlayerLook.HAND_SWING, ease(t, 0.3))
 					length = SAW_LENGTH * (1.0 + 0.3 * t)
 					# Scia dritta lungo la lama.
 					var tip := hand + facing * length
@@ -2990,24 +3086,35 @@ func _draw_attack_saw(tint: Color) -> void:
 							PackedColorArray([Color(slash, trail_alpha)]), PackedVector2Array())
 				2:
 					angle = forward if t < 0.3 else lerp_angle(forward, rest, ease((t - 0.3) / 0.7, 2.0))
-					hand = facing * RADIUS * 0.9 * (1.0 - t)
+					hand = _around(facing * RADIUS * PlayerLook.HAND_SWING, rest_hand, 0.0 if t < 0.3 else ease((t - 0.3) / 0.7, 2.0))
 					length = SAW_LENGTH * (1.3 - 0.3 * t)
+	if ATTACK_STYLES[_attack_style] != "thrust":
+		hand = _around(Vector2.from_angle(angle) * RADIUS * PlayerLook.HAND_SWING, rest_hand, to_rest)
 	# Area colpita: un velo chiaro su tutto l'arco, uguale per ogni movimento.
 	if phase == 1:
 		BodyParts.draw_trail(self, Vector2.ZERO, forward - half, forward + half, RADIUS + 6.0, reach, Color(slash, 0.16 * (1.0 - t)))
 	_draw_saw(hand, angle, length, SAW_WIDTH, tint)
 	# Alla fine della carica la punta della motosega luccica.
 	if phase == 0 and t > 0.6:
-		var tip := hand + Vector2.from_angle(angle) * length
-		var glint := (t - 0.6) / 0.4
-		draw_line(tip - Vector2(7, 0) * glint, tip + Vector2(7, 0) * glint, Color(1, 1, 1, glint), 2.0)
-		draw_line(tip - Vector2(0, 7) * glint, tip + Vector2(0, 7) * glint, Color(1, 1, 1, glint), 2.0)
+		_saw_draws.append(_draw_glint.bind(hand + Vector2.from_angle(angle) * length, (t - 0.6) / 0.4))
+
+
+## Luccichio a croce sulla punta della motosega (glint 0-1).
+func _draw_glint(tip: Vector2, glint: float) -> void:
+	draw_line(tip - Vector2(7, 0) * glint, tip + Vector2(7, 0) * glint, Color(1, 1, 1, glint), 2.0)
+	draw_line(tip - Vector2(0, 7) * glint, tip + Vector2(0, 7) * glint, Color(1, 1, 1, glint), 2.0)
 
 
 ## Il corpo accompagna i colpi normali a terra: ruota con fendente e
 ## rovescio, si allunga caricando il colpo dall'alto e si schiaccia
 ## calandolo. Restituisce la rotazione in più e la scala.
 func _attack_body_pose() -> Array:
+	if _state == State.SLAM and _slam_kind != "plunge" and absf(facing.x) > 0.3:
+		# Calando lo slam il corpo si butta in avanti, poi si raddrizza.
+		var lean := signf(facing.x) * SLAM_LEAN
+		if _slam_landed:
+			return [lean * (1.0 - clampf(_state_time / SLAM_RECOVERY, 0.0, 1.0)), Vector2.ONE]
+		return [lean * clampf(-_height_velocity / 900.0, 0.0, 1.0), Vector2.ONE]
 	if _state != State.ATTACK or _attack_heavy or _air_attack:
 		return [0.0, Vector2.ONE]
 	var windup := ATTACK_WINDUP / _attack_speed
@@ -3030,28 +3137,34 @@ func _attack_body_pose() -> Array:
 	return [screen_side * ATTACK_TWIST * (1.0 - t), Vector2.ONE]
 
 
-## Attacco a terra: motosega alzata sopra la testa in salita, che cala con una
-## scia scendendo e resta piantata nel terreno dopo l'impatto. Gli angoli
-## sono pensati guardando a destra e specchiati guardando a sinistra.
+## Slam: motosega alzata dietro la testa in salita (la palla la copre),
+## che cala con una scia passando dal lato verso cui si guarda, mai davanti
+## alla faccia, e resta piantata nel terreno davanti dopo l'impatto.
 func _draw_slam_saw(tint: Color) -> void:
-	var mirror := facing.x < 0.0
-	var raised := -PI / 2.0 - 0.5
-	var down := PI / 2.0 - 0.35
+	var turn := -1.0 if facing.x < -0.05 else 1.0
+	var raised := -PI / 2.0 - 0.55 * turn
+	var down := facing.angle()
+	if not BodyParts.gear_behind(facing):
+		down = lerp_angle(down, PI / 2.0, 0.45)
+		if absf(facing.x) < 0.3:
+			down -= 0.25 * turn
+	var sweep := _arc_delta(raised, down, turn)
+	var raised_hand := Vector2.from_angle(-PI / 2.0 - 0.3 * turn) * RADIUS * PlayerLook.HAND_RAISED
 	var angle := raised
+	var hand := raised_hand
 	if _charging and _charge > 0.0:
 		_draw_charge_ring()
 	if _slam_landed:
-		angle = down
+		angle = raised + sweep
+		hand = Vector2.from_angle(angle) * RADIUS * PlayerLook.HAND_PLANTED
 	elif _height_velocity < 0.0:
-		angle = lerpf(raised, down, clampf(-_height_velocity / 900.0, 0.0, 1.0))
-		var start := PI - raised if mirror else raised
-		var end := PI - angle if mirror else angle
-		BodyParts.draw_trail(self, Vector2.ZERO, start, end, RADIUS + 6.0, HEAVY_SAW_LENGTH + RADIUS, Color(COLOR_HEAVY, 0.7))
-	if mirror:
-		angle = PI - angle
-	_draw_saw(Vector2.from_angle(angle) * RADIUS * 0.8, angle, HEAVY_SAW_LENGTH, SAW_WIDTH * 1.3, tint)
+		var k := clampf(-_height_velocity / 900.0, 0.0, 1.0)
+		angle = raised + sweep * k
+		hand = _around(raised_hand, Vector2.from_angle(angle) * RADIUS * PlayerLook.HAND_PLANTED, minf(1.0, k * 3.0))
+		BodyParts.draw_trail(self, Vector2.ZERO, raised, angle, RADIUS + 6.0, HEAVY_SAW_LENGTH + RADIUS, Color(COLOR_HEAVY, 0.7))
+	_draw_saw(hand, angle, HEAVY_SAW_LENGTH, SAW_WIDTH * 1.3, tint)
 	if _charging:
-		_draw_charge_heat(Vector2.from_angle(angle) * RADIUS * 0.8, angle, HEAVY_SAW_LENGTH)
+		_saw_draws.append(_draw_charge_heat.bind(hand, angle, HEAVY_SAW_LENGTH))
 
 
 ## Attacco speciale: nella cinematica un bagliore rosso che cresce e pulsa
@@ -3087,17 +3200,16 @@ func _draw_special_streak(body: Color) -> void:
 func _draw_special_saw() -> void:
 	var heat := Color(1.4, 0.75, 0.6)
 	if _state_time < SPECIAL_INTRO_TIME:
-		var raised := -PI / 2.0 - 0.5
-		if facing.x < 0.0:
-			raised = PI - raised
-		_draw_saw(Vector2.from_angle(raised) * RADIUS * 0.8, raised, HEAVY_SAW_LENGTH, SAW_WIDTH * 1.3, heat)
+		var turn := -1.0 if facing.x < 0.0 else 1.0
+		var raised := -PI / 2.0 - 0.55 * turn
+		_draw_saw(Vector2.from_angle(-PI / 2.0 - 0.3 * turn) * RADIUS * PlayerLook.HAND_RAISED, raised, HEAVY_SAW_LENGTH, SAW_WIDTH * 1.3, heat)
 		return
 	var t := clampf((_state_time - _special_last_hit) / (SPECIAL_HIT_INTERVAL * 0.6), 0.0, 1.0)
 	var start := facing.angle() - _swing_sign * HEAVY_ARC / 2.0
 	var end := facing.angle() + _swing_sign * HEAVY_ARC / 2.0
 	var angle := lerpf(start, end, ease(t, 0.5))
 	BodyParts.draw_trail(self, Vector2.ZERO, start, angle, RADIUS + 6.0, ATTACK_RANGE + RADIUS, Color(COLOR_FRENZY, 0.75 * (1.0 - t * 0.5)))
-	_draw_saw(Vector2.from_angle(angle) * RADIUS * 0.8, angle, HEAVY_SAW_LENGTH, SAW_WIDTH * 1.3, heat)
+	_draw_saw(Vector2.from_angle(angle) * RADIUS * PlayerLook.HAND_SWING, angle, HEAVY_SAW_LENGTH, SAW_WIDTH * 1.3, heat)
 
 
 ## Carica del colpo potente: un anello che si riempie e diventa bianco al massimo.
@@ -3136,12 +3248,22 @@ func _draw_charge_heat(hand: Vector2, angle: float, length: float) -> void:
 
 
 ## Torcia elettrica nell'altra mano (il fascio è solo la luce, vedi Flashlight).
+## Sta dalla parte opposta della motosega a riposo (speculare rispetto
+## alla direzione dello sguardo): davanti alla palla solo se è sotto gli occhi.
 func _draw_torch() -> void:
-	var hand := -facing.orthogonal() * RADIUS * 0.9
+	var saw_hand: Vector2 = PlayerLook.rest_hold(facing)[0]
+	var hand := (facing * 2.0 * facing.dot(saw_hand) - saw_hand).normalized() * RADIUS * 1.35
 	var lens := hand + facing * 12.0
+	_item_draws.append(_draw_torch_item.bind(hand, lens))
+	_off_hand = hand + facing * 3.0
+	_off_hand_busy = true
+	_item_in_front = not BodyParts.gear_behind(facing) \
+			and minf(hand.y, lens.y) - 6.0 > PlayerLook.eye_bottom(PlayerLook.face(facing))
+
+
+func _draw_torch_item(hand: Vector2, lens: Vector2) -> void:
 	draw_line(hand, lens, COLOR_FLASHLIGHT, 5.0)
 	Shapes.disc(self, lens, 3.5, Color(1.0, 1.0, 0.85))
-	_off_hand = hand + facing * 3.0
 
 
 ## Tasti del mouse premuti sul mondo (non sui pulsanti dell'interfaccia,

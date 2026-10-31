@@ -56,7 +56,7 @@ action-rpg, post-apocalyptic, gore, chainsaw, isometric, zombies, horror, contro
 ## Short description or tagline
 
 ```
-A pink survivor, a chainsaw, a bazooka and a ruined city full of raiders, zombie hordes and mutants.
+A grinning survivor, a chainsaw, a bazooka and a ruined city full of raiders, zombie hordes and mutants.
 ```
 
 ---

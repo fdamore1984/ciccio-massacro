@@ -24,6 +24,9 @@ var color := Color(1, 1, 1, 0.6)
 var body_center := Vector2.ZERO
 var radius := 20.0
 var facing := Vector2.RIGHT
+## Ciccio non ha il "naso": la sua sagoma mostra il contorno degli occhi
+## (vedi PlayerLook.face), che indicano dove guarda.
+var show_eyes := false
 
 
 func _init(line_color: Color, always_visible: bool) -> void:
@@ -55,6 +58,15 @@ func _draw() -> void:
 	for k in SEGMENTS + 1:
 		outline.append(body_center + Vector2.from_angle(TAU * k / SEGMENTS) * radius)
 	draw_polyline(outline, color, WIDTH, true)
+	if show_eyes:
+		var look := PlayerLook.face(facing)
+		if look["visible"]:
+			var zoom := radius / PlayerLook.RADIUS
+			var size := float(look["size"]) * zoom
+			for side_sign: float in [-1.0, 1.0]:
+				var eye := body_center + ((look["eyes"] as Vector2) + Vector2(side_sign * float(look["spacing"]), 0)) * zoom
+				draw_arc(eye, size, 0.0, TAU, 12, color, WIDTH, true)
+		return
 	# "Naso" che indica la direzione.
 	var side := facing.orthogonal() * radius * 0.35
 	var base := body_center + facing * radius * 0.85
