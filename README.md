@@ -2,6 +2,8 @@
 
 Action RPG post-apocalittico 2D sviluppato con **Godot 4**, destinato alla pubblicazione su Steam. Ciccio, un sopravvissuto rosa e rotondo, si fa strada a colpi di motosega e di bazooka in una città distrutta.
 
+**Si gioca nel browser su [ufotizio.com](https://ufotizio.com/ciccio-massacro)** ([in inglese](https://ufotizio.com/en/cheech-carnage)); le versioni per Windows e Linux sono su [itch.io](https://fdamore1984.itch.io/ciccio-massacro).
+
 ## Requisiti
 
 - [Godot 4.4](https://godotengine.org/download) (versione standard, non Mono)
@@ -37,7 +39,7 @@ Poi apri la cartella da Godot (Importa progetto → `project.godot`) e premi F5 
 |---|---|---|
 | Windows | export "Windows Desktop" | Pubblicato su itch.io (canale `windows`); pronto anche per i portatili da gioco come l'MSI Claw 8 (16:10, controller XInput): lì parte a schermo intero e disegna con ANGLE (Direct3D 11) |
 | Linux / SteamOS | export "Linux" | La build Linux gira nativa sullo Steam Deck (16:10, controller) |
-| Web | export "Web" | Per il sito ufotizio.com, non ancora pubblicato: la CI la lascia come artefatto `web`. Tastiera e mouse, controller e touch; salvataggi sull'account del sito (vedi [docs/web.md](docs/web.md)) |
+| Web | export "Web" | Pubblicata sul sito ufotizio.com caricandola nel bucket R2: la CI la lascia come artefatto `web`. Tastiera e mouse, controller e touch; salvataggi sull'account del sito (vedi [docs/web.md](docs/web.md)) |
 | Android | export "Android" | Distribuzione su Google Play, non su Steam |
 
 Regole di progetto per restare multipiattaforma:
