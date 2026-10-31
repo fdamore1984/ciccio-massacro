@@ -1,0 +1,5 @@
+# Manifesto per l'app di itch.io (copiato nella build Linux dalla CI):
+# dice quale file avviare.
+[[actions]]
+name = "play"
+path = "CheechCarnage.x86_64"
