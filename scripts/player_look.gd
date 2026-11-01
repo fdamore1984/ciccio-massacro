@@ -1,8 +1,9 @@
 class_name PlayerLook
-## Aspetto di Ciccio, dal disegno di Valentina: una palla color pesca con
-## gli occhioni cattivi e il ghigno pieno di denti, braccia e gambe lunghe
-## fatte da una sola linea, guanti bianchi e la motosega rossa con la
-## catena a denti grossi. Solo forme geometriche, come il resto del gioco.
+## Aspetto di Ciccio, dal disegno di Valentina: una palla color pesca
+## sempre furiosa, con gli occhioni enormi fusi in un'unica forma, la bocca
+## enorme nel quarto inferiore (denti serrati o spalancata), braccia e gambe
+## fatte da una sola linea nera senza mani né piedi e la motosega rossa con
+## la catena a denti grossi. Solo forme geometriche, come il resto del gioco.
 ##
 ## Regole perché la faccia resti sempre visibile (vedi Player._draw):
 ## - le braccia si disegnano prima della palla, che ne copre il tratto sul
@@ -17,21 +18,30 @@ const RADIUS := 22.0
 ## Ombreggiatura in basso a destra e riflesso in alto a sinistra.
 const SHADE := 0.22
 const COLOR_HIGHLIGHT := Color(1.0, 0.96, 0.91, 0.55)
-## Occhi: raggio orizzontale rispetto alla palla (in verticale 1,3 volte).
-const EYE_SIZE := 0.26
-const EYE_STRETCH := 1.3
+## Contorno spesso della palla e delle forme della faccia.
+const BALL_INK := 3.8
+const FACE_INK := 3.2
+## Occhioni enormi, sovrapposti e fusi in un'unica forma: raggio, distanza
+## dal centro e altezza rispetto alla palla. La palpebra li taglia in
+## diagonale, più bassa verso il centro (sempre furioso).
+const EYE_SIZE := 0.6
+const EYE_SPACING := 0.46
+const EYE_HEIGHT := -0.24
+const COLOR_IRIS := Color(0.27, 0.07, 0.05)
 ## Guardando quasi a nord (y sotto questa soglia) Ciccio è di spalle: niente faccia.
 const FACE_HIDDEN_BELOW := -0.85
-## Bocca: interno scuro quando è spalancata.
-const COLOR_MOUTH := Color(0.23, 0.06, 0.05)
-const MOUTH_TEETH := 8
+## Bocca: il quarto inferiore della palla; spalancata mostra l'interno.
+const MOUTH_TOP := 0.3
+const COLOR_MOUTH := Color(0.36, 0.06, 0.07)
+const COLOR_THROAT := Color(0.06, 0.01, 0.01)
+const COLOR_TONGUE := Color(0.86, 0.34, 0.39)
 ## Guanti bianchi.
 const COLOR_GLOVE := Color(1, 1, 1)
 const GLOVE_RADIUS := 4.2
 ## Braccia: spalle sui fianchi della palla; la curva verso l'esterno è più
 ## ampia quando la mano è vicina (il braccio "avanza" di ARM_LENGTH).
 const ARM_LENGTH := 30.0
-const ARM_WIDTH := 3.0
+const ARM_WIDTH := 3.6
 const ARM_POINTS := 9
 ## Distanza delle mani dal centro: a riposo, negli attacchi, con la
 ## motosega alzata sopra la testa e piantata a terra dopo lo slam.
@@ -52,7 +62,7 @@ const SAW_HANDLE := 1.4
 
 ## Palla col contorno a inchiostro, l'ombra in basso a destra e il riflesso.
 static func draw_ball(canvas: CanvasItem, body: Color) -> void:
-	Shapes.disc(canvas, Vector2.ZERO, RADIUS + Shapes.INK_WIDTH, Color(Shapes.INK, body.a))
+	Shapes.disc(canvas, Vector2.ZERO, RADIUS + BALL_INK, Color(Shapes.INK, body.a))
 	Shapes.disc(canvas, Vector2.ZERO, RADIUS, Color(body.darkened(SHADE), body.a))
 	Shapes.disc(canvas, Vector2(-1.3, -1.6), RADIUS - 2.6, body)
 	Shapes.oval(canvas, Vector2(-RADIUS * 0.42, -RADIUS * 0.5), Vector2(RADIUS * 0.22, RADIUS * 0.12),
@@ -62,144 +72,140 @@ static func draw_ball(canvas: CanvasItem, body: Color) -> void:
 ## Dove stanno occhi e bocca guardando verso facing: la faccia scivola
 ## verso il lato in cui si guarda e di profilo si stringe.
 static func face(facing: Vector2) -> Dictionary:
-	var size := RADIUS * EYE_SIZE
-	var center := Vector2(facing.x * RADIUS * 0.45, facing.y * RADIUS * 0.22)
+	var center := Vector2(facing.x * RADIUS * 0.22, facing.y * RADIUS * 0.08)
 	return {
 		"visible": facing.y > FACE_HIDDEN_BELOW,
 		"look": facing,
-		"size": size,
-		"eyes": center + Vector2(0, -RADIUS * 0.3),
-		"spacing": size * 1.2 * (1.0 - 0.35 * absf(facing.x)),
-		"mouth": Vector2(center.x * 1.05, center.y + RADIUS * 0.42),
-		"mouth_width": RADIUS * 0.5 * (1.0 - 0.35 * absf(facing.x)),
-		"mouth_height": RADIUS * 0.3,
+		"size": RADIUS * EYE_SIZE,
+		"eyes": center + Vector2(0, RADIUS * EYE_HEIGHT),
+		"spacing": RADIUS * EYE_SPACING * (1.0 - 0.3 * absf(facing.x)),
+		"mouth": Vector2(center.x, RADIUS * MOUTH_TOP + center.y * 0.5),
+		"mouth_width": RADIUS,
+		"mouth_height": RADIUS * 0.1,
 	}
 
 
 ## Bordo inferiore degli occhi, contorno compreso (vedi saw_in_front).
 static func eye_bottom(look: Dictionary) -> float:
-	return (look["eyes"] as Vector2).y + float(look["size"]) * EYE_STRETCH + 2.0
+	return (look["eyes"] as Vector2).y + float(look["size"]) + FACE_INK
 
 
-## Occhioni con la palpebra cattiva che scende verso il centro, la pupilla
-## che guarda dove va Ciccio e il riflesso; blink li chiude.
+## Un occhio: cerchio tagliato in alto dalla palpebra, che scende verso il centro.
+static func _eye_shape(eye: Vector2, radius: float, side: float, squash: float) -> PackedVector2Array:
+	var outer := eye + Vector2(side * radius * 1.15, -radius * 0.88)
+	var inner := eye + Vector2(-side * radius * 1.15, -radius * 0.02)
+	var points := PackedVector2Array()
+	for k in 40:
+		var point := eye + Vector2.from_angle(TAU * k / 40.0) * radius
+		var t := (point.x - outer.x) / (inner.x - outer.x)
+		point.y = maxf(point.y, lerpf(outer.y, inner.y, t))
+		point.y = eye.y + (point.y - eye.y) * squash
+		points.append(point)
+	return points
+
+
+static func _circle(center: Vector2, radius: float, segments := 28) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	for k in segments:
+		points.append(center + Vector2.from_angle(TAU * k / segments) * radius)
+	return points
+
+
+## Riempie i poligoni risultanti da un'operazione di Geometry2D (salta i buchi).
+static func _fill(canvas: CanvasItem, polygons: Array, color: Color) -> void:
+	for polygon: PackedVector2Array in polygons:
+		if polygon.size() >= 3 and not Geometry2D.is_polygon_clockwise(polygon):
+			canvas.draw_colored_polygon(polygon, color)
+
+
+## Occhioni fusi in un'unica forma bianca col contorno spesso, pupille
+## piccole schiacciate contro la palpebra che guardano dove va Ciccio;
+## blink li chiude.
 static func draw_eyes(canvas: CanvasItem, look: Dictionary, body: Color, blink := false) -> void:
 	var ink := Color(Shapes.INK, body.a)
 	var white := Color(1, 1, 1, body.a)
 	var direction: Vector2 = look["look"]
+	var shapes: Array[PackedVector2Array] = []
+	var centers: Array[Vector2] = []
+	var radii: Array[float] = []
 	for side: float in [-1.0, 1.0]:
 		var eye: Vector2 = look["eyes"] + Vector2(side * float(look["spacing"]), 0)
 		# L'occhio lontano, di profilo, è un po' più piccolo.
-		var scale := 1.0 - 0.15 * maxf(0.0, -side * direction.x)
-		var radii := Vector2(float(look["size"]), float(look["size"]) * EYE_STRETCH) * scale
-		if blink:
-			radii.y *= 0.18
-		Shapes.oval(canvas, eye, radii + Vector2(2.0, 2.0), ink)
-		Shapes.oval(canvas, eye, radii, white)
-		if blink:
-			continue
-		var pupil := eye + direction * radii.x * 0.42 + Vector2(0, radii.y * 0.12)
-		Shapes.disc(canvas, pupil, radii.x * 0.56, ink)
-		Shapes.disc(canvas, pupil + Vector2(-radii.x * 0.2, -radii.x * 0.22), radii.x * 0.17, white)
-		var outer := eye + Vector2(side * radii.x * 1.25, -radii.y * 1.02)
-		var inner := eye + Vector2(-side * radii.x * 1.25, -radii.y * 0.28)
-		var lid := _lid(eye, radii + Vector2(0.4, 0.4), outer, inner)
-		if lid.size() >= 3:
-			canvas.draw_colored_polygon(lid, body)
-		canvas.draw_line(outer, inner, ink, maxf(2.2, radii.x * 0.42))
+		var radius := float(look["size"]) * (1.0 - 0.12 * maxf(0.0, -side * direction.x))
+		shapes.append(_eye_shape(eye, radius, side, 0.18 if blink else 1.0))
+		centers.append(eye)
+		radii.append(radius)
+	var merged := Geometry2D.merge_polygons(shapes[0], shapes[1])
+	for polygon: PackedVector2Array in merged:
+		if not Geometry2D.is_polygon_clockwise(polygon):
+			_fill(canvas, Geometry2D.offset_polygon(polygon, FACE_INK, Geometry2D.JOIN_ROUND), ink)
+	_fill(canvas, merged, white)
+	if blink:
+		return
+	for i in 2:
+		var side := -1.0 if i == 0 else 1.0
+		var radius := radii[i]
+		var pupil := centers[i] + Vector2(-side * radius * 0.2, radius * 0.13) + direction * radius * 0.2
+		var area := Geometry2D.intersect_polygons(_circle(pupil, radius * 0.32), shapes[i])
+		_fill(canvas, area, Color(COLOR_IRIS, body.a))
+		_fill(canvas, Geometry2D.intersect_polygons(_circle(pupil, radius * 0.22), shapes[i]), ink)
+		Shapes.disc(canvas, pupil + Vector2(-radius * 0.09, -radius * 0.1), radius * 0.075, white)
 
 
 ## Occhi a X (da morto).
 static func draw_dead_eyes(canvas: CanvasItem, look: Dictionary, alpha := 1.0) -> void:
 	var ink := Color(Shapes.INK, alpha)
-	var size := float(look["size"])
+	var size := float(look["size"]) * 0.45
 	for side: float in [-1.0, 1.0]:
 		var eye: Vector2 = look["eyes"] + Vector2(side * float(look["spacing"]), 0)
-		canvas.draw_line(eye + Vector2(-size, -size), eye + Vector2(size, size), ink, 2.5)
-		canvas.draw_line(eye + Vector2(-size, size), eye + Vector2(size, -size), ink, 2.5)
+		canvas.draw_line(eye + Vector2(-size, -size), eye + Vector2(size, size), ink, FACE_INK)
+		canvas.draw_line(eye + Vector2(-size, size), eye + Vector2(size, -size), ink, FACE_INK)
 
 
-## Parte dell'ovale (centro, raggi) sopra la linea della palpebra
-## (da outer a inner, che stanno fuori dall'ovale): la si colora come il
-## corpo e l'occhio sembra socchiuso.
-static func _lid(center: Vector2, radii: Vector2, outer: Vector2, inner: Vector2) -> PackedVector2Array:
-	# Intersezioni tra la retta della palpebra e l'ovale (nello spazio in
-	# cui l'ovale è un cerchio di raggio 1).
-	var a := (outer - center) / radii
-	var b := (inner - center) / radii
-	var d := b - a
-	var qa := d.dot(d)
-	var qb := 2.0 * a.dot(d)
-	var qc := a.dot(a) - 1.0
-	var disc := qb * qb - 4.0 * qa * qc
-	if disc <= 0.0 or qa == 0.0:
-		return PackedVector2Array()
-	var root := sqrt(disc)
-	var p1 := a + d * ((-qb - root) / (2.0 * qa))
-	var p2 := a + d * ((-qb + root) / (2.0 * qa))
-	# Arco dell'ovale da p2 a p1 che passa dalla cima (angolo -PI/2).
-	var from := p2.angle()
-	var to := p1.angle()
-	var sweep := wrapf(to - from, -PI, PI)
-	var top_offset := wrapf(-PI / 2.0 - from, -PI, PI)
-	if signf(top_offset) != signf(sweep) or absf(top_offset) > absf(sweep):
-		sweep = sweep - TAU * signf(sweep)
-	var points := PackedVector2Array()
-	for k in 13:
-		points.append(center + Vector2.from_angle(from + sweep * k / 12.0) * radii)
-	return points
-
-
-## Ghigno a mezzaluna con i denti: chiuso, una riga a zig-zag; spalancato
-## (open fino a 1), due file di denti a punta sul fondo scuro.
+## Bocca enorme: il quarto inferiore della palla, tagliato dal bordo. Il
+## labbro di sopra è quasi dritto con gli angoli in giù. Chiusa è tutta
+## denti serrati (una riga con due zig-zag morbidi); spalancata (open oltre
+## 0,3) mostra gola, ugola e lingua, senza denti.
 static func draw_grin(canvas: CanvasItem, look: Dictionary, open := 0.0, alpha := 1.0) -> void:
 	var ink := Color(Shapes.INK, alpha)
-	var white := Color(1, 1, 1, alpha)
 	var center: Vector2 = look["mouth"]
-	var width := float(look["mouth_width"])
-	var height := float(look["mouth_height"]) * (1.0 + 0.45 * open)
-	var tilt := 1.0 if (look["look"] as Vector2).x >= 0.0 else -1.0
-	# Un angolo della bocca più in alto dell'altro, dal lato in cui si guarda.
-	var left := center + Vector2(-width, -height * 0.3 * (1.0 if tilt > 0.0 else 1.6))
-	var right := center + Vector2(width, -height * 0.3 * (1.6 if tilt > 0.0 else 1.0))
-	var top_control := center + Vector2(0, height * 0.05)
-	var bottom_control := center + Vector2(0, height * 1.35)
-	var outline := PackedVector2Array()
-	for k in 11:
-		outline.append(_inside(_bezier(left, top_control, right, k / 10.0)))
-	for k in range(1, 10):
-		outline.append(_inside(_bezier(right, bottom_control, left, k / 10.0)))
-	var wide := open > 0.3
-	canvas.draw_colored_polygon(outline, Color(COLOR_MOUTH, alpha) if wide else white)
-	if wide:
-		# Denti a punta: triangoli che scendono dal labbro di sopra e salgono da quello di sotto.
-		var teeth_color := PackedColorArray([white])
-		for i in range(0, MOUTH_TEETH - 1, 2):
-			var t0 := 0.06 + 0.88 * i / MOUTH_TEETH
-			var t1 := 0.06 + 0.88 * (i + 1) / MOUTH_TEETH
-			var t2 := 0.06 + 0.88 * (i + 2) / MOUTH_TEETH
-			for lip: Array in [[top_control, 0.38], [bottom_control, 0.32]]:
-				var other := bottom_control if lip[0] == top_control else top_control
-				var a := _inside(_bezier(left, lip[0], right, t0))
-				var c := _inside(_bezier(left, lip[0], right, t2))
-				var point := _inside(_bezier(left, lip[0], right, t1).lerp(_bezier(left, other, right, t1), float(lip[1])))
-				var tooth := PackedVector2Array([a, point, c])
-				canvas.draw_primitive(tooth, teeth_color, PackedVector2Array())
-				tooth.append(a)
-				canvas.draw_polyline(tooth, ink, 1.2)
+	var lip := PackedVector2Array()
+	for k in 21:
+		var t := k / 10.0 - 1.0
+		lip.append(center + Vector2(t * (RADIUS + 3.0), RADIUS * (0.08 * absf(t) - 0.03 * (1.0 - t * t))))
+	var shape := lip.duplicate()
+	shape.append(Vector2(center.x + RADIUS + 6.0, RADIUS + 6.0))
+	shape.append(Vector2(center.x - RADIUS - 6.0, RADIUS + 6.0))
+	var mouth := Geometry2D.intersect_polygons(shape, _circle(Vector2.ZERO, RADIUS, 40))
+	if mouth.is_empty():
+		return
+	var area: PackedVector2Array = mouth[0]
+	if open > 0.3:
+		canvas.draw_colored_polygon(area, Color(COLOR_MOUTH, alpha))
+		var throat := PackedVector2Array()
+		for k in 20:
+			throat.append(center + Vector2(0, RADIUS * 0.3) + Vector2.from_angle(TAU * k / 20.0) * Vector2(RADIUS * 0.45, RADIUS * 0.2))
+		_fill(canvas, Geometry2D.intersect_polygons(throat, area), Color(COLOR_THROAT, alpha))
+		_fill(canvas, Geometry2D.intersect_polygons(_circle(Vector2(center.x - RADIUS * 0.05, RADIUS * 1.2), RADIUS * 0.56), area),
+				Color(COLOR_TONGUE, alpha))
+		canvas.draw_colored_polygon(PackedVector2Array([center + Vector2(-1.0, 0), center + Vector2(1.0, 0),
+				center + Vector2(0, RADIUS * 0.14)]), Color(COLOR_TONGUE.darkened(0.25), alpha))
 	else:
-		var zigzag := PackedVector2Array()
-		for i in MOUTH_TEETH + 1:
-			var t := 0.08 + 0.84 * i / MOUTH_TEETH
-			var middle := _bezier(left, top_control, right, t).lerp(_bezier(left, bottom_control, right, t), 0.45)
-			zigzag.append(_inside(middle + Vector2(0, (1.0 if i % 2 == 1 else -1.0) * height * 0.18)))
-		canvas.draw_polyline(zigzag, ink, 1.5)
-	var closed_outline := outline.duplicate()
-	closed_outline.append(outline[0])
-	canvas.draw_polyline(closed_outline, ink, 2.4)
-	# Pieghe delle guance agli angoli.
-	canvas.draw_line(_inside(left + Vector2(-1.5, -2.0)), _inside(left + Vector2(-0.5, 2.5)), ink, 1.4)
-	canvas.draw_line(_inside(right + Vector2(1.5, -2.0)), _inside(right + Vector2(0.5, 2.5)), ink, 1.4)
+		canvas.draw_colored_polygon(area, Color(1, 1, 1, alpha))
+		var line := PackedVector2Array()
+		for k in 29:
+			var x := (k / 14.0 - 1.0) * RADIUS * 0.68
+			var y := RADIUS * 0.43 - x * x / (RADIUS * 8.8)
+			for zig: Array in [[-0.48, -0.27, 0.05, 1.0], [0.13, 0.3, 0.045, -1.0]]:
+				var u := (x / RADIUS - float(zig[0])) / (float(zig[1]) - float(zig[0]))
+				if u > 0.0 and u < 1.0:
+					y += RADIUS * float(zig[2]) * sin(u * TAU) * float(zig[3])
+			line.append(_inside(center + Vector2(x, y)))
+		canvas.draw_polyline(line, ink, FACE_INK * 0.6)
+	var edge := PackedVector2Array()
+	for point in lip:
+		edge.append(point.limit_length(RADIUS))
+	canvas.draw_polyline(edge, ink, FACE_INK)
 
 
 ## Bocca chiusa da morto: una linea storta.
@@ -322,7 +328,7 @@ static func draw_arms(canvas: CanvasItem, first: Vector2, second: Vector2, alpha
 	var pairs := [[1.0, first], [-1.0, second]] if first.x >= second.x else [[-1.0, first], [1.0, second]]
 	for pair: Array in pairs:
 		var hand: Vector2 = pair[1]
-		var shoulder := Vector2(float(pair[0]) * RADIUS * 0.86, RADIUS * 0.12)
+		var shoulder := Vector2(float(pair[0]) * RADIUS * 0.9, -RADIUS * 0.3)
 		var middle := shoulder.lerp(hand, 0.5)
 		var reach := (hand - shoulder).length()
 		var out := middle.normalized() if middle.length() > 0.1 else hand.normalized()
@@ -334,10 +340,9 @@ static func draw_arms(canvas: CanvasItem, first: Vector2, second: Vector2, alpha
 		canvas.draw_polyline(points, ink, ARM_WIDTH)
 
 
-## Guanto bianco col polsino.
+## Niente mani: il braccio finisce con la punta tonda della linea.
 static func draw_glove(canvas: CanvasItem, at: Vector2, alpha := 1.0) -> void:
-	Shapes.ink_disc(canvas, at, GLOVE_RADIUS, Color(COLOR_GLOVE, alpha), 2.0)
-	canvas.draw_line(at + Vector2(-2.2, 2.6), at + Vector2(2.2, 2.6), Color(Shapes.INK, 0.35 * alpha), 1.0)
+	Shapes.disc(canvas, at, ARM_WIDTH * 0.5, Color(Shapes.INK, alpha))
 
 
 ## Gambe: una linea ciascuna, appena piegata, con il piedino.
@@ -346,8 +351,8 @@ static func draw_legs(canvas: CanvasItem, hip_y: float, foot_y: float, spacing: 
 	var ink := Color(Shapes.INK, alpha)
 	for side: float in [-1.0, 1.0]:
 		var swing := direction * sin(phase + (PI if side > 0.0 else 0.0)) * stride
-		var hip := Vector2(side * spacing * 0.83, hip_y)
-		var foot := Vector2(side * (spacing * 0.9 + 6.0 * spread) + swing.x, foot_y + swing.y * 0.5)
+		var hip := Vector2(side * spacing * 1.05, hip_y)
+		var foot := Vector2(side * (spacing * 1.15 + 6.0 * spread) + swing.x, foot_y + swing.y * 0.5)
 		if tucked:
 			foot = Vector2(side * spacing, hip_y + 11.0)
 		var knee := Vector2(lerpf(hip.x, foot.x, 0.5) + side * 2.5 + facing.x * 2.0, lerpf(hip.y, foot.y, 0.5))
@@ -355,5 +360,4 @@ static func draw_legs(canvas: CanvasItem, hip_y: float, foot_y: float, spacing: 
 		for k in 6:
 			points.append(_bezier(hip, knee, foot, k / 5.0))
 		canvas.draw_polyline(points, ink, ARM_WIDTH)
-		var toe := Vector2(signf(facing.x) * 5.0, 0.0) if absf(facing.x) > 0.3 else Vector2(side * 3.0, 1.5)
-		canvas.draw_line(foot, foot + toe, ink, 3.6)
+		Shapes.disc(canvas, foot, ARM_WIDTH * 0.5, ink)

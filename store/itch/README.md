@@ -56,7 +56,7 @@ action-rpg, post-apocalyptic, gore, chainsaw, isometric, zombies, horror, contro
 ## Short description or tagline
 
 ```
-A grinning survivor, a chainsaw, a bazooka and a ruined city full of raiders, zombie hordes and mutants.
+A furious survivor, a chainsaw, a bazooka and a ruined city full of raiders, zombie hordes and mutants.
 ```
 
 ---
@@ -69,7 +69,7 @@ spiega il tutorial del gioco.
 ```
 Cheech Carnage is a 2D post-apocalyptic action RPG with an isometric view: carve your way with a chainsaw and a bazooka through raiders, zombie hordes and mutants in an endless ruined city, its abandoned buildings and the metro.
 
-Fast, deadly Souls-like combat: combos, parries, dodges, jumps and the Frenzy special attack. Comic-style look, like ufotizio.com: thick ink outlines, big cartoon eyes and a matching interface. Prototype with placeholder graphics and sounds.
+Fast, deadly Souls-like combat: combos, parries, dodges, jumps and the Frenzy special attack. Comic-style look, like ufotizio.com: thick ink outlines, huge furious cartoon eyes and a matching interface. Prototype with placeholder graphics and sounds.
 
 Controller, keyboard and mouse or touch. English and Italian. Windows, Linux and Steam Deck.
 
