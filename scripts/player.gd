@@ -2834,7 +2834,7 @@ func _draw_gear() -> void:
 		_draw_torch()
 
 
-## Disegna la motosega preparata, con i guanti che la tengono.
+## Disegna la motosega preparata, con le punte delle braccia che la tengono.
 func _flush_saw(alpha: float) -> void:
 	for draw_call in _saw_draws:
 		draw_call.call()

@@ -1,8 +1,9 @@
 class_name PlayerLook
-## Aspetto di Ciccio, dal disegno di Valentina: una palla color pesca con
-## gli occhioni cattivi e il ghigno pieno di denti, braccia e gambe lunghe
-## fatte da una sola linea, guanti bianchi e la motosega rossa con la
-## catena a denti grossi. Solo forme geometriche, come il resto del gioco.
+## Aspetto di Ciccio, dal disegno di Valentina: una palla color pesca
+## sempre furiosa, con gli occhioni enormi fusi in un'unica forma, la bocca
+## enorme nel quarto inferiore (denti serrati o spalancata), braccia e gambe
+## fatte da una sola linea nera senza mani né piedi e la motosega rossa con
+## la catena a denti grossi. Solo forme geometriche, come il resto del gioco.
 ##
 ## Regole perché la faccia resti sempre visibile (vedi Player._draw):
 ## - le braccia si disegnano prima della palla, che ne copre il tratto sul
