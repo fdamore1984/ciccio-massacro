@@ -179,7 +179,7 @@ const HOP_BLOCKED_SHARE := 0.5
 
 ## Gambe: altezza rispetto al raggio del corpo e passo; corte e larghe,
 ## distanti LEG_SPACING (rispetto al raggio) dal centro e spesse LEG_WIDTH.
-const LEG_FACTOR := 0.4
+const LEG_FACTOR := 0.275
 const LEG_SPACING := 0.38
 const LEG_WIDTH := 3.2
 const WALK_CYCLE := 0.08
@@ -238,6 +238,10 @@ const COLOR_LIMBS := Color(0.05, 0.05, 0.06)
 ## oltre i due raggi.
 const ZOMBIE_TONES := [Color(0.55, 0.68, 0.45), Color(0.48, 0.58, 0.42), Color(0.6, 0.62, 0.52), Color(0.45, 0.52, 0.5)]
 const COLOR_ZOMBIE_EYES := Color(1.0, 0.2, 0.1)
+## Iridi dei nemici (occhioni come quelli di Ciccio, vedi PlayerLook.enemy_face)
+## e degli zombie.
+const IRIS_COLORS := [Color(0.27, 0.07, 0.05), Color(0.2, 0.32, 0.55), Color(0.22, 0.42, 0.2), Color(0.35, 0.35, 0.38), Color(0.45, 0.28, 0.1)]
+const COLOR_ZOMBIE_IRIS := Color(0.55, 0.7, 0.35)
 const ZOMBIE_SPEED_SPREAD := 0.15
 ## Mutanti: pelle livida o pallida, occhi rossi in più, escrescenze e artigli.
 const MUTANT_TONES := [Color(0.62, 0.52, 0.6), Color(0.72, 0.66, 0.6), Color(0.5, 0.56, 0.46), Color(0.66, 0.5, 0.48)]
@@ -471,7 +475,22 @@ func _apply_look(look_seed: int) -> void:
 	_headwear_color = GEAR_COLORS[rng.randi() % GEAR_COLORS.size()]
 	_face = "" if is_boss() or is_horde() or is_mutant() else FACES[rng.randi() % FACES.size()]
 	_face_color = GEAR_COLORS[rng.randi() % GEAR_COLORS.size()]
+	# Faccia come quella di Ciccio con qualche differenza: occhi più o meno
+	# grandi, colore degli occhi, bocca serrata o urlante, cicatrice.
+	var variant := RandomNumberGenerator.new()
+	variant.seed = look_seed * 7919 + 13
+	_eye_scale = PlayerLook.ENEMY_EYE_SCALES[variant.randi() % PlayerLook.ENEMY_EYE_SCALES.size()]
+	_iris = COLOR_ZOMBIE_IRIS if is_horde() else IRIS_COLORS[variant.randi() % IRIS_COLORS.size()]
+	_screams = is_horde() or variant.randf() < 0.3
+	_scar = variant.randf() < 0.3
 	_shape_radius = -1.0
+
+
+## Varianti della faccia (vedi _apply_look).
+var _eye_scale := 1.0
+var _iris := Color(0.27, 0.07, 0.05)
+var _screams := false
+var _scar := false
 
 
 ## Il nemico non esce mai dal cerchio di rombi (raggio in rombi) attorno a
@@ -1481,9 +1500,10 @@ func _draw() -> void:
 	_prepare_meshes()
 	if _hit_flash <= 0.0:
 		body = _blood.tint(body)
-	# Guardando verso nord "naso", faccia, radio, braccia e arma sono dietro
-	# al corpo, che li copre (vedi BodyParts.gear_behind); capelli, copricapo
-	# ed elmetto restano sempre in cima alla testa.
+	# Guardando verso nord radio, braccia e arma sono dietro al corpo, che
+	# li copre (vedi BodyParts.gear_behind); la faccia, come quella di Ciccio,
+	# va sopra le armi così gli occhi restano visibili; capelli, copricapo ed
+	# elmetto restano sempre in cima alla testa.
 	var behind := BodyParts.gear_behind(_facing)
 	if behind:
 		_draw_gear(body)
@@ -1494,6 +1514,7 @@ func _draw() -> void:
 	draw_mesh(_outline_mesh, null, Transform2D.IDENTITY, body.darkened(0.35))
 	if not behind:
 		_draw_gear(body)
+	_draw_face()
 	_draw_hair()
 	if is_mutant():
 		_draw_growths(body)
@@ -1516,23 +1537,15 @@ func _draw() -> void:
 			draw_rect(Rect2(origin + Vector2(k * (segment + gap), 0), Vector2(segment, 6)), COLOR_DANGER)
 
 
-## "Naso" che indica la direzione, come il giocatore, faccia (occhiali,
-## maschera...), radio dei rinforzi, braccia e arma.
-func _draw_gear(body: Color) -> void:
-	var tip := _facing * (radius + 10.0)
-	var side := _facing.orthogonal() * radius * 0.35
-	var ink := _facing.orthogonal() * (radius * 0.35 + Shapes.INK_WIDTH)
-	draw_primitive(PackedVector2Array([tip + _facing * Shapes.INK_WIDTH * 1.6, _facing * radius * 0.5 + ink, _facing * radius * 0.5 - ink]),
-			PackedColorArray([Shapes.INK]), PackedVector2Array())
-	draw_primitive(PackedVector2Array([tip, _facing * radius * 0.6 + side, _facing * radius * 0.6 - side]), PackedColorArray([body.darkened(0.3)]), PackedVector2Array())
-	_draw_face()
+## Radio dei rinforzi, braccia e arma (la faccia va sopra, vedi _draw).
+func _draw_gear(_body: Color) -> void:
 	if _state == State.SUMMON and not is_mutant():
 		_draw_radio()
 	if is_mutant():
 		_draw_claws()
 	elif is_horde():
 		# Braccia tese in avanti, senza armi.
-		var reach := _facing * radius * 1.3
+		var reach := _facing * radius * 0.95
 		var spread := _facing.orthogonal() * radius * 0.4
 		_draw_arms(reach + spread, reach - spread)
 	elif is_casting():
@@ -1700,7 +1713,7 @@ func _draw_arms(hand: Vector2, other_hand: Vector2) -> void:
 		shoulder = -shoulder
 	for pair: Array in [[shoulder, hand], [-shoulder, other_hand]]:
 		var from: Vector2 = pair[0]
-		draw_line(from, from + ((pair[1] as Vector2) - from).limit_length(radius * 1.3), COLOR_LIMBS, 2.5)
+		draw_line(from, from + ((pair[1] as Vector2) - from).limit_length(radius * 0.65), COLOR_LIMBS, 2.5)
 
 
 ## Accessori in cima alla testa, scelti a caso (vedi _apply_look): capelli
@@ -1738,40 +1751,68 @@ func _draw_hair() -> void:
 ## Accessori sul lato della faccia, scelti a caso (vedi _apply_look):
 ## occhiali da sole, maschera antigas, fazzoletto o benda sull'occhio.
 func _draw_face() -> void:
-	var eyes := _facing * radius * 0.5 + Vector2(0, -radius * 0.2)
-	var across := _facing.orthogonal()
-	if is_horde():
-		for side: float in [-1.0, 1.0]:
-			Shapes.disc(self, eyes + across * radius * 0.25 * side, radius * 0.1, COLOR_ZOMBIE_EYES)
-	elif is_mutant():
-		# Tanti occhi rossi in disordine e la bocca spalancata.
-		var rng := RandomNumberGenerator.new()
-		rng.seed = _look_seed
-		for k in 3 + rng.randi() % 3:
-			var at := eyes + across * radius * rng.randf_range(-0.45, 0.45) + Vector2(0, radius * rng.randf_range(-0.35, 0.1))
-			Shapes.disc(self, at, radius * rng.randf_range(0.06, 0.12), COLOR_ZOMBIE_EYES)
-		var mouth := eyes + Vector2(0, radius * 0.35)
-		var open := 0.12 + (0.12 if _state in [State.WINDUP, State.STRIKE, State.SUMMON] else 0.0)
-		draw_colored_polygon(PackedVector2Array([mouth - across * radius * 0.25, mouth + across * radius * 0.25, mouth + Vector2(0, radius * open)]), Color(0.12, 0.02, 0.03))
-		if _type.get("weapon", "") == "spit" or is_casting():
-			# L'acido gocciola dalla bocca, di più mentre carica lo sputo.
-			var charge := clampf(_state_time / _windup_time, 0.0, 1.0) if _state == State.WINDUP else 0.0
-			Shapes.disc(self, mouth + Vector2(0, radius * open), radius * (0.08 + 0.12 * charge), Color(COLOR_ACID, 0.7 + 0.3 * charge))
-	else:
-		# Occhi grandi e arrabbiati da fumetto (occhiali e bende ci vanno sopra).
-		Shapes.eyes(self, eyes, maxf(radius * 0.2, 4.0), _facing, true)
+	if is_mutant():
+		_draw_mutant_face()
+		return
+	var look := PlayerLook.face(_facing)
+	if not look["visible"]:
+		return
+	# Occhioni e boccone di Ciccio, scalati sul raggio del nemico; urla
+	# mentre attacca.
+	var body := _body_offset()
+	var face_scale := radius / PlayerLook.RADIUS
+	draw_set_transform(body, 0.0, Vector2(face_scale, face_scale))
+	var attacking := _state in [State.WINDUP, State.STRIKE, State.SLAM]
+	PlayerLook.enemy_face(self, _facing, _eye_scale, "scream" if _screams or attacking else "teeth", _iris)
+	draw_set_transform(body)
+	var eyes: Vector2 = look["eyes"] * face_scale
+	var spacing := float(look["spacing"]) * face_scale
+	var size := float(look["size"]) * face_scale * _eye_scale
+	var across := Vector2.RIGHT
+	if _scar:
+		# Cicatrice di traverso su un occhio, con i punti.
+		var a := eyes + Vector2(spacing * 0.3, -size * 1.1)
+		var b := eyes + Vector2(spacing * 1.2, size * 0.9)
+		draw_line(a, b, Color(0.5, 0.12, 0.12), maxf(radius * 0.08, 1.5))
+		for k in 3:
+			var at := a.lerp(b, 0.25 + 0.25 * k)
+			draw_line(at + Vector2(-size * 0.25, -size * 0.1), at + Vector2(size * 0.25, size * 0.1), Color(0.5, 0.12, 0.12), maxf(radius * 0.05, 1.0))
 	match _face:
 		"sunglasses":
-			draw_line(eyes - across * radius * 0.35, eyes + across * radius * 0.35, Color(0.05, 0.05, 0.06), radius * 0.2)
+			for side: float in [-1.0, 1.0]:
+				Shapes.oval(self, eyes + across * spacing * side, Vector2(size * 0.95, size * 0.7), Color(0.05, 0.05, 0.06))
+			draw_line(eyes - across * spacing, eyes + across * spacing, Color(0.05, 0.05, 0.06), maxf(radius * 0.1, 2.0))
 		"gasmask":
-			Shapes.disc(self, eyes + Vector2(0, radius * 0.25), radius * 0.32, Color(0.3, 0.32, 0.3))
-			Shapes.disc(self, eyes + _facing * radius * 0.25 + Vector2(0, radius * 0.35), radius * 0.15, Color(0.15, 0.15, 0.16))
+			var mouth: Vector2 = look["mouth"] * face_scale
+			Shapes.disc(self, mouth + Vector2(0, radius * 0.15), radius * 0.4, Color(0.3, 0.32, 0.3))
+			Shapes.disc(self, mouth + _facing * radius * 0.2 + Vector2(0, radius * 0.25), radius * 0.18, Color(0.15, 0.15, 0.16))
 		"scarf":
-			draw_colored_polygon(PackedVector2Array([eyes + across * radius * 0.5 + Vector2(0, radius * 0.15), eyes - across * radius * 0.5 + Vector2(0, radius * 0.15),
-					eyes + _facing * radius * 0.2 + Vector2(0, radius * 0.6)]), _face_color)
+			var mouth: Vector2 = look["mouth"] * face_scale
+			draw_colored_polygon(PackedVector2Array([mouth + Vector2(-radius * 0.85, -radius * 0.05), mouth + Vector2(radius * 0.85, -radius * 0.05),
+					mouth + Vector2(_facing.x * radius * 0.2, radius * 0.6)]), _face_color)
 		"eyepatch":
-			draw_line(eyes + across * radius * 0.5 + Vector2(0, -radius * 0.25), eyes - across * radius * 0.5 + Vector2(0, radius * 0.1), Color(0.05, 0.05, 0.06), 2.0)
-			Shapes.disc(self, eyes + across * radius * 0.15, radius * 0.14, Color(0.05, 0.05, 0.06))
+			var eye := eyes + across * spacing
+			draw_line(eye + Vector2(-radius * 0.9, -size * 1.1), eye + Vector2(radius * 0.4, size * 0.6), Color(0.05, 0.05, 0.06), 2.5)
+			Shapes.oval(self, eye, Vector2(size * 0.85, size * 0.75), Color(0.05, 0.05, 0.06))
+
+
+## Mutante: tanti occhi rossi in disordine e la bocca spalancata.
+func _draw_mutant_face() -> void:
+	var eyes := _facing * radius * 0.5 + Vector2(0, -radius * 0.2)
+	var across := _facing.orthogonal()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = _look_seed
+	for k in 3 + rng.randi() % 3:
+		var at := eyes + across * radius * rng.randf_range(-0.45, 0.45) + Vector2(0, radius * rng.randf_range(-0.35, 0.1))
+		Shapes.disc(self, at, radius * rng.randf_range(0.06, 0.12), COLOR_ZOMBIE_EYES)
+	var mouth := eyes + Vector2(0, radius * 0.35)
+	var open := 0.12 + (0.12 if _state in [State.WINDUP, State.STRIKE, State.SUMMON] else 0.0)
+	draw_primitive(PackedVector2Array([mouth - across * radius * 0.25, mouth + across * radius * 0.25, mouth + Vector2(0, radius * open)]),
+			PackedColorArray([Color(0.12, 0.02, 0.03)]), PackedVector2Array())
+	if _type.get("weapon", "") == "spit" or is_casting():
+		# L'acido gocciola dalla bocca, di più mentre carica lo sputo.
+		var charge := clampf(_state_time / _windup_time, 0.0, 1.0) if _state == State.WINDUP else 0.0
+		Shapes.disc(self, mouth + Vector2(0, radius * open), radius * (0.08 + 0.12 * charge), Color(COLOR_ACID, 0.7 + 0.3 * charge))
 
 
 ## Artigli del mutante: braccia lunghe con tre unghie ricurve. Come le
