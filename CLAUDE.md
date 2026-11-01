@@ -26,9 +26,10 @@
 - **Contenuti nei dati**: caratteristiche di nemici e simili in `data/`
   (per esempio `data/enemies.json`), separate dal codice.
 - **Input**: solo azioni dell'Input Map; tutto deve funzionare con
-  controller, con tastiera e mouse e col touch (menù compresi; il touch con
-  i controlli a schermo di `scripts/touch_controls.gd`, serve anche per
-  giocare dal browser), e i comandi si rimappano da Comandi → Modifica (vedi
+  controller e con tastiera e mouse (menù compresi); il touch esiste solo
+  nel browser, nella Modalità Touch (`Platform.touch_mode`, controlli di
+  `scripts/touch_controls.gd` e automazioni di `scripts/touch_assist.gd`,
+  vedi `docs/web.md`), mai nelle versioni per PC, e i comandi si rimappano da Comandi → Modifica (vedi
   `scripts/keybinds.gd`).
 - **Versione web**: il preset "Web" è per il sito ufotizio.com (vedi
   `docs/web.md`): si pubblica sul sito caricando l'export nel bucket R2
