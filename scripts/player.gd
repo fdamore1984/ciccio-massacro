@@ -471,12 +471,12 @@ const INVULNERABLE_ALPHA := 0.35
 ## Gambe: il corpo sta sopra di LEG_LENGTH; i passi seguono la velocità.
 ## Lunghe e sottili (una linea, vedi PlayerLook.draw_legs), distanti
 ## LEG_SPACING dal centro.
-const LEG_LENGTH := 19.0
+const LEG_LENGTH := 11.0
 const LEG_SPACING := 9.0
 const WALK_CYCLE := 0.08
 const STRIDE := 7.0
 ## Le gambe raccolte in aria scendono di LEG_TUCK sotto i fianchi.
-const LEG_TUCK := 14.0
+const LEG_TUCK := 7.0
 ## Nello slam il corpo si inclina in avanti calando (radianti).
 const SLAM_LEAN := 0.38
 ## Ogni quanti secondi Ciccio sbatte le palpebre, e per quanto.
@@ -2645,6 +2645,12 @@ func update_torch_light() -> void:
 	var wanted: Material = Enemy._unshaded_material() if lit else LightShaders.feet()
 	if material != wanted:
 		material = wanted
+
+
+## Torcia accesa per un attimo durante il caricamento (vedi
+## Game._prewarm_start), poi di nuovo com'era.
+func warm_torch(on: bool) -> void:
+	_torch.enabled = on or torch_on
 
 
 func set_torch(on: bool) -> void:

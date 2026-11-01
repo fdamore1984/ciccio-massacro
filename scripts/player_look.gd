@@ -40,15 +40,15 @@ const COLOR_GLOVE := Color(1, 1, 1)
 const GLOVE_RADIUS := 4.2
 ## Braccia: spalle sui fianchi della palla; la curva verso l'esterno è più
 ## ampia quando la mano è vicina (il braccio "avanza" di ARM_LENGTH).
-const ARM_LENGTH := 30.0
+const ARM_LENGTH := 15.0
 const ARM_WIDTH := 3.6
 const ARM_POINTS := 9
 ## Distanza delle mani dal centro: a riposo, negli attacchi, con la
 ## motosega alzata sopra la testa e piantata a terra dopo lo slam.
-const HAND_REST := 1.6
-const HAND_SWING := 1.45
-const HAND_RAISED := 1.25
-const HAND_PLANTED := 1.35
+const HAND_REST := 1.28
+const HAND_SWING := 1.22
+const HAND_RAISED := 1.12
+const HAND_PLANTED := 1.17
 ## Motosega del disegno: motore rosso con il lato scuro, maniglia nera
 ## sopra, barra grigia col rivetto e denti a punta.
 const COLOR_SAW_BODY := Color(0.8, 0.2, 0.16)
@@ -122,8 +122,13 @@ static func _fill(canvas: CanvasItem, polygons: Array, color: Color) -> void:
 ## piccole schiacciate contro la palpebra che guardano dove va Ciccio;
 ## blink li chiude.
 static func draw_eyes(canvas: CanvasItem, look: Dictionary, body: Color, blink := false) -> void:
-	var ink := Color(Shapes.INK, body.a)
-	var white := Color(1, 1, 1, body.a)
+	draw_parts(canvas, eye_parts(look, blink), body.a, COLOR_IRIS)
+
+
+## Parti degli occhi (vedi draw_parts): contorno, bianco, iride, pupilla e
+## riflesso. Il colore "iris" si sceglie disegnando (i nemici lo cambiano).
+static func eye_parts(look: Dictionary, blink := false) -> Array:
+	var parts: Array = []
 	var direction: Vector2 = look["look"]
 	var shapes: Array[PackedVector2Array] = []
 	var centers: Array[Vector2] = []
@@ -136,20 +141,101 @@ static func draw_eyes(canvas: CanvasItem, look: Dictionary, body: Color, blink :
 		centers.append(eye)
 		radii.append(radius)
 	var merged := Geometry2D.merge_polygons(shapes[0], shapes[1])
+	var outline: Array = []
 	for polygon: PackedVector2Array in merged:
 		if not Geometry2D.is_polygon_clockwise(polygon):
-			_fill(canvas, Geometry2D.offset_polygon(polygon, FACE_INK, Geometry2D.JOIN_ROUND), ink)
-	_fill(canvas, merged, white)
+			outline.append_array(Geometry2D.offset_polygon(polygon, FACE_INK, Geometry2D.JOIN_ROUND))
+	parts.append({"polygons": outline, "color": Shapes.INK})
+	parts.append({"polygons": merged, "color": Color.WHITE})
 	if blink:
-		return
+		return parts
 	for i in 2:
 		var side := -1.0 if i == 0 else 1.0
 		var radius := radii[i]
 		var pupil := centers[i] + Vector2(-side * radius * 0.2, radius * 0.13) + direction * radius * 0.2
-		var area := Geometry2D.intersect_polygons(_circle(pupil, radius * 0.32), shapes[i])
-		_fill(canvas, area, Color(COLOR_IRIS, body.a))
-		_fill(canvas, Geometry2D.intersect_polygons(_circle(pupil, radius * 0.22), shapes[i]), ink)
-		Shapes.disc(canvas, pupil + Vector2(-radius * 0.09, -radius * 0.1), radius * 0.075, white)
+		parts.append({"polygons": Geometry2D.intersect_polygons(_circle(pupil, radius * 0.32), shapes[i]), "color": "iris"})
+		parts.append({"polygons": Geometry2D.intersect_polygons(_circle(pupil, radius * 0.22), shapes[i]), "color": Shapes.INK})
+		parts.append({"disc": pupil + Vector2(-radius * 0.09, -radius * 0.1), "radius": radius * 0.075, "color": Color.WHITE})
+	return parts
+
+
+## Disegna le parti della faccia (vedi eye_parts e mouth_parts): poligoni
+## (anche già pronti come mesh), linee e dischi.
+static func draw_parts(canvas: CanvasItem, parts: Array, alpha: float, iris: Color) -> void:
+	for part: Dictionary in parts:
+		var color: Color = iris if typeof(part["color"]) == TYPE_STRING else part["color"]
+		color.a *= alpha
+		if part.has("meshes"):
+			for mesh: ArrayMesh in part["meshes"]:
+				canvas.draw_mesh(mesh, null, Transform2D.IDENTITY, color)
+		elif part.has("polygons"):
+			_fill(canvas, part["polygons"], color)
+		elif part.has("line"):
+			canvas.draw_polyline(part["line"], color, part["width"])
+		elif part.has("disc"):
+			Shapes.disc(canvas, part["disc"], part["radius"], color)
+
+
+## Direzioni della faccia già pronta dei nemici (vedi enemy_face).
+const FACE_DIRECTIONS := 16
+## Grandezze degli occhi dei nemici, rispetto a quelli di Ciccio.
+const ENEMY_EYE_SCALES := [0.8, 0.9, 1.0, 1.1]
+## Faccia dei nemici già pronta in mesh, per chiave (vedi enemy_face).
+static var _enemy_faces := {}
+
+
+## Faccia di Ciccio per i nemici, che gli somigliano: le operazioni sui
+## poligoni costano troppo per centinaia di nemici a ogni frame, quindi le
+## parti si preparano una volta sola per direzione (FACE_DIRECTIONS),
+## grandezza degli occhi e bocca, come mesh. Coordinate di Ciccio (raggio
+## RADIUS): chi chiama scala il disegno sul proprio raggio.
+## mouth: "teeth" (denti serrati) o "scream" (spalancata).
+static func enemy_face(canvas: CanvasItem, facing: Vector2, eye_scale: float, mouth: String, iris: Color) -> void:
+	var direction := wrapi(roundi(facing.angle() / TAU * FACE_DIRECTIONS), 0, FACE_DIRECTIONS)
+	var key := "%d:%s:%s" % [direction, eye_scale, mouth]
+	if not _enemy_faces.has(key):
+		_enemy_faces[key] = _build_enemy_face(Vector2.from_angle(TAU * direction / FACE_DIRECTIONS), eye_scale, mouth, key)
+	draw_parts(canvas, _enemy_faces[key], 1.0, iris)
+
+
+## Prepara in anticipo tutte le facce dei nemici (durante un caricamento),
+## così la prima volta che si vedono non costano nulla. Ne prepara al più
+## count e dice se ne mancano ancora.
+static func prepare_enemy_faces(count: int) -> bool:
+	for direction in FACE_DIRECTIONS:
+		for eye_scale: float in ENEMY_EYE_SCALES:
+			for mouth: String in ["teeth", "scream"]:
+				var key := "%d:%s:%s" % [direction, eye_scale, mouth]
+				if _enemy_faces.has(key):
+					continue
+				if count <= 0:
+					return true
+				count -= 1
+				_enemy_faces[key] = _build_enemy_face(Vector2.from_angle(TAU * direction / FACE_DIRECTIONS), eye_scale, mouth, key)
+	return false
+
+
+static func _build_enemy_face(facing: Vector2, eye_scale: float, mouth: String, key: String) -> Array:
+	var look := face(facing)
+	if not look["visible"]:
+		return []
+	look["size"] = float(look["size"]) * eye_scale
+	look["spacing"] = float(look["spacing"]) * lerpf(1.0, eye_scale, 0.5)
+	var parts := mouth_parts(look, 1.0 if mouth == "scream" else 0.0)
+	parts.append_array(eye_parts(look))
+	var baked: Array = []
+	for k in parts.size():
+		var part: Dictionary = parts[k]
+		if part.has("polygons"):
+			var meshes: Array[ArrayMesh] = []
+			for n in (part["polygons"] as Array).size():
+				var polygon: PackedVector2Array = part["polygons"][n]
+				if polygon.size() >= 3 and not Geometry2D.is_polygon_clockwise(polygon):
+					meshes.append(Shapes.polygon_mesh(["enemy_face", key, k, n], polygon))
+			baked.append({"meshes": meshes, "color": part["color"]})
+		else:
+			baked.append(part)
+	return baked
 
 
 ## Occhi a X (da morto).
@@ -167,7 +253,12 @@ static func draw_dead_eyes(canvas: CanvasItem, look: Dictionary, alpha := 1.0) -
 ## denti serrati (una riga con due zig-zag morbidi); spalancata (open oltre
 ## 0,3) mostra gola, ugola e lingua, senza denti.
 static func draw_grin(canvas: CanvasItem, look: Dictionary, open := 0.0, alpha := 1.0) -> void:
-	var ink := Color(Shapes.INK, alpha)
+	draw_parts(canvas, mouth_parts(look, open), alpha, COLOR_IRIS)
+
+
+## Parti della bocca (vedi draw_parts e draw_grin).
+static func mouth_parts(look: Dictionary, open := 0.0) -> Array:
+	var parts: Array = []
 	var center: Vector2 = look["mouth"]
 	var lip := PackedVector2Array()
 	for k in 21:
@@ -178,20 +269,20 @@ static func draw_grin(canvas: CanvasItem, look: Dictionary, open := 0.0, alpha :
 	shape.append(Vector2(center.x - RADIUS - 6.0, RADIUS + 6.0))
 	var mouth := Geometry2D.intersect_polygons(shape, _circle(Vector2.ZERO, RADIUS, 40))
 	if mouth.is_empty():
-		return
+		return parts
 	var area: PackedVector2Array = mouth[0]
 	if open > 0.3:
-		canvas.draw_colored_polygon(area, Color(COLOR_MOUTH, alpha))
+		parts.append({"polygons": [area], "color": COLOR_MOUTH})
 		var throat := PackedVector2Array()
 		for k in 20:
 			throat.append(center + Vector2(0, RADIUS * 0.3) + Vector2.from_angle(TAU * k / 20.0) * Vector2(RADIUS * 0.45, RADIUS * 0.2))
-		_fill(canvas, Geometry2D.intersect_polygons(throat, area), Color(COLOR_THROAT, alpha))
-		_fill(canvas, Geometry2D.intersect_polygons(_circle(Vector2(center.x - RADIUS * 0.05, RADIUS * 1.2), RADIUS * 0.56), area),
-				Color(COLOR_TONGUE, alpha))
-		canvas.draw_colored_polygon(PackedVector2Array([center + Vector2(-1.0, 0), center + Vector2(1.0, 0),
-				center + Vector2(0, RADIUS * 0.14)]), Color(COLOR_TONGUE.darkened(0.25), alpha))
+		parts.append({"polygons": Geometry2D.intersect_polygons(throat, area), "color": COLOR_THROAT})
+		parts.append({"polygons": Geometry2D.intersect_polygons(_circle(Vector2(center.x - RADIUS * 0.05, RADIUS * 1.2), RADIUS * 0.56), area),
+				"color": COLOR_TONGUE})
+		parts.append({"polygons": [PackedVector2Array([center + Vector2(-1.0, 0), center + Vector2(1.0, 0),
+				center + Vector2(0, RADIUS * 0.14)])], "color": COLOR_TONGUE.darkened(0.25)})
 	else:
-		canvas.draw_colored_polygon(area, Color(1, 1, 1, alpha))
+		parts.append({"polygons": [area], "color": Color.WHITE})
 		var line := PackedVector2Array()
 		for k in 29:
 			var x := (k / 14.0 - 1.0) * RADIUS * 0.68
@@ -201,11 +292,12 @@ static func draw_grin(canvas: CanvasItem, look: Dictionary, open := 0.0, alpha :
 				if u > 0.0 and u < 1.0:
 					y += RADIUS * float(zig[2]) * sin(u * TAU) * float(zig[3])
 			line.append(_inside(center + Vector2(x, y)))
-		canvas.draw_polyline(line, ink, FACE_INK * 0.6)
+		parts.append({"line": line, "width": FACE_INK * 0.6, "color": Shapes.INK})
 	var edge := PackedVector2Array()
 	for point in lip:
 		edge.append(point.limit_length(RADIUS))
-	canvas.draw_polyline(edge, ink, FACE_INK)
+	parts.append({"line": edge, "width": FACE_INK, "color": Shapes.INK})
+	return parts
 
 
 ## Bocca chiusa da morto: una linea storta.
@@ -354,7 +446,7 @@ static func draw_legs(canvas: CanvasItem, hip_y: float, foot_y: float, spacing: 
 		var hip := Vector2(side * spacing * 1.05, hip_y)
 		var foot := Vector2(side * (spacing * 1.15 + 6.0 * spread) + swing.x, foot_y + swing.y * 0.5)
 		if tucked:
-			foot = Vector2(side * spacing, hip_y + 11.0)
+			foot = Vector2(side * spacing, hip_y + 6.0)
 		var knee := Vector2(lerpf(hip.x, foot.x, 0.5) + side * 2.5 + facing.x * 2.0, lerpf(hip.y, foot.y, 0.5))
 		var points := PackedVector2Array()
 		for k in 6:

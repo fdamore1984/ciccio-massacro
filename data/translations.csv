@@ -132,7 +132,7 @@ CONTROLS_SPECIAL_DASH,Power strike during an air dash: dash strike that smashes 
 CONTROLS_BACK,Back,Indietro
 MENU_CONTINUE,Continue,Continua
 SLOTS_NEW_TITLE,New game: choose a save slot,Nuova partita: scegli uno slot
-SLOTS_LOAD_TITLE,Continue: choose a save slot,Continua: scegli uno slot
+SLOTS_LOAD_TITLE,Load game: choose a save slot,Carica partita: scegli uno slot
 SLOT_NAME,Slot %d,Slot %d
 SLOT_EMPTY,Empty,Vuoto
 SLOT_EMPTY_NEW,Start some fresh carnage here,Inizia qui un nuovo massacro
@@ -366,3 +366,7 @@ TUTORIAL_TOUCH_SUPPLIES_TEXT,"Supplies are used by themselves: when health drops
 TUTORIAL_TOUCH_SPECIALS_TITLE,H-bomb and Frenzy,Bomba H e Frenesia
 TUTORIAL_TOUCH_SPECIALS_TEXT,"Two colored buttons appear above Attack only when you can use them. H-bomb (yellow), with a bomb in your belt: Cheech jumps and lifts it; hold the button to widen the blast, let go to smash it on the ground and kill the enemies around. Frenzy (red), with the red bar full: time stops and Cheech strikes the nearest enemies in a flurry.","Due tasti colorati compaiono sopra Attacco solo quando puoi usarli. Bomba H (gialla), con una bomba nella cintura: Ciccio salta e la solleva; tieni premuto il tasto per allargare l'esplosione, lascialo per spaccarla a terra e uccidere i nemici attorno. Frenesia (rossa), con la barra rossa piena: il tempo si ferma e Ciccio colpisce a raffica i nemici più vicini."
 HUD_FRENZY_READY_TOUCH,FRENZY! Tap Frenzy,FRENESIA! Tocca Frenesia
+PANEL_CLOSE,Close,Chiudi
+MENU_LOAD,Load game,Carica partita
+PAUSE_LOAD,Load game,Carica partita
+SLOT_LOAD_CONFIRM,Press again to load it: unsaved progress will be lost,Premi di nuovo per caricarla: i progressi non salvati si perdono
