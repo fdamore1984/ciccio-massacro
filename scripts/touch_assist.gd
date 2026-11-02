@@ -14,6 +14,7 @@ extends RefCounted
 ##   poi salto e slam, finché c'è batteria; da lontano il missile (mai
 ##   con un nemico vicino).
 ## - Parata: automatica quando non si attacca (vedi Player.receive_hit).
+## - Tasto Slam: salto e, da SLAM_HEIGHT, il colpo potente (lo slam).
 
 ## Distanza entro cui un nemico è "vicino": niente missile, si mena.
 const MELEE_DISTANCE := 170.0
@@ -43,6 +44,8 @@ var _phase := "combo"
 var _attack_was := false
 var _h_bomb_was := false
 var _h_bomb_jumped := false
+## Passi da quando si è toccato Slam (-1: nessuno slam in corso).
+var _slam_steps := -1
 ## Passi trascorsi nella fase attuale dell'attacco.
 var _phase_steps := 0
 ## Batteria e mana sono arrivate a zero: si beve appena si può.
@@ -58,6 +61,8 @@ static func special_ready(kind: String) -> bool:
 		return player.h_bombs > 0
 	if kind == "interact":
 		return player.can_interact
+	if kind == "slam":
+		return player.mana >= Player.AIR_SLAM_MANA and player.battery >= Player.BATTERY_JUMP + Player.BATTERY_HEAVY
 	return player.is_frenzy_full()
 
 
@@ -75,6 +80,7 @@ func update(p: Player) -> void:
 	_auto_torch(p)
 	_auto_jump(p)
 	_specials(p)
+	_slam(p)
 	_attack(p)
 
 
@@ -171,6 +177,26 @@ func _specials(p: Player) -> void:
 	elif not Platform.touch_h_bomb and _h_bomb_was:
 		Input.action_release("heavy_attack")
 	_h_bomb_was = Platform.touch_h_bomb
+
+
+## Tasto Slam: salto (se si è a terra) e, salito abbastanza o già in
+## discesa, il colpo potente, che in aria è lo slam.
+func _slam(p: Player) -> void:
+	if Platform.touch_slam:
+		Platform.touch_slam = false
+		if _slam_steps < 0 and special_ready("slam"):
+			_slam_steps = 0
+			if not p.is_airborne():
+				_tap("jump")
+	if _slam_steps < 0:
+		return
+	_slam_steps += 1
+	if p.is_airborne() and (p.altitude() - p.ground_elevation >= SLAM_HEIGHT or p.is_descending()):
+		_tap("heavy_attack")
+		_slam_steps = -1
+	elif _slam_steps > 20 and not p.is_airborne():
+		# Il salto non è partito.
+		_slam_steps = -1
 
 
 ## Attacco tenuto premuto: combo -> potente -> salto e slam, da capo.

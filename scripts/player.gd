@@ -2220,6 +2220,9 @@ func _update_zoom(delta: float) -> void:
 	else:
 		_combat_zoom = move_toward(_combat_zoom, 0.0, delta / float(data["zoom_out_time"]))
 	var zoom := lerpf(float(data["explore_zoom"]), float(data["combat_zoom"]), smoothstep(0.0, 1.0, _combat_zoom))
+	# Sui telefoni e sui tablet, nel browser, tutto più vicino (vedi Platform.screen_kind).
+	if Platform.screen_kind != "":
+		zoom *= float(data.get(Platform.screen_kind + "_zoom", 1.0))
 	_camera.zoom = Vector2.ONE * zoom * _special_zoom
 
 

@@ -43,7 +43,7 @@ func _draw() -> void:
 	for i in ACTIONS.size():
 		var rect := Rect2(Vector2(i * (SLOT + GAP), 0), Vector2(SLOT, SLOT))
 		var kind: String = ACTIONS[i][0]
-		var available := _is_ready(kind)
+		var available := is_ready(player, kind)
 		var highlight := kind == "shield" and player.shield_active
 		draw_style_box(_active if highlight else _style, rect)
 		UpgradeIcon.draw_icon(self, rect.get_center(), SLOT * 0.62, kind, false)
@@ -55,9 +55,9 @@ func _draw() -> void:
 			var left := player.shield_cooldown / player.shield_cooldown_max
 			_draw_pie(rect.get_center(), SLOT * 0.4, left)
 			_text(font, str(ceili(player.shield_cooldown)), rect.get_center() + Vector2(0, 6), FONT_SIZE, Color.WHITE)
-		var count := _count(kind)
+		var count := count_text(player, kind)
 		if count != "":
-			_draw_badge(font, count, rect.position + Vector2(SLOT - 2, 0))
+			draw_badge(self, font, count, rect.position + Vector2(SLOT - 2, 0), _badge)
 		# Tasto del controller, sotto lo slot.
 		_text(font, _keys(ACTIONS[i][1]), rect.position + Vector2(SLOT / 2.0, SLOT + 14), 14, COLOR_KEY)
 
@@ -70,46 +70,49 @@ func _keys(actions: String) -> String:
 	return "+".join(keys)
 
 
-func _is_ready(kind: String) -> bool:
+## La casella si può usare adesso (anche per i tasti a schermo, vedi TouchControls).
+static func is_ready(who: Player, kind: String) -> bool:
 	match kind:
 		"potion":
-			return player.potions > 0 and player.health < player.max_health
+			return who.potions > 0 and who.health < who.max_health
 		"mana":
-			return player.mana_potions > 0 and player.mana < player.max_mana
+			return who.mana_potions > 0 and who.mana < who.max_mana
 		"battery_potion":
-			return player.battery_potions > 0 and player.battery < player.max_battery
+			return who.battery_potions > 0 and who.battery < who.max_battery
 		"shield":
-			return player.shield_active or player.shield_cooldown <= 0.0
+			return who.shield_active or who.shield_cooldown <= 0.0
 		"spell":
-			return player.mana >= Player.SPELL_COST
+			return who.mana >= Player.SPELL_COST
 		"h_bomb":
-			return player.h_bombs > 0
+			return who.h_bombs > 0
 	return true
 
 
-func _count(kind: String) -> String:
+## Quante ne restano, da scrivere nel distintivo ("" per nessun numero).
+static func count_text(who: Player, kind: String) -> String:
 	match kind:
 		"potion":
-			return str(player.potions)
+			return str(who.potions)
 		"mana":
-			return str(player.mana_potions)
+			return str(who.mana_potions)
 		"battery_potion":
-			return str(player.battery_potions)
+			return str(who.battery_potions)
 		"h_bomb":
-			return str(player.h_bombs)
+			return str(who.h_bombs)
 		"spell":
 			return str(roundi(Player.SPELL_COST))
 		"bag":
-			return str(player.inventory.items.size()) if not player.inventory.items.is_empty() else ""
+			return str(who.inventory.items.size()) if not who.inventory.items.is_empty() else ""
 	return ""
 
 
 ## Distintivo a pillola con quante ne restano, centrato sull'angolo in
 ## alto a destra della casella.
-func _draw_badge(font: Font, text: String, at: Vector2) -> void:
-	var width := maxf(font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 12.0, 20.0)
-	draw_style_box(_badge, Rect2(at - Vector2(width / 2.0, 10), Vector2(width, 20)))
-	draw_string(font, at + Vector2(-width / 2.0, 5), text, HORIZONTAL_ALIGNMENT_CENTER, width, 13, UiStyle.CREAM)
+static func draw_badge(canvas: CanvasItem, font: Font, text: String, at: Vector2, style: StyleBox, font_size := 13) -> void:
+	var half_height := font_size * 0.77
+	var width := maxf(font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x + 12.0, half_height * 2.0)
+	canvas.draw_style_box(style, Rect2(at - Vector2(width / 2.0, half_height), Vector2(width, half_height * 2.0)))
+	canvas.draw_string(font, at + Vector2(-width / 2.0, font_size * 0.38), text, HORIZONTAL_ALIGNMENT_CENTER, width, font_size, UiStyle.CREAM)
 
 
 ## Settore scuro (frazione ratio del cerchio) per la ricarica.
