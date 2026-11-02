@@ -15,6 +15,8 @@ extends Control
 ## sull'account o solo nel browser.
 
 const GAME_SCENE := "res://scenes/game.tscn"
+## Attesa prima di avviare il tutorial giocabile (vedi _on_tutorial_play).
+const PLAY_DELAY := 0.15
 const TITLE_ANGLE := -4.0
 const TITLE_OUTLINE := 24
 const TITLE_SHADOW := 8
@@ -225,9 +227,12 @@ func _on_tutorial_pressed() -> void:
 
 
 ## Tutorial giocabile: una partita a parte, che non si salva (vedi TutorialRun).
+## Si parte un attimo dopo: nel browser, dopo il tocco, arrivano ancora i
+## clic emulati, che non devono trovare il menù già tolto.
 func _on_tutorial_play() -> void:
 	Game.tutorial_mode = true
-	get_tree().change_scene_to_file(GAME_SCENE)
+	_set_buttons_active(false)
+	get_tree().create_timer(PLAY_DELAY).timeout.connect(get_tree().change_scene_to_file.bind(GAME_SCENE))
 
 
 func _on_tutorial_closed() -> void:

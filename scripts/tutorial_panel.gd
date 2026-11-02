@@ -70,7 +70,9 @@ const COLOR_DOT_CURRENT := Color(1.0, 0.55, 0.74)
 const COLOR_PLAY := Color(1.0, 0.82, 0.2)
 
 var _page := 0
-var _pages: Array = TOUCH_PAGES if Platform.touch_mode else PAGES
+## Pagine del percorso giusto, scelte in _ready: il menù iniziale crea il
+## pannello prima che Platform sappia se si gioca col touch.
+var _pages: Array = PAGES
 var _image := TextureRect.new()
 var _page_title := Label.new()
 var _text := Label.new()
@@ -86,6 +88,7 @@ var _key_pattern := RegEx.create_from_string("\\{(\\w+)\\}")
 
 
 func _ready() -> void:
+	_pages = TOUCH_PAGES if Platform.touch_mode else PAGES
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	visible = false
 	var dim := ColorRect.new()
