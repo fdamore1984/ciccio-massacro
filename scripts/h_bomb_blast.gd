@@ -42,7 +42,7 @@ func _ready() -> void:
 
 
 ## Ferma a metà della palla di fuoco: per preparare il disegno durante la
-## schermata di caricamento (vedi Game._prewarm_start).
+## schermata di caricamento (vedi Game._prewarm_lights).
 func show_fire() -> void:
 	_age = FIRE_TIME * 0.5
 	queue_redraw()

@@ -128,7 +128,7 @@ static func shockwave(at: Vector2, elevation: float, radius: float) -> void:
 
 ## Onda d'urto ferma, disegnata subito anche a gioco in pausa: per
 ## preparare il disegno durante la schermata di caricamento (vedi
-## Game._prewarm_start), poi la toglie clear_waves.
+## Game._prewarm_lights), poi la toglie clear_waves.
 static func warm_shockwave(at: Vector2, elevation: float, radius: float) -> void:
 	if current:
 		current._waves.append({"position": at, "elevation": elevation, "radius": radius, "age": WAVE_TIME * 0.3, "seed": randi()})

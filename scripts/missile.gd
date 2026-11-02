@@ -136,7 +136,7 @@ func _find_target() -> Enemy:
 
 ## Già a metà dell'esplosione, senza suono, danni né onda d'urto: per
 ## preparare il disegno durante la schermata di caricamento (vedi
-## Game._prewarm_start).
+## Game._prewarm_lights).
 func show_explosion() -> void:
 	_exploding = EXPLOSION_TIME * 0.3
 	_light.energy = 1.5
