@@ -82,6 +82,11 @@ static var pending_save := {}
 ## Gli strumenti (per esempio la cattura delle immagini per lo store) spengono
 ## i salvataggi, così non toccano gli slot del giocatore.
 static var saving_enabled := true
+## Tutorial giocabile (lo avvia il menù iniziale, vedi TutorialRun): una
+## partita che non si salva, senza nemici a caso né orde, sempre sullo
+## stesso mondo (TUTORIAL_SEED). Si spegne uscendo dalla scena.
+static var tutorial_mode := false
+const TUTORIAL_SEED := 1234
 
 @onready var _world: World = $World
 @onready var _entities: Node2D = $Entities
@@ -124,6 +129,11 @@ var _boss: Enemy
 var loading := false
 
 
+func _enter_tree() -> void:
+	if tutorial_mode:
+		($World as World).seed_value = TUTORIAL_SEED
+
+
 func _ready() -> void:
 	_world.entities = _entities
 	# Effetti a terra (sangue, corpi, onde d'urto) tra il terreno e i personaggi.
@@ -149,6 +159,11 @@ func _ready() -> void:
 	_hud.pause_menu.load_requested.connect(_on_load_requested)
 	var save := pending_save
 	pending_save = {}
+	if tutorial_mode:
+		_hud.pause_menu.set_tutorial()
+		await _prepare_region(tr("LOADING_LANDS"))
+		_start_tutorial()
+		return
 	if not save.is_empty():
 		_load(save)
 		return
@@ -173,6 +188,9 @@ func _process(delta: float) -> void:
 		return
 	_update_challenge(delta)
 	_update_interaction()
+	# Nel tutorial niente salvataggi, nemici a caso né orde (vedi TutorialRun).
+	if tutorial_mode:
+		return
 	_update_autosave(delta)
 	# Nel sotterraneo i nemici sono quelli del piano: non ne arrivano altri.
 	_maintain_timer -= delta
@@ -677,6 +695,8 @@ func _can_autosave() -> bool:
 
 
 func _save(message: String) -> void:
+	if tutorial_mode:
+		return
 	_autosave_timer = AUTOSAVE_INTERVAL
 	_autosave_pending = false
 	if saving_enabled and SaveGame.write(_save_data()):
@@ -869,6 +889,9 @@ func _on_summon_requested(summoner: Enemy, type_id: String, positions: Array[Vec
 func _on_enemy_died(enemy: Enemy) -> void:
 	_kills += 1
 	_hud.set_kills(_kills)
+	# Nel tutorial i nemici non danno esperienza né bottino.
+	if tutorial_mode:
+		return
 	Sfx.play("xp", enemy.global_position)
 	_player.add_experience(enemy.xp_reward)
 	_player.stain_with_blood()
@@ -919,6 +942,7 @@ func _on_player_died() -> void:
 
 
 func _exit_tree() -> void:
+	tutorial_mode = false
 	HitFeedback.reset()
 	# I nemici della prossima partita non devono restare fermi.
 	Enemy.frozen = false
@@ -935,6 +959,27 @@ func _on_load_requested(slot: int) -> void:
 	HitFeedback.reset()
 	Enemy.frozen = false
 	get_tree().change_scene_to_file(scene_file_path)
+
+
+## Tutorial giocabile: il riquadro coi passi va nell'HUD, sotto il menù di
+## pausa e gli altri pannelli; finito, si torna al menù.
+func _start_tutorial() -> void:
+	var run := TutorialRun.new()
+	run.game = self
+	run.player = _player
+	run.day_night = _day_night
+	add_child(run)
+	_hud.add_overlay(run.panel())
+	run.finished.connect(_back_to_menu)
+
+
+## Nemico di un passo del tutorial: viene subito verso il giocatore e non
+## lascia niente.
+func spawn_tutorial_enemy(type_id: String, at: Vector2) -> Enemy:
+	var enemy := _spawn_enemy(type_id, at, 1)
+	enemy.drops_loot = false
+	enemy.alert()
+	return enemy
 
 
 func _back_to_menu() -> void:

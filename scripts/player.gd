@@ -68,6 +68,10 @@ signal frenzy_changed(current: float, maximum: float)
 ## Inizio e fine dell'attacco speciale della Frenesia.
 signal special_started
 signal special_finished
+## Un'azione è riuscita (per il tutorial giocabile, vedi TutorialRun):
+## "jump", "attack", "heavy", "parry", "dodge", "missile", "slam", "h_bomb",
+## "special", "shield", "lock", "drink_<scorta>".
+signal action_done(kind: String)
 
 enum State { NORMAL, ATTACK, PARRY, DODGE, SLIDE, HURT, DEAD, SLAM, FALL, RECOIL, DRINK, SPECIAL }
 
@@ -539,6 +543,10 @@ var mana_potions := START_MANA_POTIONS
 var battery_potions := START_BATTERY_POTIONS
 ## Bombe H nella cintura (vedi h_bomb_capacity).
 var h_bombs := 0
+## Nel tutorial giocabile non si muore: la vita non scende sotto 1.
+var immortal := false
+## Nel tutorial giocabile la Frenesia piena non cala da sola (vedi TutorialRun).
+var keep_frenzy := false
 ## Fuliggine sul corpo dopo l'esplosione di una bomba H (da 0 a 1).
 var soot := 0.0
 ## Bonus ai danni dei missili dai potenziamenti (0.2 = +20%).
@@ -775,8 +783,9 @@ func _physics_process(delta: float) -> void:
 	if _battery_delay == 0.0 and not _running and _state != State.DEAD:
 		var regen := BATTERY_REGEN * (BATTERY_PARRY_REGEN_FACTOR if _state == State.PARRY else 1.0)
 		battery = minf(battery + regen * delta, max_battery)
-	# Senza attaccare per un po' la Frenesia cala.
-	if _state != State.SPECIAL:
+	# Senza attaccare per un po' la Frenesia cala (non mentre il tutorial
+	# insegna l'attacco speciale, vedi keep_frenzy).
+	if _state != State.SPECIAL and not keep_frenzy:
 		_frenzy_idle += delta
 		if _frenzy_idle >= FRENZY_DECAY_DELAY and frenzy > 0.0:
 			_set_frenzy(frenzy - FRENZY_DECAY * delta)
@@ -1261,7 +1270,7 @@ func receive_hit(from: Vector2, damage: int, projectile := false) -> String:
 		Sfx.play("shield_break", global_position)
 		return "shielded"
 
-	health = maxi(health - damage, 0)
+	health = maxi(health - damage, 1 if immortal else 0)
 	health_changed.emit(health, max_health)
 	# Colpiti si perde la carica (per esempio dello slam aereo: si cade giù).
 	_charging = false
@@ -1453,7 +1462,7 @@ func _fall_into_ravine() -> void:
 func _climb_out_of_ravine() -> void:
 	teleport(_safe_position)
 	var data: Dictionary = World.DATA.data["terrain"]
-	health = maxi(health - int(data["ravine_damage"]), 0)
+	health = maxi(health - int(data["ravine_damage"]), 1 if immortal else 0)
 	health_changed.emit(health, max_health)
 	GroundFx.bleed(global_position, ground_elevation + LEG_LENGTH + RADIUS * 0.5, Vector2.from_angle(randf() * TAU), BLEED_DROPS)
 	_wound(Vector2(randf_range(-1.0, 1.0), 1.0))
@@ -1522,6 +1531,7 @@ func _lock_manually() -> void:
 		return
 	_set_lock_target(nearest)
 	lock_manual = true
+	action_done.emit("lock")
 	Sfx.play_ui("ui_move")
 
 
@@ -1856,6 +1866,7 @@ func _start_attack(step: int, input: Vector2) -> void:
 	_heavy_step = 0
 	_attack_heavy = false
 	_begin_attack(input)
+	action_done.emit("attack")
 	Sfx.play("swing", global_position, 1.0 + 0.12 * (_combo_step - 1))
 
 
@@ -1883,6 +1894,7 @@ func _start_heavy(input: Vector2, held := false) -> void:
 	_attack_heavy = true
 	_begin_attack(input)
 	_charging = not held
+	action_done.emit("heavy")
 
 
 func _begin_attack(input: Vector2) -> void:
@@ -1968,6 +1980,7 @@ func _start_air_slam(input: Vector2) -> void:
 	_use_battery(BATTERY_HEAVY)
 	mana -= AIR_SLAM_MANA
 	_start_slam("air", input)
+	action_done.emit("slam")
 	_slam_paid = Vector2(AIR_SLAM_MANA, before - battery)
 	Sfx.play("heavy_swing", global_position, 0.85)
 
@@ -2086,6 +2099,7 @@ func _slam_impact() -> void:
 ## La bomba H si spacca sul terreno: i nemici attorno muoiono (il boss
 ## perde una parte della vita), Ciccio resta intatto ma annerito.
 func _h_bomb_impact() -> void:
+	action_done.emit("h_bomb")
 	h_bombs = maxi(h_bombs - 1, 0)
 	var radius := _slam_radius()
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -2177,6 +2191,7 @@ func _can_start_special() -> bool:
 ## normale prima dei colpi, lo zoom resta fino alla fine (vedi _finish_special).
 func _start_special() -> void:
 	_interrupt_action()
+	action_done.emit("special")
 	_queued_attack = ""
 	_velocity = Vector2.ZERO
 	_special_hits = 0
@@ -2361,6 +2376,7 @@ func _jump() -> void:
 	_jumps_used += 1
 	_height_velocity = JUMP_SPEED
 	Sfx.play("jump", global_position, 1.0 + 0.15 * (_jumps_used - 1))
+	action_done.emit("jump")
 
 
 ## La scivolata parte almeno alla velocità di corsa, così funziona anche
@@ -2373,6 +2389,7 @@ func _start_slide(input: Vector2) -> void:
 	_target_facing = _slide_direction
 	Sfx.play("slide", global_position)
 	_change_state(State.SLIDE)
+	action_done.emit("dodge")
 
 
 func _start_dodge(input: Vector2) -> void:
@@ -2387,6 +2404,7 @@ func _start_dodge(input: Vector2) -> void:
 	_heavy_step = 0
 	Sfx.play("dodge", global_position)
 	_change_state(State.DODGE)
+	action_done.emit("dodge")
 
 
 ## Parata istantanea: annulla l'azione in corso (combo, carica, schivata,
@@ -2398,6 +2416,7 @@ func _start_parry(input: Vector2) -> void:
 	if _state in [State.DODGE, State.SLIDE]:
 		_dodge_cooldown = DODGE_COOLDOWN
 	_interrupt_action()
+	action_done.emit("parry")
 	_velocity = _velocity.limit_length(walk_speed() * PARRY_SPEED_FACTOR)
 	if input != Vector2.ZERO:
 		_target_facing = input.normalized()
@@ -2456,6 +2475,7 @@ func _start_drink(kind: String) -> void:
 			return
 		mana_potions -= 1
 	_drinking = kind
+	action_done.emit("drink_" + kind)
 	_end_combo()
 	_change_state(State.DRINK)
 	_apply_drink()
@@ -2522,6 +2542,7 @@ func _fire_missile(input: Vector2) -> void:
 	get_parent().add_child(missile)
 	_shake = maxf(_shake, 0.25)
 	Sfx.play("missile_launch", global_position)
+	action_done.emit("missile")
 
 
 ## Bombe H che si possono portare (vedi START_H_BOMB_CAPACITY).
@@ -2696,6 +2717,7 @@ func _raise_shield() -> void:
 	if shield_active or shield_cooldown > 0.0:
 		return
 	shield_active = true
+	action_done.emit("shield")
 	shield_cooldown = shield_cooldown_max
 	Sfx.play("shield_up", global_position)
 
