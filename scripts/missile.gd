@@ -134,6 +134,16 @@ func _find_target() -> Enemy:
 	return best
 
 
+## Già a metà dell'esplosione, senza suono, danni né onda d'urto: per
+## preparare il disegno durante la schermata di caricamento (vedi
+## Game._prewarm_lights).
+func show_explosion() -> void:
+	_exploding = EXPLOSION_TIME * 0.3
+	_light.energy = 1.5
+	_light.texture_scale = 1.4
+	queue_redraw()
+
+
 ## crashed: si è schiantata contro un ostacolo o una parete (si sente forte).
 func _explode(enemy: Enemy, crashed := false) -> void:
 	_exploding = 0.001
