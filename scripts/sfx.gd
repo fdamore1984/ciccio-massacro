@@ -83,6 +83,18 @@ func play_ui(sound: String) -> void:
 	_ui_player.play()
 
 
+## Nel browser ogni suono passa al browser come campione la prima volta che
+## suona, e in quel frame il gioco si ferma un attimo (si vede con i suoni
+## lunghi, come il lancio del missile e le esplosioni). Game li prepara tutti
+## durante la prima schermata di caricamento (vedi Game._prewarm_start).
+func register_samples() -> void:
+	if not OS.has_feature("web"):
+		return
+	for stream: AudioStream in _streams.values():
+		if not AudioServer.is_stream_registered_as_sample(stream):
+			AudioServer.register_stream_as_sample(stream)
+
+
 func _build_sounds() -> void:
 	# Personaggio: la motosega ronza a ogni colpo (dente di sega aspro con
 	# il rumore della catena).

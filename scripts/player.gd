@@ -37,8 +37,9 @@ extends Node2D
 ## combo di colpi normali (combo mista) è un colpo potente con un bonus ai
 ## danni. Attacchi a terra, che colpiscono tutti i nemici attorno: il colpo
 ## potente in aria, premuto e lasciato, fa piombare a terra con uno slam
-## (costa carburante e batteria); tenuto premuto, con una bomba H nella
-## cintura, è la bomba H. Durante uno scatto in aria è un colpo più ampio. Durante gli attacchi a terra si passa
+## (costa carburante e batteria); con una bomba H nella cintura, L2 + R2
+## insieme in aria (colpo potente e focus) sono la bomba H. Durante uno
+## scatto in aria è un colpo più ampio. Durante gli attacchi a terra si passa
 ## attraverso i nemici; all'impatto quelli attorno (non i boss) vengono
 ## respinti lontano.
 ## Ogni colpo potente a terra consuma un po' di carburante (HEAVY_MANA) e
@@ -151,11 +152,14 @@ const SLAM_RECOVERY := 0.32
 ## Se per qualche motivo non si tocca terra, l'impatto arriva comunque.
 const SLAM_MAX_TIME := 2.0
 const SLAM_RADIUS := {"dash": 165.0, "air": 135.0}
-## Bomba H: il colpo potente in aria si fa solo con una bomba H nella
-## cintura (se ne portano START_H_BOMB_CAPACITY, una in più per ogni
-## potenziamento "h_bomb"); senza, in aria il colpo potente non parte. La
-## motosega sparisce e Ciccio alza sopra la testa una grossa bomba H;
-## tenendo premuto si fluttua salendo piano (AIR_SLAM_RISE_SPEED, sempre più
+## Bomba H: L2 + R2 insieme in aria (colpo potente e focus, in qualsiasi
+## ordine), con una bomba H nella cintura (se ne portano
+## START_H_BOMB_CAPACITY, una in più per ogni potenziamento "h_bomb"); se
+## il colpo potente arriva per primo, lo slam appena partito (entro
+## H_BOMB_CHORD_GRACE secondi) diventa la bomba H e restituisce quello che
+## è costato. La motosega sparisce e Ciccio alza sopra la testa una grossa
+## bomba H; tenendo premuto uno dei due tasti si fluttua salendo piano
+## (AIR_SLAM_RISE_SPEED, sempre più
 ## piano con la carica, con un leggero ondeggiare di AIR_SLAM_BOB pixel)
 ## fino a HEAVY_CHARGE_TIME, poi parte da sola; intanto si è esposti a dardi
 ## e frecce dei nemici (vedi receive_hit). Al rilascio (o con un tocco
@@ -169,6 +173,7 @@ const START_H_BOMB_CAPACITY := 3
 const H_BOMB_MIN_RADIUS := 190.0
 const H_BOMB_MAX_RADIUS := 280.0
 const H_BOMB_BOSS_DAMAGE := 0.5
+const H_BOMB_CHORD_GRACE := 0.15
 const AIR_SLAM_RISE_SPEED := 45.0
 const AIR_SLAM_BOB := 3.0
 ## Fuliggine dell'esplosione: il corpo si annerisce (fino a SOOT_STRENGTH
@@ -182,12 +187,10 @@ const H_BOMB_HELD := Vector2(0, -RADIUS - 20.0)
 const H_BOMB_LENGTH := 74.0
 const H_BOMB_GRIP := Vector2(16.0, -RADIUS - 7.0)
 const DASH_SLAM_DAMAGE_FACTOR := 2.4
-## Colpo potente in aria: se lo si lascia entro AIR_HEAVY_HOLD_TIME è lo
-## slam ("air"), che costa AIR_SLAM_MANA di carburante e BATTERY_HEAVY di
-## batteria (senza, non parte) e fa AIR_SLAM_DAMAGE_FACTOR volte il danno
-## base; tenuto premuto più a lungo, con una bomba H, è la bomba H. Intanto
-## si resta sospesi ("pending", vedi _update_slam).
-const AIR_HEAVY_HOLD_TIME := 0.15
+## Colpo potente in aria: sempre lo slam ("air"), subito, che costa
+## AIR_SLAM_MANA di carburante e BATTERY_HEAVY di batteria (senza, non
+## parte) e fa AIR_SLAM_DAMAGE_FACTOR volte il danno base. La bomba H si fa
+## con L2 + R2 (vedi H_BOMB_CHORD_GRACE).
 const AIR_SLAM_MANA := 10.0
 const AIR_SLAM_DAMAGE_FACTOR := 2.0
 ## Aggancio del bersaglio (vedi _update_lock). Automatico: il nemico vivo
@@ -629,6 +632,9 @@ var _spell_cooldown := 0.0
 var _air_dash := false
 ## Attacco a terra in corso: "plunge" o "dash", e se ha già toccato terra.
 var _slam_kind := ""
+## Risorse pagate dall'attacco a terra in corso (x: carburante, y: batteria):
+## tornano se diventa la bomba H (vedi _start_h_bomb).
+var _slam_paid := Vector2.ZERO
 var _slam_landed := false
 ## Altezza da cui parte la picchiata e se lo slam aereo è stato caricato.
 ## Da quanto si tiene premuto L3 (-1: tasto non premuto o già usato).
@@ -808,9 +814,12 @@ func _physics_process(delta: float) -> void:
 		_update_passage_z()
 		_update_run_button(delta)
 
+	# Bomba H: L2 + R2 insieme in aria (colpo potente e focus, in qualsiasi ordine).
+	if UiNav.game_chord("heavy_attack", "focus") and _can_start_h_bomb():
+		_start_h_bomb(attack_input)
 	# Frenesia piena: L1 + R1 insieme (parata e attacco, in qualsiasi ordine)
 	# scatenano l'attacco speciale, annullando l'azione in corso.
-	if UiNav.game_chord("parry", "attack") and _can_start_special():
+	elif UiNav.game_chord("parry", "attack") and _can_start_special():
 		_start_special()
 	# La parata è istantanea: annulla subito attacchi (anche in carica),
 	# schivate, scivolate, attacchi a terra, rinculo e il bere.
@@ -1094,7 +1103,7 @@ func _update_height(delta: float) -> void:
 		gravity *= AIR_ATTACK_GRAVITY_FACTOR
 	if _state == State.SLAM and not _slam_landed:
 		# Mentre si carica lo slam aereo si fluttua (vedi _update_slam).
-		gravity = 0.0 if _charging or _slam_kind == "pending" or _state_time < SLAM_HANG else SLAM_GRAVITY
+		gravity = 0.0 if _charging or _state_time < SLAM_HANG else SLAM_GRAVITY
 	_height_velocity -= gravity * delta
 	_height += _height_velocity * delta
 	if _height <= 0.0:
@@ -1852,10 +1861,9 @@ func _start_attack(step: int, input: Vector2) -> void:
 
 ## held: concatenato tenendo premuto il tasto (non si carica).
 func _start_heavy(input: Vector2, held := false) -> void:
-	# In aria il colpo potente è lo slam o la bomba H: si decide da quanto
-	# si tiene premuto (vedi _resolve_air_heavy).
+	# In aria il colpo potente è lo slam (la bomba H è L2 + R2, vedi _start_h_bomb).
 	if is_airborne():
-		_start_slam("pending", input)
+		_start_air_slam(input)
 		return
 	if not _use_battery(BATTERY_HEAVY):
 		return
@@ -1916,13 +1924,17 @@ func _next_combo_step() -> int:
 	return _combo_step + 1 if continues else 1
 
 
-## Inizia un attacco a terra: sosta in aria prima di piombare giù (pending,
-## che diventa air o plunge, e dash).
+## Inizia un attacco a terra: sosta in aria prima di piombare giù (air,
+## plunge e dash).
 func _start_slam(kind: String, input: Vector2) -> void:
-	# Il colpo dallo scatto in aria paga qui, lo slam in _resolve_air_heavy
+	# Il colpo dallo scatto in aria paga qui, lo slam in _start_air_slam
 	# (la bomba H costa la bomba).
-	if kind == "dash" and not _use_battery(BATTERY_HEAVY):
-		return
+	_slam_paid = Vector2.ZERO
+	if kind == "dash":
+		var before := battery
+		if not _use_battery(BATTERY_HEAVY):
+			return
+		_slam_paid.y = before - battery
 	_slam_kind = kind
 	_slam_landed = false
 	_attack_heavy = false
@@ -1947,38 +1959,52 @@ func _start_slam(kind: String, input: Vector2) -> void:
 	_change_state(State.SLAM)
 
 
-## Colpo potente in aria deciso: lasciato subito (o senza bombe H) è lo
-## slam, che costa carburante e batteria; tenuto premuto, con una bomba H,
-## la bomba H, che continua a caricarsi a mezz'aria finché lo si tiene.
-func _resolve_air_heavy(held: bool) -> void:
-	if held and h_bombs > 0:
-		_slam_kind = "plunge"
-		_charging = true
-		_state_time = 0.0
-		Sfx.play("h_bomb_lift", global_position)
+## Slam (colpo potente in aria): costa carburante e batteria; senza, non
+## parte.
+func _start_air_slam(input: Vector2) -> void:
+	if mana < AIR_SLAM_MANA or battery <= 0.0:
 		return
-	if mana < AIR_SLAM_MANA or not _use_battery(BATTERY_HEAVY):
-		# Senza carburante o batteria non parte: si ricade e basta.
-		_change_state(State.NORMAL)
-		return
+	var before := battery
+	_use_battery(BATTERY_HEAVY)
 	mana -= AIR_SLAM_MANA
-	_slam_kind = "air"
-	_state_time = SLAM_HANG
+	_start_slam("air", input)
+	_slam_paid = Vector2(AIR_SLAM_MANA, before - battery)
 	Sfx.play("heavy_swing", global_position, 0.85)
+
+
+## La bomba H si può usare: in aria, con una bomba nella cintura, liberi o
+## appena partiti con lo slam (entro H_BOMB_CHORD_GRACE, vedi _start_h_bomb).
+func _can_start_h_bomb() -> bool:
+	if h_bombs <= 0 or not is_airborne():
+		return false
+	if _state == State.SLAM:
+		return _slam_kind in ["air", "dash"] and not _slam_landed and _state_time < H_BOMB_CHORD_GRACE
+	return _state in [State.NORMAL, State.ATTACK, State.PARRY, State.DODGE]
+
+
+## Bomba H (L2 + R2 in aria): Ciccio alza la bomba e fluttua caricandola
+## finché si tiene premuto uno dei due tasti; lo slam appena partito
+## restituisce quello che è costato.
+func _start_h_bomb(input: Vector2) -> void:
+	if _state == State.SLAM:
+		mana = minf(mana + _slam_paid.x, max_mana)
+		battery = minf(battery + _slam_paid.y, max_battery)
+	_interrupt_action()
+	_start_slam("plunge", input)
+	_charging = true
+	_state_time = 0.0
+	Sfx.play("h_bomb_lift", global_position)
+
+
+## Si tiene premuto almeno uno dei due tasti della bomba H (L2 o R2).
+func _h_bomb_held() -> bool:
+	return UiNav.game_held("heavy_attack") or UiNav.game_held("focus")
 
 
 ## Attacco a terra: sosta in aria, discesa e, toccato terra, l'impatto
 ## (vedi _land); poi un breve recupero.
 ## aim: direzione verso cui girarsi in carica.
 func _update_slam(input: Vector2, aim: Vector2, delta: float) -> void:
-	if _slam_kind == "pending":
-		# Sospesi un attimo, finché non si capisce se il tasto è tenuto premuto.
-		_velocity = _velocity.move_toward(Vector2.ZERO, DECELERATION * delta)
-		if not UiNav.game_held("heavy_attack"):
-			_resolve_air_heavy(false)
-		elif _state_time >= AIR_HEAVY_HOLD_TIME:
-			_resolve_air_heavy(true)
-		return
 	if _charging:
 		# A mezz'aria si fluttua salendo piano (sempre più piano con la carica):
 		# ci si gira con la levetta (o verso il bersaglio) finché si tiene
@@ -1990,7 +2016,7 @@ func _update_slam(input: Vector2, aim: Vector2, delta: float) -> void:
 		_face_lock()
 		_state_time = 0.0
 		_charge_time += delta
-		if not UiNav.game_held("heavy_attack"):
+		if not _h_bomb_held():
 			_charging = false
 		else:
 			_charge = minf(_charge + delta / HEAVY_CHARGE_TIME, 1.0)

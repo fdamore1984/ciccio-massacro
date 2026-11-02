@@ -157,7 +157,8 @@ func _specials(p: Player) -> void:
 		Platform.touch_frenzy = false
 		_tap("parry")
 		_tap("attack")
-	# Bomba H: salto e colpo potente tenuto in aria finché si tiene il tasto.
+	# Bomba H: salto, poi in aria colpo potente e focus insieme (L2 + R2),
+	# con il colpo potente tenuto finché si tiene il tasto (la carica).
 	var h_bomb := Platform.touch_h_bomb and special_ready("h_bomb")
 	if h_bomb and not _h_bomb_was:
 		_h_bomb_jumped = false
@@ -166,6 +167,7 @@ func _specials(p: Player) -> void:
 			_h_bomb_jumped = true
 	if h_bomb and p.is_airborne() and not Input.is_action_pressed("heavy_attack"):
 		Input.action_press("heavy_attack")
+		_tap("focus")
 	elif not Platform.touch_h_bomb and _h_bomb_was:
 		Input.action_release("heavy_attack")
 	_h_bomb_was = Platform.touch_h_bomb

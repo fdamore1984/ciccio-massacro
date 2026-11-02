@@ -1,7 +1,7 @@
 class_name HudActions
 extends Control
 ## Barra delle azioni in basso a sinistra: kit medici, taniche, batterie,
-## scudo, bazooka, bombe H (colpo potente in aria) e inventario, ognuno con la sua icona, il tasto del
+## scudo, bazooka, bombe H (L2 + R2 in aria) e inventario, ognuno con la sua icona, il tasto del
 ## controller scelto dal giocatore (vedi Keybinds), quante ne restano o la ricarica.
 ## Sui dispositivi touch non serve: ci sono già i pulsanti a schermo.
 ## Caselle color crema col contorno nero e l'ombra piena, come i pulsanti
@@ -11,10 +11,11 @@ const SLOT := 58.0
 const GAP := 8.0
 const FONT_SIZE := 15
 const COLOR_KEY := UiStyle.CREAM
-## Azioni: icona e azione dell'Input Map (per il tasto del controller).
+## Azioni: icona e azione dell'Input Map (per il tasto del controller;
+## più azioni insieme separate da "+").
 const ACTIONS := [
 	["potion", "potion"], ["mana", "mana_potion"], ["shield", "shield"], ["spell", "spell"],
-	["battery_potion", "battery_potion"], ["h_bomb", "heavy_attack"], ["bag", "inventory"],
+	["battery_potion", "battery_potion"], ["h_bomb", "heavy_attack+focus"], ["bag", "inventory"],
 ]
 
 var player: Player
@@ -58,7 +59,15 @@ func _draw() -> void:
 		if count != "":
 			_draw_badge(font, count, rect.position + Vector2(SLOT - 2, 0))
 		# Tasto del controller, sotto lo slot.
-		_text(font, Keybinds.primary(ACTIONS[i][1], "controller", true), rect.position + Vector2(SLOT / 2.0, SLOT + 14), 14, COLOR_KEY)
+		_text(font, _keys(ACTIONS[i][1]), rect.position + Vector2(SLOT / 2.0, SLOT + 14), 14, COLOR_KEY)
+
+
+## Tasti del controller di una o più azioni ("heavy_attack+focus" -> "L2+R2").
+func _keys(actions: String) -> String:
+	var keys := PackedStringArray()
+	for action in actions.split("+"):
+		keys.append(Keybinds.primary(action, "controller", true))
+	return "+".join(keys)
 
 
 func _is_ready(kind: String) -> bool:

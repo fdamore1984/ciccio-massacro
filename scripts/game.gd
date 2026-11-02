@@ -391,12 +391,14 @@ func _prepare_region(text: String, setup := Callable()) -> void:
 		await get_tree().process_frame
 	for i in PREWARM_FRAMES:
 		await get_tree().process_frame
-	_prewarm_end(warm)
 	_hud.show_loading(text, 1.0)
 	await get_tree().process_frame
 	_world.refresh_now()
 	_minimap.call("reset")
 	await get_tree().process_frame
+	# Le luci del bazooka si preparano con il terreno già al suo posto.
+	await _prewarm_lights(warm)
+	_prewarm_end(warm)
 	_hud.hide_loading()
 	get_tree().paused = false
 	loading = false
@@ -404,6 +406,8 @@ func _prepare_region(text: String, setup := Callable()) -> void:
 
 ## Frame di caricamento in cui restano i puntini di _prewarm_start.
 const PREWARM_FRAMES := 2
+## Frame di caricamento per ciascuna combinazione di luci (vedi _prewarm_lights).
+const PREWARM_LIGHT_FRAMES := 2
 ## Shader già preparati in questa sessione (vedi _prewarm_start).
 static var _prewarmed := false
 
@@ -414,6 +418,8 @@ static var _prewarmed := false
 ## si accende la torcia. Durante la prima schermata di caricamento si
 ## disegnano dei puntini quasi invisibili con questi materiali (sotto la
 ## schermata) e si accende per un attimo la torcia, così è tutto pronto.
+## I suoni si passano subito al browser (vedi Sfx.register_samples) e le
+## luci senza ombre si preparano alla fine (vedi _prewarm_lights).
 func _prewarm_start() -> Array[Node]:
 	var nodes: Array[Node] = []
 	if _prewarmed:
@@ -435,7 +441,42 @@ func _prewarm_start() -> Array[Node]:
 	_hud.move_child(vignette, 0)
 	nodes.append(vignette)
 	_player.warm_torch(true)
+	Sfx.register_samples()
 	return nodes
+
+
+## Il bazooka fermava il gioco la prima volta che si sparava: la luce del
+## missile è la prima senza ombre (quelle della torcia le hanno) e nel
+## browser ogni cosa che illumina (terreno, blocchi, personaggi, puntini
+## dei materiali) va preparata di nuovo per quel tipo di luce, la prima
+## volta che succede. Qui, sotto la schermata di caricamento e con il
+## terreno già mostrato, un missile in volo e uno che esplode, la bomba H
+## che esplode e un'onda d'urto restano fermi accanto al giocatore (il
+## gioco è in pausa, niente suoni né danni): prima con la torcia spenta,
+## poi accesa, perché le due cose insieme sono un'altra combinazione.
+func _prewarm_lights(nodes: Array[Node]) -> void:
+	if nodes.is_empty():
+		return
+	for exploding: bool in [false, true]:
+		var missile := Missile.new()
+		missile.altitude = _player.ground_elevation
+		missile.position = _player.position + Vector2(70.0 if exploding else -70.0, 0)
+		_entities.add_child(missile)
+		if exploding:
+			missile.show_explosion()
+		nodes.append(missile)
+	var blast := HBombBlast.new()
+	blast.radius = Player.H_BOMB_MIN_RADIUS
+	blast.altitude = _player.ground_elevation
+	blast.position = _player.position + Vector2(0, 40)
+	_entities.add_child(blast)
+	blast.show_fire()
+	nodes.append(blast)
+	GroundFx.warm_shockwave(_player.position, _player.ground_elevation, Missile.SCORCH_RADIUS)
+	for torch: bool in [false, true]:
+		_player.warm_torch(torch)
+		for i in PREWARM_LIGHT_FRAMES:
+			await get_tree().process_frame
 
 
 func _prewarm_end(nodes: Array[Node]) -> void:
@@ -444,6 +485,7 @@ func _prewarm_end(nodes: Array[Node]) -> void:
 	for node in nodes:
 		node.queue_free()
 	_player.warm_torch(false)
+	GroundFx.clear_waves()
 
 
 ## Suggerimento vicino a un ingresso (chiave del testo, "" se nessuno).
