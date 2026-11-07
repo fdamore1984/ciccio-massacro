@@ -154,6 +154,7 @@ func _explode(enemy: Enemy, crashed := false) -> void:
 		var player := World.current.player as Player
 		if player and player.global_position.distance_to(global_position) < 700.0:
 			player.shake(0.55)
+			Rumble.explosion(player.global_position.distance_to(global_position))
 
 
 func _draw() -> void:
