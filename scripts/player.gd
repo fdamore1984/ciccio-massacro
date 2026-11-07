@@ -68,6 +68,9 @@ signal frenzy_changed(current: float, maximum: float)
 ## Inizio e fine dell'attacco speciale della Frenesia.
 signal special_started
 signal special_finished
+## Finita l'animazione dell'ultima esplosione della bomba H in corso (vedi
+## is_h_bomb_exploding): Game mostra allora i potenziamenti rimandati.
+signal h_bomb_finished
 ## Un'azione è riuscita (per il tutorial giocabile, vedi TutorialRun):
 ## "jump", "attack", "heavy", "parry", "dodge", "missile", "slam", "h_bomb",
 ## "special", "shield", "lock", "drink_<scorta>".
@@ -202,7 +205,7 @@ const DASH_SLAM_DAMAGE_FACTOR := 2.4
 ## AIR_SLAM_MANA di carburante e BATTERY_HEAVY di batteria (senza, non
 ## parte) e fa AIR_SLAM_DAMAGE_FACTOR volte il danno base. La bomba H si fa
 ## con L2 + R2 (vedi H_BOMB_CHORD_GRACE).
-const AIR_SLAM_MANA := 10.0
+const AIR_SLAM_MANA := 6.0
 const AIR_SLAM_DAMAGE_FACTOR := 2.0
 ## Aggancio del bersaglio (vedi _update_lock). Automatico: il nemico vivo
 ## più vicino entro LOCK_RANGE che si vede, mai uno oltre un muro, un
@@ -382,7 +385,7 @@ const START_MANA_POTIONS := 1
 ## Missile del bazooka: costo in carburante, attesa tra un lancio e
 ## l'altro, danni (crescono con il livello e con i potenziamenti dei
 ## missili, +20% ciascuno).
-const SPELL_COST := 20.0
+const SPELL_COST := 12.0
 const SPELL_COOLDOWN := 0.45
 const FIREBALL_DAMAGE := 18
 const FIREBALL_DAMAGE_PER_LEVEL := 4
@@ -394,10 +397,10 @@ const HEAVY_CHARGE_TIME := 0.9
 ## Ogni colpo potente consuma mana per ogni secondo in cui si tiene premuto
 ## il tasto (carica compresa, a terra e in aria): senza mana la carica si
 ## interrompe e il colpo parte con quella raggiunta (senza mana non si carica).
-const HEAVY_CHARGE_MANA := 20.0
+const HEAVY_CHARGE_MANA := 12.0
 ## Carburante consumato da ogni colpo potente a terra, anche senza caricarlo
 ## (senza carburante il colpo parte lo stesso).
-const HEAVY_MANA := 4.0
+const HEAVY_MANA := 2.5
 ## La motosega in carica si scalda: alone arancione, scintille e fumo.
 const COLOR_CHARGE_GLOW := Color(1.0, 0.55, 0.15)
 
@@ -477,17 +480,22 @@ const FOCUS_AURA_RADIUS := 2.6
 const COLOR_FOCUS_AURA := Color(1, 1, 1, 0.5)
 ## Curva dell'esperienza (vedi experience_for): punti per il livello 2,
 ## aumento lineare e quadratico per livello.
-const XP_CURVE_BASE := 40.0
-const XP_CURVE_STEP := 25.0
-const XP_CURVE_QUAD := 2.5
+const XP_CURVE_BASE := 30.0
+const XP_CURVE_STEP := 18.0
+const XP_CURVE_QUAD := 1.5
+## Curva della versione 3 (più lenta), per convertire i salvataggi; la
+## versione 2 usava la stessa base e lo stesso passo.
+const XP_CURVE_V3_BASE := 40.0
+const XP_CURVE_V3_STEP := 25.0
+const XP_CURVE_V3_QUAD := 2.5
 ## Curva della versione 2 (a tratti), per convertire i salvataggi.
 const XP_CURVE_FAST_LEVELS := 10
 const XP_CURVE_LATE := 32.0
 ## Potenziamenti con il nome dei salvataggi precedenti -> nome attuale.
 const LEGACY_UPGRADES := {"stamina": "battery"}
 ## Versione della curva salvata con l'esperienza (1: lineare, 2: a tratti,
-## 3: quadratica continua).
-const XP_CURVE_VERSION := 3
+## 3: quadratica continua, 4: quadratica più rapida).
+const XP_CURVE_VERSION := 4
 const BATTERY_BLOCK := 30.0
 const BATTERY_RUN := 16.0
 ## Guardia rotta: si resta storditi per questo tempo.
@@ -576,6 +584,8 @@ var mana_potions := START_MANA_POTIONS
 var battery_potions := START_BATTERY_POTIONS
 ## Bombe H nella cintura (vedi h_bomb_capacity).
 var h_bombs := 0
+## Esplosioni ancora visibili (vedi is_h_bomb_exploding).
+var _h_bomb_blasts := 0
 ## Nel tutorial giocabile non si muore: la vita non scende sotto 1.
 var immortal := false
 ## Nel tutorial giocabile la Frenesia piena non cala da sola (vedi TutorialRun).
@@ -635,6 +645,9 @@ var _battery_delay := 0.0
 var _running := false
 ## Pozione che si sta bevendo ("potion", "mana_potion" o "batteria_potion").
 var _drinking := ""
+## Versione web: batteria finita, si aspetta di poter usare da soli una batteria di ricambio
+## (vedi _auto_battery_potion).
+var _battery_out := false
 ## Corsa accesa (si alterna premendo "run").
 var _run_on := false
 ## Stordimento dopo una guardia rotta (si usa lo stato HURT, più lungo).
@@ -815,6 +828,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if _touch_assist:
 		_touch_assist.update(self)
+	_auto_battery_potion()
 	_state_time += delta
 	_dodge_cooldown = maxf(_dodge_cooldown - delta, 0.0)
 	_dodge_chain_grace = maxf(_dodge_chain_grace - delta, 0.0)
@@ -1807,7 +1821,11 @@ func load_state(data: Dictionary) -> void:
 	# livello già fatta, sulla curva nuova.
 	var curve := int(data.get("xp_curve", 1))
 	if curve < XP_CURVE_VERSION:
-		var old_needed := _old_experience_for(level) if curve == 1 else _v2_experience_for(level)
+		var old_needed := _old_experience_for(level)
+		if curve == 2:
+			old_needed = _v2_experience_for(level)
+		elif curve == 3:
+			old_needed = _v3_experience_for(level)
 		experience = floori(float(experience) / old_needed * experience_for(level))
 	experience = clampi(experience, 0, experience_needed() - 1)
 	_base_max_health = int(data.get("base_max_health", _base_max_health))
@@ -1942,19 +1960,26 @@ func experience_needed() -> int:
 	return experience_for(level)
 
 
-## Curva dell'esperienza, continua e senza salti: 40 punti per il livello
+## Curva dell'esperienza, continua e senza salti: 30 punti per il livello
 ## 2, poi base + passo * n + quadratico * n^2 (n = livelli già fatti):
-## circa 470 al 10, 880 al 15, 1400 al 20, 2900 al 30. Dato che anche
-## l'esperienza dei nemici cresce del 10% a livello, le uccisioni per
-## livello salgono piano (circa 3 al primo, 17 al decimo, 33 al ventesimo).
+## circa 310 al 10, 580 al 15, 910 al 20, 1810 al 30 (un terzo in meno
+## della versione 3). Dato che anche l'esperienza dei nemici cresce del 10%
+## a livello, le uccisioni per livello salgono piano (circa 2 al primo, 11
+## al decimo, 22 al ventesimo).
 static func experience_for(from_level: int) -> int:
 	var n := float(maxi(from_level - 1, 0))
 	return roundi(XP_CURVE_BASE + XP_CURVE_STEP * n + XP_CURVE_QUAD * n * n)
 
 
+## Curva della versione 3, per convertire i salvataggi precedenti.
+static func _v3_experience_for(from_level: int) -> int:
+	var n := float(maxi(from_level - 1, 0))
+	return roundi(XP_CURVE_V3_BASE + XP_CURVE_V3_STEP * n + XP_CURVE_V3_QUAD * n * n)
+
+
 ## Curva della versione 2, per convertire i salvataggi precedenti.
 static func _v2_experience_for(from_level: int) -> int:
-	var early := XP_CURVE_BASE + XP_CURVE_STEP * (from_level - 1)
+	var early := XP_CURVE_V3_BASE + XP_CURVE_V3_STEP * (from_level - 1)
 	var beyond := maxi(from_level - XP_CURVE_FAST_LEVELS, 0)
 	return roundi(early + XP_CURVE_LATE * pow(beyond, 1.5))
 
@@ -2331,8 +2356,11 @@ func _slam_impact() -> void:
 ## perde una parte della vita), Ciccio resta intatto ma annerito.
 func _h_bomb_impact() -> void:
 	action_done.emit("h_bomb")
+	# Si conta prima dei danni: i nemici muoiono subito e l'esperienza può
+	# far salire di livello mentre l'esplosione è appena cominciata.
 	h_bombs = maxi(h_bombs - 1, 0)
 	var radius := _slam_radius()
+	_h_bomb_blasts += 1
 	for enemy in Enemy.alive_list():
 		if not is_instance_valid(enemy) or enemy.is_dead() or absf(enemy.ground_elevation - ground_elevation) > HIT_HEIGHT_REACH:
 			continue
@@ -2350,6 +2378,7 @@ func _h_bomb_impact() -> void:
 	blast.radius = radius
 	blast.position = position
 	blast.altitude = ground_elevation
+	blast.tree_exited.connect(_on_h_bomb_blast_done)
 	get_parent().add_child(blast)
 	GroundFx.shockwave(global_position, ground_elevation, radius)
 	soot = 1.0
@@ -2385,6 +2414,18 @@ func is_frenzy_full() -> bool:
 ## Attacco speciale in corso (Game rimanda la scelta dei potenziamenti).
 func is_special_active() -> bool:
 	return _state == State.SPECIAL
+
+
+## Esplosione della bomba H ancora in corso (Game rimanda la scelta dei
+## potenziamenti finché l'animazione non è finita, vedi HBombBlast.LIFETIME).
+func is_h_bomb_exploding() -> bool:
+	return _h_bomb_blasts > 0
+
+
+func _on_h_bomb_blast_done() -> void:
+	_h_bomb_blasts = maxi(_h_bomb_blasts - 1, 0)
+	if _h_bomb_blasts == 0 and is_inside_tree():
+		h_bomb_finished.emit()
 
 
 ## Buio dello sfondo durante la cinematica dell'attacco speciale (0-1):
@@ -2723,6 +2764,23 @@ func _apply_drink() -> void:
 	else:
 		mana = minf(mana + mana_potion_restore(), max_mana)
 		Sfx.play("mana_potion", global_position)
+
+
+## Solo nella versione web (con qualsiasi controllo): appena la batteria arriva a
+## zero si usa da soli una batteria di ricambio, se ce n'è, con l'animazione
+## normale (vedi _start_drink: parte non appena si è fermi a terra senza
+## fare altro). La batteria intanto torna da sola, quindi si ricorda che era
+## finita; se si riempie prima, non serve più.
+func _auto_battery_potion() -> void:
+	if not Platform.is_web:
+		return
+	if battery <= 0.0 and _state != State.DEAD:
+		_battery_out = true
+	if battery >= max_battery or battery_potions == 0:
+		_battery_out = false
+	if _battery_out and can_drink():
+		_battery_out = false
+		_start_drink("battery_potion")
 
 
 ## Velocità attuale sul terreno (i nemici la usano per capire se ci si ritira).
