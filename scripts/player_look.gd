@@ -178,8 +178,9 @@ static func draw_parts(canvas: CanvasItem, parts: Array, alpha: float, iris: Col
 
 ## Direzioni della faccia già pronta dei nemici (vedi enemy_face).
 const FACE_DIRECTIONS := 16
-## Grandezze degli occhi dei nemici, rispetto a quelli di Ciccio.
-const ENEMY_EYE_SCALES := [0.8, 0.9, 1.0, 1.1]
+## Grandezze degli occhi dei nemici, rispetto a quelli di Ciccio: tutti
+## uguali (l'aspetto dei nemici è standard, vedi Enemy._apply_look).
+const ENEMY_EYE_SCALES := [1.0]
 ## Faccia dei nemici già pronta in mesh, per chiave (vedi enemy_face).
 static var _enemy_faces := {}
 

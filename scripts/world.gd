@@ -139,6 +139,10 @@ enum LightMode { NONE, FACE, TOP }
 ## muro degli interni.
 enum Kind { GROUND, MOUNTAIN, RAVINE, ROCK }
 
+## Versione della pianta di città e sotterranei: le zone scoperte salvate
+## con una versione precedente non valgono più (vedi load_state).
+const MAP_VERSION := 2
+
 ## Mondo attivo: giocatore e nemici lo usano per muoversi.
 static var current: World
 
@@ -195,6 +199,8 @@ var _style_tops: Array[Color] = []
 var _style_faces: Array = []
 var _zone_colors := {}
 var _max_building := 1
+## Livelli del terreno per ogni piano degli edifici (vedi CityPlan).
+var _storey_levels := 1
 var _kind_cache := {}
 var _ramp_cache := {}
 var _path_cache := {}
@@ -279,9 +285,10 @@ func _ready() -> void:
 	for zone: String in ground:
 		_zone_colors[CityPlan.ZONE_NAMES.find(zone)] = _color(ground[zone])
 	var lots: Dictionary = _city_data["lots"]
+	_storey_levels = int(_city_data["storey_levels"])
 	for kind: String in lots:
 		if lots[kind].has("height"):
-			_max_building = maxi(_max_building, int(lots[kind]["height"][1]))
+			_max_building = maxi(_max_building, int(lots[kind]["height"][1]) * _storey_levels)
 	_window_colors = _colors(_terrain["window_colors"])
 	_dungeon_floor_colors = _colors(_dungeon_data["floor_colors"])
 	_dungeon_face_colors = _colors(_dungeon_data["face_colors"])
@@ -346,7 +353,7 @@ func save_state() -> Dictionary:
 	return {
 		"chests": _opened_chests.keys().map(SaveGame.array), "totems": totems,
 		"stocks": stocks, "caves": cleared_caves.keys().map(SaveGame.array),
-		"explored": _explored_state(),
+		"explored": _explored_state(), "map_version": MAP_VERSION,
 	}
 
 
@@ -373,8 +380,10 @@ func load_state(data: Dictionary) -> void:
 		_merchant_stocks[SaveGame.vector(entry["at"])] = stock
 	for at: Array in data.get("caves", []):
 		cleared_caves[SaveGame.vector(at)] = true
-	# I salvataggi di prima non hanno le zone scoperte: la mappa riparte vuota.
-	var saved_maps: Dictionary = data.get("explored", {})
+	# I salvataggi di prima non hanno le zone scoperte: la mappa riparte
+	# vuota; anche quelli di una pianta diversa della città e dei
+	# sotterranei (MAP_VERSION), dove le zone scoperte non corrispondono più.
+	var saved_maps: Dictionary = data.get("explored", {}) if int(data.get("map_version", 1)) >= MAP_VERSION else {}
 	for key: String in saved_maps:
 		var seen := {}
 		for entry: Array in saved_maps[key]:
@@ -707,8 +716,10 @@ func level_of(cell: Vector2i) -> int:
 			kind = Kind.RAVINE
 			level = -int(_terrain["ravine_depth"])
 		elif CityPlan.zone_of(city) == CityPlan.Zone.BUILDING:
+			# Gli edifici sono alti un numero di piani: ogni piano sono più
+			# livelli, in proporzione con i personaggi.
 			kind = Kind.MOUNTAIN
-			level = _levels + CityPlan.height_of(city)
+			level = _levels + CityPlan.height_of(city) * _storey_levels
 	_kind_cache[cell] = kind
 	_level_cache[cell] = level
 	return level
@@ -1624,8 +1635,11 @@ func draw_cell(canvas: Object, cell: Vector2i, offset: Vector2) -> void:
 	var windows := kind == Kind.MOUNTAIN
 	# Nella metro le pareti sono piastrellate e i vagoni hanno i finestrini.
 	var pattern := ""
-	if dungeon and dungeon.is_metro() and kind == Kind.ROCK:
-		pattern = "train" if dungeon.tile_at(cell) == Dungeon.Tile.TRAIN else "tiles"
+	if dungeon and dungeon.is_metro():
+		if dungeon.tile_at(cell) == Dungeon.Tile.TRAIN:
+			pattern = "train"
+		elif kind == Kind.ROCK:
+			pattern = "tiles"
 	for side in 2:
 		var other := cell + (Vector2i(1, 0) if side == 0 else Vector2i(0, 1))
 		# Verso una fessura la parete è terra spaccata, non mattoni.
@@ -1668,8 +1682,11 @@ func _top_color(cell: Vector2i, kind: int, path: bool) -> Color:
 				return _metro_colors["train_top"] if dungeon.tile_at(cell) == Dungeon.Tile.TRAIN else _metro_colors["wall_color"]
 			return _dungeon_wall_color
 	if dungeon and dungeon.is_metro():
-		if dungeon.tile_at(cell) == Dungeon.Tile.TRACK:
-			return _metro_colors["track_color"]
+		match dungeon.tile_at(cell):
+			Dungeon.Tile.TRACK:
+				return _metro_colors["track_color"]
+			Dungeon.Tile.TRAIN:
+				return _metro_colors["train_top"]
 		return _metro_floor_colors[posmod(hash([cell.x, cell.y]), _metro_floor_colors.size())]
 	if dungeon:
 		return _dungeon_floor_colors[posmod(hash([cell.x, cell.y]), _dungeon_floor_colors.size())]
@@ -1787,23 +1804,27 @@ func _draw_windows(canvas: Object, a: Vector2, b: Vector2, top_a: float, top_b: 
 	var size := float(windows["size"])
 	var dark := _color(windows["glass"]) if windows.has("glass") else _window_colors[0]
 	var reserved := 0.0
-	if style.get("shopfront", false) and maxf(bottom_a, bottom_b) < 1.0 and height >= 28.0:
+	# Misure della vetrina in proporzione all'altezza di un piano.
+	var storey := float(_storey_levels)
+	if style.get("shopfront", false) and maxf(bottom_a, bottom_b) < 1.0 and height >= 28.0 * storey:
 		# Vetrina al piano terra, con la tenda sopra e la saracinesca a metà.
-		reserved = 26.0
+		reserved = 26.0 * storey
 		var awnings: Array = style["awnings"]
 		var awning := _color(awnings[rng.randi() % awnings.size()]).darkened(0.15)
 		var p0 := a.lerp(b, 0.08)
 		var p1 := a.lerp(b, 0.92)
 		var h0 := lerpf(bottom_a, bottom_b, 0.08)
 		var h1 := lerpf(bottom_a, bottom_b, 0.92)
+		var glass_top := 18.0 * storey
 		_fill(canvas, PackedVector2Array([p0 - Vector2(0, h0 + 3.0), p1 - Vector2(0, h1 + 3.0),
-				p1 - Vector2(0, h1 + 18.0), p0 - Vector2(0, h0 + 18.0)]), _window_colors[0])
-		var shutter := rng.randf_range(0.3, 0.8)
-		_fill(canvas, PackedVector2Array([p0 - Vector2(0, h0 + 18.0 - 15.0 * shutter), p1 - Vector2(0, h1 + 18.0 - 15.0 * shutter),
-				p1 - Vector2(0, h1 + 18.0), p0 - Vector2(0, h0 + 18.0)]), Color(0.42, 0.42, 0.4))
-		_fill(canvas, PackedVector2Array([a - Vector2(0, bottom_a + 18.0), b - Vector2(0, bottom_b + 18.0),
-				b - Vector2(0, bottom_b + 24.0), a - Vector2(0, bottom_a + 24.0)]), awning)
-	var depth := 8.0
+				p1 - Vector2(0, h1 + glass_top), p0 - Vector2(0, h0 + glass_top)]), _window_colors[0])
+		var shutter := rng.randf_range(0.3, 0.8) * (glass_top - 3.0)
+		_fill(canvas, PackedVector2Array([p0 - Vector2(0, h0 + glass_top - shutter), p1 - Vector2(0, h1 + glass_top - shutter),
+				p1 - Vector2(0, h1 + glass_top), p0 - Vector2(0, h0 + glass_top)]), Color(0.42, 0.42, 0.4))
+		_fill(canvas, PackedVector2Array([a - Vector2(0, bottom_a + glass_top), b - Vector2(0, bottom_b + glass_top),
+				b - Vector2(0, bottom_b + glass_top + 6.0 * storey), a - Vector2(0, bottom_a + glass_top + 6.0 * storey)]), awning)
+	# Una fila di finestre per piano, a metà del piano.
+	var depth := (float(windows["row"]) - float(windows["size"])) * 0.4
 	while depth + size + 2.0 < height - reserved:
 		for k in columns:
 			var t0 := (k + 0.2) / columns
@@ -1894,38 +1915,45 @@ func _draw_wall_tiles(canvas: Object, a: Vector2, b: Vector2, top_a: float, top_
 
 
 ## Fiancata di un vagone abbandonato: fascia chiara, finestrini bui con i
-## vetri rotti, una porta ogni tre rombi e la ruggine in basso.
+## vetri rotti, una porta ogni tre rombi e la ruggine in basso, in
+## proporzione all'altezza della fiancata (dai binari è alta il doppio che
+## dalla banchina, dove si vede solo la parte di sopra).
 func _draw_train_side(canvas: Object, a: Vector2, b: Vector2, top_a: float, top_b: float,
 		bottom_a: float, bottom_b: float, cell: Vector2i, side: int, color: Color) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([_decor_seed(), cell.x, cell.y, side, "train"])
 	var glass: Color = _metro_colors["train_window"]
 	var stripe := Color(0.82, 0.78, 0.66).darkened(0.2 * side)
-	_fill(canvas, PackedVector2Array([a - Vector2(0, bottom_a + 30.0), b - Vector2(0, bottom_b + 30.0),
-			b - Vector2(0, bottom_b + 36.0), a - Vector2(0, bottom_a + 36.0)]), stripe)
+	# Altezze dalla cima: la fiancata intera è alta FULL (dai binari al tetto).
+	var full := float(train_height())
+	var at := func(t: float, depth: float) -> Vector2:
+		return a.lerp(b, t) - Vector2(0, lerpf(top_a, top_b, t) - depth)
+	var band := func(t0: float, t1: float, from: float, to: float) -> PackedVector2Array:
+		return PackedVector2Array([at.call(t0, from), at.call(t1, from), at.call(t1, to), at.call(t0, to)])
+	var height := minf(top_a - bottom_a, top_b - bottom_b)
+	_fill(canvas, band.call(0.0, 1.0, full * 0.5, full * 0.58), stripe)
 	var door := side == 1 and posmod(cell.x, 3) == 1
 	var t0 := 0.2 if door else 0.12
 	var t1 := 0.8 if door else 0.88
-	var p0 := a.lerp(b, t0)
-	var p1 := a.lerp(b, t1)
-	var low := 8.0 if door else 44.0
-	var h0 := lerpf(bottom_a, bottom_b, t0)
-	var h1 := lerpf(bottom_a, bottom_b, t1)
-	_fill(canvas, PackedVector2Array([p0 - Vector2(0, h0 + low), p1 - Vector2(0, h1 + low), p1 - Vector2(0, h1 + 78.0), p0 - Vector2(0, h0 + 78.0)]),
-			color.darkened(0.35) if door else glass)
-	if door:
-		_fill(canvas, PackedVector2Array([p0.lerp(p1, 0.15) - Vector2(0, h0 + 46.0), p0.lerp(p1, 0.85) - Vector2(0, h1 + 46.0),
-				p0.lerp(p1, 0.85) - Vector2(0, h1 + 72.0), p0.lerp(p1, 0.15) - Vector2(0, h0 + 72.0)]), glass)
-	elif rng.randf() < 0.5:
-		# Vetro incrinato (o un'impronta di sangue).
-		var center := p0.lerp(p1, rng.randf_range(0.3, 0.7)) - Vector2(0, lerpf(h0, h1, 0.5) + 60.0)
-		var crack := PackedVector2Array()
-		for k in 4:
-			var out := Vector2.from_angle(rng.randf() * TAU)
-			crack.append_array([center, center + out * rng.randf_range(6.0, 14.0)])
-		_lines(canvas, crack, Color(0.6, 0.65, 0.7, 0.5) if rng.randf() < 0.7 else _metro_colors["blood_color"], 1.2)
-	_fill_colors(canvas, PackedVector2Array([a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), b - Vector2(0, bottom_b + 18.0), a - Vector2(0, bottom_a + 18.0)]),
+	if height >= full * 0.45:
+		_fill(canvas, band.call(t0, t1, full * 0.1, minf(full * (0.9 if door else 0.44), height - 2.0)), color.darkened(0.35) if door else glass)
+		if door:
+			_fill(canvas, band.call(t0 + 0.1, t1 - 0.1, full * 0.14, full * 0.4), glass)
+		elif rng.randf() < 0.5:
+			# Vetro incrinato (o un'impronta di sangue).
+			var center: Vector2 = at.call(rng.randf_range(0.3, 0.7), full * 0.26)
+			var crack := PackedVector2Array()
+			for k in 4:
+				var out := Vector2.from_angle(rng.randf() * TAU)
+				crack.append_array([center, center + out * rng.randf_range(6.0, 14.0)])
+			_lines(canvas, crack, Color(0.6, 0.65, 0.7, 0.5) if rng.randf() < 0.7 else _metro_colors["blood_color"], 1.2)
+	_fill_colors(canvas, PackedVector2Array([a - Vector2(0, bottom_a), b - Vector2(0, bottom_b), b - Vector2(0, bottom_b + 14.0), a - Vector2(0, bottom_a + 14.0)]),
 			PackedColorArray([Color(0.18, 0.1, 0.06, 0.6), Color(0.18, 0.1, 0.06, 0.6), Color(0.18, 0.1, 0.06, 0.0), Color(0.18, 0.1, 0.06, 0.0)]))
+
+
+## Altezza della fiancata intera di un vagone, dai binari al tetto.
+func train_height() -> float:
+	return float(dungeon.train_level - dungeon.track_level) * level_height if dungeon else level_height * 2.0
 
 
 ## Per ogni punto, di quanti pixel scendere per arrivare al punto del
@@ -2063,6 +2091,14 @@ func _draw_metro_floor(canvas: Object, cell: Vector2i, offset: Vector2, rng: Ran
 	var point := func(u: float, v: float) -> Vector2:
 		return _from_uv((cell.x + u) * CELL, (cell.y + v) * CELL) + offset - lift
 	var tile := dungeon.tile_at(cell)
+	if tile == Dungeon.Tile.TRAIN:
+		# Tetto del vagone: le giunture tra le lamiere e una bocchetta.
+		var seams := PackedVector2Array([point.call(0.0, 0.5), point.call(1.0, 0.5), point.call(0.5, 0.15), point.call(0.5, 0.85)])
+		canvas.draw_multiline(seams, Color(0, 0, 0, 0.18), 1.5)
+		if posmod(cell.x, 3) == 0:
+			canvas.draw_colored_polygon(PackedVector2Array([point.call(0.3, 0.3), point.call(0.7, 0.3), point.call(0.7, 0.7), point.call(0.3, 0.7)]),
+					(_metro_colors["train_top"] as Color).darkened(0.25))
+		return
 	if tile == Dungeon.Tile.TRACK:
 		var sleepers := PackedVector2Array()
 		for u: float in [0.2, 0.533, 0.866]:
@@ -2183,8 +2219,10 @@ func _dungeon_obstacles(chunk: Vector2i) -> Array:
 				if roll < 0.0:
 					type_id = id
 					break
-			# Le panchine stanno sulle banchine, non sui binari.
-			if type_id == "" or (type_id == "bench" and dungeon.tile_at(cell) != Dungeon.Tile.FLOOR):
+			# Le panchine stanno sulle banchine, non sui binari; sui tetti dei
+			# vagoni non c'è niente.
+			if type_id == "" or (type_id == "bench" and dungeon.tile_at(cell) != Dungeon.Tile.FLOOR) \
+					or dungeon.tile_at(cell) == Dungeon.Tile.TRAIN:
 				continue
 			var type: Dictionary = _obstacle_types[type_id]
 			var radius_range: Array = type["radius"]

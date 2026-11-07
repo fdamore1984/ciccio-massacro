@@ -41,6 +41,13 @@ var _lift := 0.0
 var _edge := Vector2.RIGHT
 ## Aura della modalità focus disegnata adesso.
 var _aura_shown := false
+## Il tipo è tra INTERACTIVE o tra TALL (calcolato una volta, vedi setup).
+var _interactive := false
+var _tall := false
+## Piedi del giocatore sullo schermo, calcolati una volta per frame per tutti
+## gli ostacoli alti (vedi _player_feet).
+static var _feet := Vector2.INF
+static var _feet_frame := -1
 var _flash_tween: Tween
 
 
@@ -57,8 +64,10 @@ func setup(data: Dictionary, type: Dictionary) -> void:
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	# La torcia lo illumina come il punto del pavimento su cui sta.
 	material = LightShaders.feet()
-	set_process(type_id in TALL or type_id in INTERACTIVE)
-	if type_id in INTERACTIVE:
+	_interactive = type_id in INTERACTIVE
+	_tall = type_id in TALL
+	set_process(_tall or _interactive)
+	if _interactive:
 		add_to_group(LowHealthVignette.FOCUS_GROUP)
 
 
@@ -109,11 +118,42 @@ func _aura_height() -> float:
 
 
 func _process(_delta: float) -> void:
-	if type_id in INTERACTIVE:
+	if _interactive:
 		var aura := LowHealthVignette.focus_held() and _is_active()
 		if aura != _aura_shown:
 			_aura_shown = aura
 			queue_redraw()
+	if not _tall:
+		_process_interactive()
+		return
+	var feet := _player_feet()
+	var target := 1.0
+	if feet != Vector2.INF:
+		# Confronto sullo schermo: anche il giocatore è disegnato alla sua altezza.
+		var offset := feet - (global_position - Vector2(0, _lift))
+		# Dietro l'albero (più in alto sullo schermo) e sotto la chioma.
+		if offset.y < 0.0 and offset.y > -radius * 3.2 and absf(offset.x) < radius * 1.1:
+			target = CANOPY_FADE_ALPHA
+	if not is_equal_approx(target, _canopy_alpha):
+		_canopy_alpha = move_toward(_canopy_alpha, target, 0.1)
+		queue_redraw()
+
+
+## Piedi del giocatore sullo schermo (alla sua altezza), uguali per tutti
+## gli ostacoli nello stesso frame; Vector2.INF senza giocatore.
+static func _player_feet() -> Vector2:
+	var frame := Engine.get_process_frames()
+	if frame != _feet_frame:
+		_feet_frame = frame
+		_feet = Vector2.INF
+		var player := World.current.player as Player if World.current else null
+		if player:
+			_feet = player.global_position - Vector2(0, player.ground_elevation)
+	return _feet
+
+
+## Animazioni degli elementi con cui si interagisce (non quelli alti).
+func _process_interactive() -> void:
 	if type_id in ["cave", "metro"]:
 		return
 	if type_id in ["totem", "merchant", "stairs", "exit"]:
@@ -122,19 +162,6 @@ func _process(_delta: float) -> void:
 	if type_id == "chest":
 		# Brilla finché è chiusa; poi si ridisegna aperta.
 		_opened = World.current != null and World.current.is_chest_opened(position)
-		queue_redraw()
-		return
-	var player: Node2D = World.current.player if World.current else null
-	var target := 1.0
-	if player:
-		# Confronto sullo schermo: anche il giocatore è disegnato alla sua altezza.
-		var player_lift: float = World.current.elevation_at(player.global_position)
-		var offset := player.global_position - Vector2(0, player_lift) - (global_position - Vector2(0, _lift))
-		# Dietro l'albero (più in alto sullo schermo) e sotto la chioma.
-		if offset.y < 0.0 and offset.y > -radius * 3.2 and absf(offset.x) < radius * 1.1:
-			target = CANOPY_FADE_ALPHA
-	if not is_equal_approx(target, _canopy_alpha):
-		_canopy_alpha = move_toward(_canopy_alpha, target, 0.1)
 		queue_redraw()
 
 

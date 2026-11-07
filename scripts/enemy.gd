@@ -26,11 +26,11 @@ extends Node2D
 ## L'arma disegnata (voce "weapon" del tipo) è solo grafica: mazza,
 ## manganello, tubo, mazza da demolizione, pistola o fucile.
 ##
-## Aspetto: corpo tondo come il giocatore, braccia e gambe a linee nere.
-## Ogni nemico nasce con una taglia (che cambia anche il raggio dei colpi e
-## delle collisioni), un colore della pelle e accessori a caso (capelli,
-## bandana, berretto, occhiali, maschera...), scelti da un seme salvato con
-## il nemico (vedi _apply_look).
+## Aspetto: corpo tondo come il giocatore, braccia e gambe a linee nere,
+## la faccia di Ciccio. È uguale per tutti i nemici dello stesso tipo (vedi
+## _apply_look): la taglia del tipo, la pelle della sua razza, niente
+## accessori; il contorno nero del corpo è spesso quanto le linee nere di
+## occhi e bocca (vedi ink_width).
 ##
 ## Vita a punti, come quella del giocatore: ogni tipo ha i suoi punti vita
 ## ("points" in data/enemies.json, che crescono col livello di minaccia;
@@ -47,9 +47,14 @@ extends Node2D
 ## spappolano facendogli un danno (vedi _rush e _burst). Muoiono con un colpo.
 ##
 ## I mutanti della metropolitana (tipi con "mutant") combattono come gli
-## altri ma senza armi: pelle livida, niente accessori, più occhi rossi,
-## escrescenze sul corpo e artigli al posto delle mani; quelli che
+## altri ma senza armi: pelle livida, tre occhi rossi, escrescenze sul
+## corpo e artigli al posto delle mani; quelli che
 ## sputano ("weapon": "spit") lanciano acido dalla bocca invece di sparare.
+##
+## Nessun nemico si muove più veloce di Ciccio che cammina (vedi
+## max_speed): vale per tutti i movimenti, anche scatti, affondi e salti
+## d'attacco (il salto dura di più, vedi _slam_air_time); non per le spinte
+## che subisce (colpi, esplosioni).
 ##
 ## Si muovono sul terreno a gradini come il giocatore: scendono dai gradini
 ## cadendo e, quando un gradino alto un livello li blocca, ci saltano sopra;
@@ -139,6 +144,8 @@ const EXPOSED_RECOVER_SHARE := 0.3
 ## Se il tiro non riesce si riprova dopo un po'; dopo l'impatto il nemico
 ## resta scoperto più a lungo.
 const SLAM_RETRY := Vector2(1.2, 2.5)
+## Velocità più alta del salto rispetto alla media (vedi _slam_air_time).
+const SLAM_EASE_PEAK := 1.25
 const SLAM_RECOVER_EXTRA := 0.6
 ## Parte della carica in cui la zona d'impatto segue ancora il giocatore.
 const SLAM_TRACKING := 0.7
@@ -201,6 +208,8 @@ const VERY_FAR_RANGE := 1500.0
 const HORDE_NEAR_RANGE := 450.0
 const HORDE_FAR_RANGE := 900.0
 const SEPARATION_MAX := 10
+## Raggio del nemico più grosso (il boss della metro), per le ricerche nella griglia.
+const MAX_ENEMY_RADIUS := 60.0
 
 ## Scia rossa: mentre carica l'attacco il nemico si accende di un bagliore
 ## rosso; quando scatta per colpire (e nel salto con colpo a terra) lascia
@@ -223,33 +232,32 @@ const SILHOUETTE_INTERVAL := 3
 ## Tinta del nemico agganciato dal giocatore (vedi set_locked): i valori
 ## sopra 1 lo illuminano di rosso invece di scurirlo.
 const COLOR_LOCKED := Color(1.7, 0.5, 0.45)
-## Aspetto casuale: taglia (moltiplica il raggio del tipo), tonalità della
-## pelle e colori di capelli e accessori.
-const SIZE_RANGE := Vector2(0.8, 1.25)
-const SKIN_TONES := [Color(0.98, 0.84, 0.72), Color(0.92, 0.72, 0.56), Color(0.78, 0.56, 0.4), Color(0.6, 0.42, 0.3), Color(0.42, 0.29, 0.2), Color(0.3, 0.2, 0.14)]
-const HAIR_COLORS := [Color(0.1, 0.08, 0.06), Color(0.35, 0.22, 0.12), Color(0.8, 0.65, 0.3), Color(0.65, 0.2, 0.1), Color(0.75, 0.75, 0.72), Color(0.2, 0.75, 0.35), Color(0.9, 0.2, 0.55)]
-const GEAR_COLORS := [Color(0.75, 0.12, 0.12), Color(0.12, 0.2, 0.55), Color(0.15, 0.15, 0.17), Color(0.35, 0.4, 0.22), Color(0.85, 0.75, 0.2), Color(0.9, 0.9, 0.88)]
-const HAIRS := ["", "", "mohawk", "spikes", "afro"]
-const HEADWEARS := ["", "", "bandana", "cap", "beanie"]
-const FACES := ["", "", "sunglasses", "gasmask", "scarf", "eyepatch"]
+## Aspetto standard (vedi _apply_look): niente variazioni a caso, la taglia
+## è quella del tipo e la pelle è una sola per razza: predoni, zombie e mutanti.
+const COLOR_SKIN := Color(0.78, 0.56, 0.4)
 const COLOR_LIMBS := Color(0.05, 0.05, 0.06)
-## Zombie: pelle verdastra o grigia, occhi rossi, velocità variabile di
-## questa parte; si spappolano toccando il giocatore entro CONTACT_MARGIN
-## oltre i due raggi.
-const ZOMBIE_TONES := [Color(0.55, 0.68, 0.45), Color(0.48, 0.58, 0.42), Color(0.6, 0.62, 0.52), Color(0.45, 0.52, 0.5)]
+## Zombie: pelle verdastra, occhi rossi, velocità variabile di questa parte
+## (sempre sotto il tetto, vedi max_speed); si spappolano toccando il
+## giocatore entro CONTACT_MARGIN oltre i due raggi.
+const COLOR_ZOMBIE_SKIN := Color(0.52, 0.63, 0.44)
 const COLOR_ZOMBIE_EYES := Color(1.0, 0.2, 0.1)
-## Iridi dei nemici (occhioni come quelli di Ciccio, vedi PlayerLook.enemy_face)
+## Iridi dei predoni (occhioni come quelli di Ciccio, vedi PlayerLook.enemy_face)
 ## e degli zombie.
-const IRIS_COLORS := [Color(0.27, 0.07, 0.05), Color(0.2, 0.32, 0.55), Color(0.22, 0.42, 0.2), Color(0.35, 0.35, 0.38), Color(0.45, 0.28, 0.1)]
+const COLOR_IRIS := Color(0.27, 0.07, 0.05)
 const COLOR_ZOMBIE_IRIS := Color(0.55, 0.7, 0.35)
 const ZOMBIE_SPEED_SPREAD := 0.15
-## Mutanti: pelle livida o pallida, occhi rossi in più, escrescenze e artigli.
-const MUTANT_TONES := [Color(0.62, 0.52, 0.6), Color(0.72, 0.66, 0.6), Color(0.5, 0.56, 0.46), Color(0.66, 0.5, 0.48)]
+## Mutanti: pelle livida, tre occhi rossi, escrescenze e artigli, sempre
+## nello stesso posto (MUTANT_EYES e MUTANT_GROWTHS: posizione rispetto al
+## raggio e grandezza; il boss ha anche le escrescenze in più).
+const COLOR_MUTANT_SKIN := Color(0.62, 0.52, 0.6)
+const MUTANT_EYES := [Vector3(-0.3, -0.15, 0.1), Vector3(0.05, -0.3, 0.12), Vector3(0.32, -0.08, 0.09)]
+const MUTANT_GROWTHS := [Vector3(-0.62, -0.45, 0.22), Vector3(0.6, -0.55, 0.18), Vector3(-0.2, -0.8, 0.16)]
+const BOSS_GROWTHS := [Vector3(0.75, -0.1, 0.2), Vector3(-0.78, 0.05, 0.17), Vector3(0.3, -0.85, 0.14)]
 const COLOR_GROWTH := Color(0.78, 0.55, 0.5)
 const COLOR_CLAWS := Color(0.85, 0.82, 0.72)
 const COLOR_ACID := Color(0.55, 1.0, 0.25)
 const CONTACT_MARGIN := 6.0
-const BURST_SPLATS := 5
+const BURST_SPLATS := 3
 
 var player: Player
 var type_id := "warrior"
@@ -274,14 +282,8 @@ var is_minion := false
 
 var _type: Dictionary
 var _color := Color.WHITE
-## Seme dell'aspetto (vedi _apply_look) e accessori scelti.
-var _look_seed := 0
-var _hair := ""
-var _hair_color := Color.BLACK
-var _headwear := ""
-var _headwear_color := Color.BLACK
-var _face := ""
-var _face_color := Color.BLACK
+## Iride degli occhioni (vedi _apply_look).
+var _iris := COLOR_IRIS
 var _speed := 125.0
 var _state := State.WANDER
 var _state_time := 0.0
@@ -362,10 +364,10 @@ var _telegraph_shown := false
 ## tempo ci si è passati (w); tempo dall'ultima copia lasciata.
 var _trail: Array[Vector4] = []
 var _trail_time := 0.0
-## Mesh del corpo e del suo contorno (vedi Shapes), preparate una volta per raggio.
+## Mesh del corpo (vedi Shapes), preparata una volta per raggio.
 var _body_mesh: ArrayMesh
-var _outline_mesh: ArrayMesh
-## Contorno a inchiostro sotto il corpo (stile fumetto, vedi Shapes.ink_mesh).
+## Contorno a inchiostro sotto il corpo (stile fumetto, vedi Shapes.ink_mesh),
+## spesso quanto le linee nere di occhi e bocca (vedi ink_width).
 var _ink_mesh: ArrayMesh
 var _shape_radius := -1.0
 
@@ -383,6 +385,11 @@ static var _grid_frame := -1
 ## Parte del mondo visibile (con margine) e frame in cui è stata calcolata.
 static var _view := Rect2()
 static var _view_frame := -1
+## Nemici vivi (vedi alive_list) e attacchi in corso (vedi _attack_slot_free).
+static var _alive: Array[Enemy] = []
+static var _alive_stamp := -1
+static var _attack_count := 0
+static var _attack_frame := -1
 static var _unshaded: CanvasItemMaterial
 
 
@@ -401,7 +408,7 @@ func setup(id: String, level := 1) -> void:
 	_speed = _type["speed"]
 	if is_horde():
 		_speed *= randf_range(1.0 - ZOMBIE_SPEED_SPREAD, 1.0 + ZOMBIE_SPEED_SPREAD)
-	_apply_look(randi())
+	_apply_look()
 	if _type.has("summon"):
 		_summon_cooldown = randf_range(1.0, 2.5)
 	if _type.has("magic"):
@@ -423,7 +430,7 @@ func save_state() -> Dictionary:
 		"type": type_id, "position": SaveGame.array(position), "health": health, "max_health": max_health, "points": true,
 		"xp": xp_reward, "damage": damage, "loot": drops_loot, "minion": is_minion,
 		"level": threat_level, "armor": armor, "balance": BALANCE,
-		"facing": SaveGame.array(_facing), "look": _look_seed,
+		"facing": SaveGame.array(_facing),
 	}
 
 
@@ -447,8 +454,8 @@ func load_state(data: Dictionary) -> void:
 	xp_reward = int(data.get("xp", xp_reward))
 	damage = int(data.get("damage", damage))
 	drops_loot = bool(data.get("loot", drops_loot))
-	if data.has("look"):
-		_apply_look(int(data["look"]))
+	# Il seme dell'aspetto ("look") dei salvataggi vecchi non serve più:
+	# l'aspetto è uguale per tutti i nemici dello stesso tipo.
 	is_minion = bool(data.get("minion", false))
 	if data.has("facing"):
 		var facing := SaveGame.vector(data["facing"])
@@ -456,41 +463,14 @@ func load_state(data: Dictionary) -> void:
 			_facing = facing.normalized()
 
 
-## Aspetto dal seme: taglia (raggio), pelle e accessori. Il boss ha sempre
-## la stessa taglia e il suo elmetto, senza altri accessori.
-func _apply_look(look_seed: int) -> void:
-	_look_seed = look_seed
-	var rng := RandomNumberGenerator.new()
-	rng.seed = look_seed
-	var size := 1.0 if is_boss() else rng.randf_range(SIZE_RANGE.x, SIZE_RANGE.y)
-	# Raggi a passi di mezzo pixel: le mesh del corpo (una per raggio, vedi
-	# Shapes) restano poche anche con le orde di centinaia di zombie.
-	radius = snappedf(float(_type["radius"]) * size, 0.5)
-	var tones: Array = ZOMBIE_TONES if is_horde() else (MUTANT_TONES if is_mutant() else SKIN_TONES)
-	var tone: Color = tones[rng.randi() % tones.size()]
-	_color = Color.from_hsv(wrapf(tone.h + rng.randf_range(-0.02, 0.02), 0.0, 1.0), clampf(tone.s * rng.randf_range(0.85, 1.15), 0.0, 1.0), clampf(tone.v * rng.randf_range(0.9, 1.08), 0.0, 1.0))
-	_hair = "" if is_boss() or is_mutant() else HAIRS[rng.randi() % HAIRS.size()]
-	_hair_color = HAIR_COLORS[rng.randi() % HAIR_COLORS.size()]
-	_headwear = "" if is_boss() or is_horde() or is_mutant() else HEADWEARS[rng.randi() % HEADWEARS.size()]
-	_headwear_color = GEAR_COLORS[rng.randi() % GEAR_COLORS.size()]
-	_face = "" if is_boss() or is_horde() or is_mutant() else FACES[rng.randi() % FACES.size()]
-	_face_color = GEAR_COLORS[rng.randi() % GEAR_COLORS.size()]
-	# Faccia come quella di Ciccio con qualche differenza: occhi più o meno
-	# grandi, colore degli occhi, bocca serrata o urlante, cicatrice.
-	var variant := RandomNumberGenerator.new()
-	variant.seed = look_seed * 7919 + 13
-	_eye_scale = PlayerLook.ENEMY_EYE_SCALES[variant.randi() % PlayerLook.ENEMY_EYE_SCALES.size()]
-	_iris = COLOR_ZOMBIE_IRIS if is_horde() else IRIS_COLORS[variant.randi() % IRIS_COLORS.size()]
-	_screams = is_horde() or variant.randf() < 0.3
-	_scar = variant.randf() < 0.3
+## Aspetto standard, uguale per tutti i nemici dello stesso tipo: la taglia
+## del tipo, la pelle della sua razza (predoni, zombie, mutanti) e la faccia
+## di Ciccio, senza accessori né variazioni a caso.
+func _apply_look() -> void:
+	radius = float(_type["radius"])
+	_color = COLOR_ZOMBIE_SKIN if is_horde() else (COLOR_MUTANT_SKIN if is_mutant() else COLOR_SKIN)
+	_iris = COLOR_ZOMBIE_IRIS if is_horde() else COLOR_IRIS
 	_shape_radius = -1.0
-
-
-## Varianti della faccia (vedi _apply_look).
-var _eye_scale := 1.0
-var _iris := Color(0.27, 0.07, 0.05)
-var _screams := false
-var _scar := false
 
 
 ## Il nemico non esce mai dal cerchio di rombi (raggio in rombi) attorno a
@@ -742,6 +722,9 @@ func _physics_process(delta: float) -> void:
 	elif _state in [State.WINDUP, State.RECOVER, State.STUNNED, State.SUMMON, State.GUARD, State.SLAM]:
 		_velocity = _velocity.move_toward(Vector2.ZERO, ACCELERATION * delta)
 
+	# Tetto di velocità: mai più veloce di Ciccio che cammina.
+	_velocity = _velocity.limit_length(max_speed())
+
 	if _state == State.STRIKE:
 		_facing = _attack_direction
 	elif _state == State.WINDUP:
@@ -848,6 +831,12 @@ func shove(velocity: Vector2) -> void:
 		_knockback = velocity
 
 
+## Velocità massima dei movimenti del nemico: quella di Ciccio che cammina
+## (vedi Player.walk_speed, con i bonus dell'equipaggiamento).
+func max_speed() -> float:
+	return player.speed_cap() if player else _speed
+
+
 ## Punti vita tolti da un colpo con quel danno (vedi in cima): l'armatura
 ## ne assorbe una parte, ma almeno un punto passa sempre.
 func points_for(amount: int) -> int:
@@ -878,7 +867,9 @@ func take_points(points: int, direction: Vector2, heavy := false, force := false
 		_fall_side = 1.0 if direction.x >= 0.0 else -1.0
 		_trail.clear()
 		_silhouette.visible = false
-		GroundFx.pool(global_position, radius * DEATH_POOL)
+		# Gli zombie che si spappolano non lasciano la pozza (solo gli schizzi).
+		if not force or not is_horde():
+			GroundFx.pool(global_position, radius * DEATH_POOL)
 		_change_state(State.DEAD)
 		remove_from_group("enemies")
 		Sfx.play("enemy_death", global_position, 1.0 / sqrt(_type["mass"]))
@@ -934,7 +925,7 @@ func _rush(to_player: Vector2, distance: float, player_active: bool) -> Vector2:
 		return Vector2.ZERO
 	var above := player.altitude() - ground_elevation
 	if distance <= radius + Player.RADIUS + CONTACT_MARGIN and above <= Player.JUMP_EVADE_HEIGHT:
-		if player.receive_hit(global_position, EnemyTypes.player_damage(false)) != "dodged":
+		if player.receive_hit(global_position, EnemyTypes.player_damage(false), false, true) != "dodged":
 			_burst(to_player)
 			return Vector2.ZERO
 	return to_player.normalized() * _speed
@@ -946,7 +937,7 @@ func _burst(to_player: Vector2) -> void:
 	xp_reward = 0
 	drops_loot = false
 	for k in BURST_SPLATS:
-		GroundFx.bleed(global_position, ground_elevation + radius * 0.8, Vector2.from_angle(randf() * TAU), BLEED_DROPS_HEAVY)
+		GroundFx.bleed(global_position, ground_elevation + radius * 0.8, Vector2.from_angle(randf() * TAU), BLEED_DROPS)
 	HitSpark.spawn(get_parent(), global_position + to_player.normalized() * radius, ground_elevation + radius * 0.5, 40.0, COLOR_DANGER)
 	Sfx.play("splat", global_position)
 	take_points(health, to_player.normalized(), true, true)
@@ -979,8 +970,12 @@ func add_minion(minion: Enemy) -> void:
 
 
 func _change_state(new_state: State) -> void:
+	var was_attacking := is_attacking()
 	_state = new_state
 	_state_time = 0.0
+	# Conto degli attacchi in corso di questo passo (vedi _attack_slot_free).
+	if _attack_frame == Engine.get_physics_frames() and was_attacking != is_attacking():
+		_attack_count += 1 if is_attacking() else -1
 	# La doppietta è fatta solo di carica e sparo: qualsiasi altra cosa la interrompe.
 	if new_state not in [State.WINDUP, State.STRIKE]:
 		_casting = false
@@ -1244,7 +1239,7 @@ func _begin_slam() -> void:
 func _update_slam(player_active: bool) -> void:
 	var slam: Dictionary = _type["slam"]
 	var windup := float(slam["windup"])
-	var air_time := float(slam["air_time"])
+	var air_time := _slam_air_time(slam)
 	_velocity = Vector2.ZERO
 	if _state_time < windup:
 		if player_active and _state_time <= windup * SLAM_TRACKING:
@@ -1268,6 +1263,14 @@ func _update_slam(player_active: bool) -> void:
 		_state_time = -SLAM_RECOVER_EXTRA
 		_slam_cooldown = randf_range(SLAM_RETRY.x, SLAM_RETRY.y) * 2.0
 		_attack_cooldown = randf_range(ATTACK_COOLDOWN.x, ATTACK_COOLDOWN.y)
+
+
+## Durata del salto: quella del tipo, o di più se il salto è lungo, così
+## anche in volo il nemico non va più veloce di Ciccio che cammina (la
+## curva del salto, ease 0,8, all'inizio va 1,25 volte la media).
+func _slam_air_time(slam: Dictionary) -> float:
+	var distance := _slam_from.distance_to(_slam_target)
+	return maxf(float(slam["air_time"]), SLAM_EASE_PEAK * distance / maxf(max_speed(), 1.0))
 
 
 func _land_slam(player_active: bool, slam: Dictionary) -> void:
@@ -1335,31 +1338,38 @@ func is_attacking() -> bool:
 ## C'è posto per un nuovo attacco? Al più EnemyTypes.max_simultaneous_attacks
 ## nemici attaccano insieme; il controllo avviene quando si decide, uno dopo
 ## l'altro, così due nemici nello stesso passo non prendono lo stesso posto.
+## Gli attacchi in corso si contano una volta per passo di fisica (vedi
+## _attack_count) e il conto si aggiorna quando qualcuno inizia o smette
+## di attaccare (vedi _change_state).
 func _attack_slot_free() -> bool:
-	var limit := EnemyTypes.max_simultaneous_attacks()
-	var busy := 0
-	for node in get_tree().get_nodes_in_group("enemies"):
-		var enemy := node as Enemy
-		if enemy != null and enemy != self and enemy.is_attacking():
-			busy += 1
-			if busy >= limit:
-				return false
-	return true
+	var frame := Engine.get_physics_frames()
+	if frame != _attack_frame:
+		_attack_frame = frame
+		_attack_count = 0
+		for enemy in alive_list():
+			if enemy.is_attacking():
+				_attack_count += 1
+	var busy := _attack_count - (1 if is_attacking() else 0)
+	return busy < EnemyTypes.max_simultaneous_attacks()
 
 
 ## Gli altri nemici vivi entro reach (più il loro raggio) e più o meno alla
-## stessa altezza.
+## stessa altezza (cercati nelle celle vicine della griglia, vedi _enemy_grid).
 func _enemies_near(reach: float) -> Array[Enemy]:
 	var found: Array[Enemy] = []
 	var altitude := ground_elevation + _height + _air
-	for node in get_tree().get_nodes_in_group("enemies"):
-		var enemy := node as Enemy
-		if enemy == null or enemy == self or enemy.is_dead():
-			continue
-		if absf(enemy.ground_elevation + enemy._height + enemy._air - altitude) > FRIENDLY_HEIGHT_REACH:
-			continue
-		if enemy.global_position.distance_to(global_position) <= reach + enemy.radius:
-			found.append(enemy)
+	var grid := _enemy_grid()
+	var home := Vector2i((global_position / GRID_CELL).floor())
+	var cells := ceili((reach + MAX_ENEMY_RADIUS) / GRID_CELL)
+	for i in range(-cells, cells + 1):
+		for j in range(-cells, cells + 1):
+			for enemy: Enemy in grid.get(home + Vector2i(i, j), []):
+				if enemy == self or not is_instance_valid(enemy) or enemy.is_dead():
+					continue
+				if absf(enemy.ground_elevation + enemy._height + enemy._air - altitude) > FRIENDLY_HEIGHT_REACH:
+					continue
+				if enemy.global_position.distance_to(global_position) <= reach + enemy.radius:
+					found.append(enemy)
 	return found
 
 
@@ -1412,18 +1422,68 @@ func _separation() -> Vector2:
 
 
 ## Griglia dei nemici vivi, rifatta al primo uso di ogni passo di fisica.
-func _enemy_grid() -> Dictionary:
+static func _enemy_grid() -> Dictionary:
 	var frame := Engine.get_physics_frames()
 	if frame != _grid_frame:
 		_grid_frame = frame
 		_grid.clear()
-		for node in get_tree().get_nodes_in_group("enemies"):
-			var key := Vector2i(((node as Node2D).global_position / GRID_CELL).floor())
+		for enemy in alive_list():
+			var key := Vector2i((enemy.global_position / GRID_CELL).floor())
 			if _grid.has(key):
-				_grid[key].append(node)
+				_grid[key].append(enemy)
 			else:
-				_grid[key] = [node]
+				_grid[key] = [enemy]
 	return _grid
+
+
+## Nemici vivi, in un elenco rifatto al più una volta per frame (di fisica o
+## di disegno) e condiviso da nemici, proiettili, missili, giocatore e
+## scena di gioco: costa molto meno di get_nodes_in_group chiamato da
+## ognuno. Chi lo scorre controlla is_instance_valid e is_dead (nello stesso
+## frame qualcuno può morire o sparire).
+static func alive_list() -> Array[Enemy]:
+	var stamp := Engine.get_physics_frames() * 1000003 + Engine.get_process_frames()
+	if stamp != _alive_stamp:
+		_alive_stamp = stamp
+		_alive.clear()
+		var tree := Engine.get_main_loop() as SceneTree
+		if tree:
+			for node in tree.get_nodes_in_group("enemies"):
+				var enemy := node as Enemy
+				if enemy != null and not enemy.is_queued_for_deletion():
+					_alive.append(enemy)
+	return _alive
+
+
+## Nemici vivi che potrebbero stare entro reach da point (più il loro
+## raggio): quelli nelle celle vicine della griglia (vedi _enemy_grid), da
+## controllare poi uno per uno. Per chi si muove a ogni frame (giocatore,
+## proiettili) è molto meno che scorrere tutti i nemici.
+static func near_point(point: Vector2, reach: float) -> Array:
+	var grid := _enemy_grid()
+	var home := Vector2i((point / GRID_CELL).floor())
+	var cells := ceili((reach + MAX_ENEMY_RADIUS) / GRID_CELL)
+	var found := []
+	for i in range(-cells, cells + 1):
+		for j in range(-cells, cells + 1):
+			var list: Variant = grid.get(home + Vector2i(i, j))
+			if list != null:
+				found.append_array(list)
+	return found
+
+
+## Il nemico vivo più vicino a point entro reach (nessuno: null).
+static func nearest_to(point: Vector2, reach: float, exclude: Enemy = null) -> Enemy:
+	var best: Enemy = null
+	var best_distance := reach * reach
+	for enemy in alive_list():
+		if enemy == exclude or not is_instance_valid(enemy) or enemy.is_dead():
+			continue
+		var distance := enemy.global_position.distance_squared_to(point)
+		if distance < best_distance:
+			best = enemy
+			best_distance = distance
+	return best
 
 
 ## Il nemico (disegnato sopra il terreno) è nella parte di mondo visibile.
@@ -1447,7 +1507,7 @@ func _on_screen() -> bool:
 func _draw_telegraph() -> void:
 	if _state == State.SLAM and not _slam_landed:
 		var slam: Dictionary = _type["slam"]
-		var total := float(slam["windup"]) + float(slam["air_time"])
+		var total := float(slam["windup"]) + _slam_air_time(slam)
 		# Bagliore rosso sfumato sul punto d'impatto, sempre più acceso.
 		GroundFx.danger_glow(_telegraph, _slam_target - global_position, float(slam["radius"]), _state_time / total)
 	if _state == State.SUMMON:
@@ -1502,8 +1562,8 @@ func _draw() -> void:
 		body = _blood.tint(body)
 	# Guardando verso nord radio, braccia e arma sono dietro al corpo, che
 	# li copre (vedi BodyParts.gear_behind); la faccia, come quella di Ciccio,
-	# va sopra le armi così gli occhi restano visibili; capelli, copricapo ed
-	# elmetto restano sempre in cima alla testa.
+	# va sopra le armi così gli occhi restano visibili; l'elmetto del boss
+	# resta sempre in cima alla testa.
 	var behind := BodyParts.gear_behind(_facing)
 	if behind:
 		_draw_gear(body)
@@ -1511,11 +1571,9 @@ func _draw() -> void:
 	draw_mesh(_body_mesh, null, Transform2D.IDENTITY, body)
 	_blood.draw(self, radius, 1.0)
 	_wounds.draw(self, radius, 1.0)
-	draw_mesh(_outline_mesh, null, Transform2D.IDENTITY, body.darkened(0.35))
 	if not behind:
 		_draw_gear(body)
 	_draw_face()
-	_draw_hair()
 	if is_mutant():
 		_draw_growths(body)
 	elif is_boss():
@@ -1574,8 +1632,14 @@ func _prepare_meshes() -> void:
 		_shape_radius = radius
 		var key := "circle:%s" % radius
 		_body_mesh = Shapes.polygon_mesh(key, _shape_points())
-		_outline_mesh = Shapes.outline_mesh(key + ":outline", _shape_points(), 2.0)
-		_ink_mesh = Shapes.ink_mesh(key + ":ink", _shape_points(), Shapes.INK_WIDTH)
+		_ink_mesh = Shapes.ink_mesh(key + ":ink:face", _shape_points(), ink_width())
+
+
+## Spessore del contorno nero del corpo: lo stesso delle linee nere di occhi
+## e bocca, che sono quelle di Ciccio (PlayerLook.FACE_INK) scalate sul
+## raggio del nemico (vedi _draw_face).
+func ink_width() -> float:
+	return PlayerLook.FACE_INK * radius / PlayerLook.RADIUS
 
 
 ## Dietro al corpo: bagliore rosso della carica e copie rosse del corpo
@@ -1719,40 +1783,10 @@ func _draw_arms(hand: Vector2, other_hand: Vector2) -> void:
 		draw_line(from, from + ((pair[1] as Vector2) - from).limit_length(radius * 0.65), COLOR_LIMBS, 2.5)
 
 
-## Accessori in cima alla testa, scelti a caso (vedi _apply_look): capelli
-## e bandana, berretto o cuffia.
-func _draw_hair() -> void:
-	var top := Vector2(0, -radius)
-	match _hair:
-		"mohawk":
-			for k in 5:
-				var x := (k - 2) * radius * 0.12
-				draw_colored_polygon(PackedVector2Array([top + Vector2(x - radius * 0.08, radius * 0.12), top + Vector2(x, -radius * 0.38), top + Vector2(x + radius * 0.08, radius * 0.12)]), _hair_color)
-		"spikes":
-			for k in 4:
-				var out := Vector2.from_angle(-PI * (0.2 + 0.2 * k))
-				var base := top + out * radius * 0.25 + Vector2(0, radius * 0.2)
-				draw_colored_polygon(PackedVector2Array([base - out.orthogonal() * radius * 0.12, base + out * radius * 0.4, base + out.orthogonal() * radius * 0.12]), _hair_color)
-		"afro":
-			Shapes.disc(self, top + Vector2(0, radius * 0.05), radius * 0.55, _hair_color)
-	match _headwear:
-		"bandana":
-			draw_line(Vector2(-radius * 0.92, -radius * 0.45), Vector2(radius * 0.92, -radius * 0.45), _headwear_color, radius * 0.22)
-			var knot := -_facing.orthogonal() * radius * 0.85 + Vector2(0, -radius * 0.45)
-			draw_line(knot, knot + Vector2(-_facing.x * radius * 0.4, radius * 0.35), _headwear_color, radius * 0.12)
-		"cap":
-			draw_colored_polygon(PackedVector2Array([Vector2(-radius * 0.75, -radius * 0.6), Vector2(radius * 0.75, -radius * 0.6),
-					Vector2(radius * 0.45, -radius * 0.98), Vector2(-radius * 0.45, -radius * 0.98)]), _headwear_color)
-			var visor := _facing * radius * 0.7 + Vector2(0, -radius * 0.62)
-			draw_line(visor - _facing.orthogonal() * radius * 0.35, visor + _facing * radius * 0.35, _headwear_color.darkened(0.3), radius * 0.14)
-		"beanie":
-			draw_colored_polygon(PackedVector2Array([Vector2(-radius * 0.8, -radius * 0.55), Vector2(radius * 0.8, -radius * 0.55),
-					Vector2(radius * 0.5, -radius * 1.0), Vector2(-radius * 0.5, -radius * 1.0)]), _headwear_color)
-			Shapes.disc(self, top + Vector2(0, -radius * 0.05), radius * 0.15, _headwear_color.lightened(0.3))
-
-
-## Accessori sul lato della faccia, scelti a caso (vedi _apply_look):
-## occhiali da sole, maschera antigas, fazzoletto o benda sull'occhio.
+## Faccia: occhioni e boccone di Ciccio, scalati sul raggio del nemico (le
+## linee nere hanno lo spessore del contorno del corpo, vedi ink_width),
+## uguali per tutti: denti serrati, bocca spalancata mentre attacca (gli
+## zombie urlano sempre).
 func _draw_face() -> void:
 	if is_mutant():
 		_draw_mutant_face()
@@ -1760,54 +1794,22 @@ func _draw_face() -> void:
 	var look := PlayerLook.face(_facing)
 	if not look["visible"]:
 		return
-	# Occhioni e boccone di Ciccio, scalati sul raggio del nemico; urla
-	# mentre attacca.
 	var body := _body_offset()
 	var face_scale := radius / PlayerLook.RADIUS
 	draw_set_transform(body, 0.0, Vector2(face_scale, face_scale))
 	var attacking := _state in [State.WINDUP, State.STRIKE, State.SLAM]
-	PlayerLook.enemy_face(self, _facing, _eye_scale, "scream" if _screams or attacking else "teeth", _iris)
+	PlayerLook.enemy_face(self, _facing, 1.0, "scream" if is_horde() or attacking else "teeth", _iris)
 	draw_set_transform(body)
-	var eyes: Vector2 = look["eyes"] * face_scale
-	var spacing := float(look["spacing"]) * face_scale
-	var size := float(look["size"]) * face_scale * _eye_scale
-	var across := Vector2.RIGHT
-	if _scar:
-		# Cicatrice di traverso su un occhio, con i punti.
-		var a := eyes + Vector2(spacing * 0.3, -size * 1.1)
-		var b := eyes + Vector2(spacing * 1.2, size * 0.9)
-		draw_line(a, b, Color(0.5, 0.12, 0.12), maxf(radius * 0.08, 1.5))
-		for k in 3:
-			var at := a.lerp(b, 0.25 + 0.25 * k)
-			draw_line(at + Vector2(-size * 0.25, -size * 0.1), at + Vector2(size * 0.25, size * 0.1), Color(0.5, 0.12, 0.12), maxf(radius * 0.05, 1.0))
-	match _face:
-		"sunglasses":
-			for side: float in [-1.0, 1.0]:
-				Shapes.oval(self, eyes + across * spacing * side, Vector2(size * 0.95, size * 0.7), Color(0.05, 0.05, 0.06))
-			draw_line(eyes - across * spacing, eyes + across * spacing, Color(0.05, 0.05, 0.06), maxf(radius * 0.1, 2.0))
-		"gasmask":
-			var mouth: Vector2 = look["mouth"] * face_scale
-			Shapes.disc(self, mouth + Vector2(0, radius * 0.15), radius * 0.4, Color(0.3, 0.32, 0.3))
-			Shapes.disc(self, mouth + _facing * radius * 0.2 + Vector2(0, radius * 0.25), radius * 0.18, Color(0.15, 0.15, 0.16))
-		"scarf":
-			var mouth: Vector2 = look["mouth"] * face_scale
-			draw_colored_polygon(PackedVector2Array([mouth + Vector2(-radius * 0.85, -radius * 0.05), mouth + Vector2(radius * 0.85, -radius * 0.05),
-					mouth + Vector2(_facing.x * radius * 0.2, radius * 0.6)]), _face_color)
-		"eyepatch":
-			var eye := eyes + across * spacing
-			draw_line(eye + Vector2(-radius * 0.9, -size * 1.1), eye + Vector2(radius * 0.4, size * 0.6), Color(0.05, 0.05, 0.06), 2.5)
-			Shapes.oval(self, eye, Vector2(size * 0.85, size * 0.75), Color(0.05, 0.05, 0.06))
 
 
-## Mutante: tanti occhi rossi in disordine e la bocca spalancata.
+## Mutante: tre occhi rossi col contorno nero (sempre nello stesso posto,
+## vedi MUTANT_EYES) e la bocca spalancata.
 func _draw_mutant_face() -> void:
 	var eyes := _facing * radius * 0.5 + Vector2(0, -radius * 0.2)
 	var across := _facing.orthogonal()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = _look_seed
-	for k in 3 + rng.randi() % 3:
-		var at := eyes + across * radius * rng.randf_range(-0.45, 0.45) + Vector2(0, radius * rng.randf_range(-0.35, 0.1))
-		Shapes.disc(self, at, radius * rng.randf_range(0.06, 0.12), COLOR_ZOMBIE_EYES)
+	for eye: Vector3 in MUTANT_EYES:
+		var at := eyes + across * radius * eye.x + Vector2(0, radius * eye.y)
+		Shapes.ink_disc(self, at, radius * eye.z, COLOR_ZOMBIE_EYES, ink_width() * 0.6)
 	var mouth := eyes + Vector2(0, radius * 0.35)
 	var open := 0.12 + (0.12 if _state in [State.WINDUP, State.STRIKE, State.SUMMON] else 0.0)
 	draw_primitive(PackedVector2Array([mouth - across * radius * 0.25, mouth + across * radius * 0.25, mouth + Vector2(0, radius * open)]),
@@ -1853,15 +1855,14 @@ func _draw_claws() -> void:
 			draw_polyline(PackedVector2Array([to, to + nail * radius * 0.25, tip]), COLOR_CLAWS, maxf(1.5, radius * 0.06))
 
 
-## Escrescenze del mutante: bolle di carne gonfia sul corpo, sempre uguali
-## per lo stesso nemico (dal seme dell'aspetto).
+## Escrescenze del mutante: bolle di carne gonfia sul corpo, sempre nello
+## stesso posto (MUTANT_GROWTHS, il boss anche BOSS_GROWTHS).
 func _draw_growths(body: Color) -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = _look_seed + 7
 	var growth := body.lerp(COLOR_GROWTH, 0.5)
-	for k in 2 + rng.randi() % 3 + (3 if is_boss() else 0):
-		var at := Vector2.from_angle(rng.randf_range(-PI, 0.2)) * radius * rng.randf_range(0.55, 0.85)
-		var size := radius * rng.randf_range(0.14, 0.26)
+	var growths: Array = MUTANT_GROWTHS + BOSS_GROWTHS if is_boss() else MUTANT_GROWTHS
+	for spot: Vector3 in growths:
+		var at := Vector2(spot.x, spot.y) * radius
+		var size := radius * spot.z
 		Shapes.disc(self, at, size, growth)
 		Shapes.disc(self, at + Vector2(-size * 0.3, -size * 0.3), size * 0.35, growth.lightened(0.25))
 
