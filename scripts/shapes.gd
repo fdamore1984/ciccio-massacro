@@ -116,11 +116,63 @@ static func glow_mesh() -> ArrayMesh:
 	return _meshes["glow"]
 
 
+## Poligono pieno, come draw_colored_polygon, ma senza l'errore "Invalid
+## polygon data, triangulation failed": un poligono che non si scompone in
+## triangoli (punti doppi o allineati, lati che si incrociano, area quasi
+## nulla) si ripulisce (vedi clean_polygon) e, se ancora non va, non si
+## disegna. I triangoli trovati vanno direttamente al disegno, così il
+## poligono si scompone una volta sola. Restituisce false se non l'ha disegnato.
+static func fill_polygon(canvas: CanvasItem, points: PackedVector2Array, color: Color) -> bool:
+	if points.size() < 3:
+		return false
+	var indices := Geometry2D.triangulate_polygon(points)
+	if indices.is_empty():
+		points = clean_polygon(points)
+		if points.size() < 3:
+			return false
+		indices = Geometry2D.triangulate_polygon(points)
+		if indices.is_empty():
+			return false
+	RenderingServer.canvas_item_add_triangle_array(canvas.get_canvas_item(), indices, points, PackedColorArray([color]))
+	return true
+
+
+## Il poligono senza i punti doppi (più vicini di min_distance al
+## precedente) e senza quelli allineati con i vicini (deviazione sotto
+## min_distance): le operazioni di Geometry2D sui poligoni (intersezioni,
+## contorni) lasciano spesso coppie di punti quasi uguali che la
+## scomposizione in triangoli non regge.
+static func clean_polygon(points: PackedVector2Array, min_distance := 0.05) -> PackedVector2Array:
+	var result := PackedVector2Array()
+	for point in points:
+		if result.is_empty() or point.distance_to(result[result.size() - 1]) >= min_distance:
+			result.append(point)
+	if result.size() > 1 and result[0].distance_to(result[result.size() - 1]) < min_distance:
+		result.remove_at(result.size() - 1)
+	var changed := true
+	while changed and result.size() >= 3:
+		changed = false
+		for k in range(result.size() - 1, -1, -1):
+			if result.size() < 3:
+				break
+			var previous := result[k - 1]
+			var next := result[(k + 1) % result.size()]
+			var span := previous.distance_to(next)
+			if span < min_distance or absf((next - previous).cross(result[k] - previous)) / span < min_distance:
+				result.remove_at(k)
+				changed = true
+	return result
+
+
 ## Mesh bianca del poligono (da colorare con il modulate di draw_mesh),
 ## ricordata con la chiave data.
 static func polygon_mesh(key: Variant, points: PackedVector2Array) -> ArrayMesh:
 	if not _meshes.has(key):
 		var indices := Geometry2D.triangulate_polygon(points)
+		if indices.is_empty():
+			# Come in fill_polygon: punti doppi o allineati si tolgono.
+			points = clean_polygon(points)
+			indices = Geometry2D.triangulate_polygon(points)
 		var vertices := PackedVector2Array()
 		for index in indices:
 			vertices.append(points[index])
