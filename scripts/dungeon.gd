@@ -19,11 +19,19 @@ extends RefCounted
 ## La metropolitana (kind "metro", parametri in "metro" di data/world.json)
 ## è un sotterraneo come gli altri, con la pianta di una stazione: al
 ## centro le banchine (due laterali e una a isola con i pilastri) tra due
-## binari incassati un livello più in basso (TRACK), che continuano nelle
-## gallerie buie oltre le banchine; sui binari i vagoni abbandonati (TRAIN,
-## blocchi alti che non si scalano). Sopra e sotto la stazione i locali di
-## servizio, divisi a caso in stanze come gli edifici, con le porte sulle
-## banchine.
+## binari incassati un livello più in basso (TRACK), che oltre le banchine
+## continuano nelle gallerie buie: curvano un rombo alla volta, hanno la
+## passerella di servizio lungo la parete, qualche nicchia, i passaggi
+## trasversali tra una galleria e l'altra e finiscono in un crollo. Sui
+## binari, lungo le banchine e nelle gallerie, i vagoni abbandonati (TRAIN),
+## a volte deragliati sul bordo della banchina: sono ostacoli, ma il tetto è
+## un livello sopra la banchina e ci si sale con un salto. Sopra e sotto le
+## banchine i locali di servizio, divisi a caso in stanze come gli edifici,
+## con le porte sulle banchine.
+##
+## Anche gli interni degli edifici non sono regolari: muri crollati in
+## qualche tratto (brecce), angoli delle stanze franati e macerie contro i
+## muri (vedi _roughen).
 
 const DATA := preload("res://data/world.json")
 ## Ostacoli e nemici stanno ad almeno questa distanza (in rombi) da scale e arena.
@@ -199,6 +207,8 @@ func _generate() -> void:
 	else:
 		_generate_rooms(Rect2i(1, 1, width - 2, height - 2), rng, data, leaves)
 		start_leaf = leaves[rng.randi() % leaves.size()]
+		# Le macerie e i crolli non devono lasciare stanze isolate.
+		_keep_reachable(_center(start_leaf))
 	_place_passages(start_leaf, leaves, rng, data)
 
 
@@ -223,6 +233,54 @@ func _generate_rooms(area: Rect2i, rng: RandomNumberGenerator, data: Dictionary,
 			_open_door(wall, rng)
 	for k in range(first, leaves.size()):
 		_add_pillars(leaves[k], rng, data)
+	_roughen(leaves, first, walls, rng, data)
+
+
+## Interni meno regolari: tratti di muro crollati (brecce, oltre alle
+## porte), angoli delle stanze franati (stanze a L) e cumuli di macerie
+## contro i muri, senza mai chiudere porte e passaggi.
+func _roughen(leaves: Array[Rect2i], first: int, walls: Array[Dictionary], rng: RandomNumberGenerator, data: Dictionary) -> void:
+	for wall in walls:
+		var cells: Array = wall["cells"]
+		var across: Vector2i = wall["across"]
+		if cells.size() < 5 or rng.randf() >= float(data.get("breach_chance", 0.0)):
+			continue
+		var length := rng.randi_range(1, 3)
+		var at := rng.randi_range(1, cells.size() - 1 - length)
+		for k in length:
+			var cell: Vector2i = cells[at + k]
+			if is_floor(cell + across) and is_floor(cell - across):
+				_set_floor(cell)
+	for k in range(first, leaves.size()):
+		var leaf := leaves[k]
+		if mini(leaf.size.x, leaf.size.y) >= 6 and rng.randf() < float(data.get("collapse_chance", 0.0)):
+			var size := Vector2i(rng.randi_range(2, leaf.size.x / 3), rng.randi_range(2, leaf.size.y / 3))
+			var corner := Vector2i(leaf.position.x if rng.randf() < 0.5 else leaf.end.x - size.x,
+					leaf.position.y if rng.randf() < 0.5 else leaf.end.y - size.y)
+			for x in range(corner.x, corner.x + size.x):
+				for y in range(corner.y, corner.y + size.y):
+					_fill_wall_inside(Vector2i(x, y), leaf)
+		var debris := float(data.get("debris_chance", 0.0))
+		if debris > 0.0:
+			for x in range(leaf.position.x, leaf.end.x):
+				for y in range(leaf.position.y, leaf.end.y):
+					var cell := Vector2i(x, y)
+					var on_edge := x == leaf.position.x or y == leaf.position.y or x == leaf.end.x - 1 or y == leaf.end.y - 1
+					if on_edge and rng.randf() < debris and (cell - _center(leaf)).length() > 2.0:
+						_fill_wall_inside(cell, leaf)
+
+
+## Fa diventare muro un rombo della stanza leaf, ma non se è davanti a una
+## porta o a un passaggio (un vicino fuori dalla stanza è pavimento).
+func _fill_wall_inside(cell: Vector2i, leaf: Rect2i) -> void:
+	if not is_floor(cell):
+		return
+	for step: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		if not leaf.has_point(cell + step) and is_floor(cell + step):
+			return
+	_floor[cell.y * width + cell.x] = 0
+	if is_metro():
+		_tiles[cell.y * width + cell.x] = Tile.WALL
 
 
 ## Pianta della stazione della metro (vedi in cima): banchine, binari,
@@ -251,24 +309,57 @@ func _generate_station(rng: RandomNumberGenerator, data: Dictionary, leaves: Arr
 		rows.append([part[0], y, y + int(part[1]) - 1])
 		y += int(part[1])
 	var segment := int(data["platform_segment"])
+	var max_shift := int(data["tunnel_shift"])
+	var shift := _tunnel_shifts(x0, x1, rng, data, rows)
+	# Binari: lungo le banchine dritti, oltre nelle gallerie che curvano un
+	# rombo alla volta, con la passerella di servizio lungo la parete esterna
+	# e qualche nicchia; ogni galleria finisce in un crollo prima del bordo.
+	var tunnel_end: Array = data["tunnel_end"]
+	var spans: Array[Vector2i] = []
+	for t in 2:
+		var row: Array = rows[1 + 2 * t]
+		var outward := -1 if t == 0 else 1
+		var left_end := 1 + rng.randi_range(tunnel_end[0], tunnel_end[1])
+		var right_end := width - 2 - rng.randi_range(tunnel_end[0], tunnel_end[1])
+		for x in range(left_end, right_end + 1):
+			for v in range(int(row[1]), int(row[2]) + 1):
+				_set_tile(Vector2i(x, v + shift[x]), Tile.TRACK)
+			if x >= x0 and x <= x1:
+				continue
+			var walk := (int(row[1]) - 1 if t == 0 else int(row[2]) + 1) + shift[x]
+			_set_tile(Vector2i(x, walk), Tile.FLOOR)
+			if rng.randf() < float(data["niche_chance"]):
+				_set_tile(Vector2i(x, walk + outward), Tile.FLOOR)
+		for span: Vector2i in [Vector2i(left_end, x0 - 1), Vector2i(x1 + 1, right_end)]:
+			if span.y - span.x >= 3:
+				leaves.append(Rect2i(span.x, int(row[1]) - max_shift - 1, span.y - span.x + 1, int(row[2]) - int(row[1]) + 3 + 2 * max_shift))
+				spans.append(span)
+	# Passaggi trasversali tra le due gallerie, ogni tanto (larghi due rombi).
+	var cross: Array = data["cross_passage"]
+	for mouth: Vector2i in [Vector2i(x0 - 1, -1), Vector2i(x1 + 1, 1)]:
+		var x := mouth.x + mouth.y * rng.randi_range(int(cross[0]) / 2, int(cross[1]))
+		while x > 2 and x < width - 3:
+			for k in 2:
+				for v in range(int(rows[1][2]) + 1, int(rows[3][1])):
+					_set_tile(Vector2i(x + k * mouth.y, v + shift[x + k * mouth.y]), Tile.FLOOR)
+			x += mouth.y * rng.randi_range(cross[0], cross[1])
+	# Banchine, con le testate irregolari (mai oltre l'inizio delle gallerie).
+	var ragged := int(data["platform_ragged"])
+	var first_platform := Rect2i()
 	for row: Array in rows:
+		if row[0] == "track":
+			continue
 		var first: int = row[1]
 		var last: int = row[2]
-		if row[0] == "track":
-			# I binari attraversano tutta la pianta: oltre le banchine sono gallerie.
-			for x in range(1, width - 1):
-				for v in range(first, last + 1):
-					_set_tile(Vector2i(x, v), Tile.TRACK)
-			for start: int in [1, x1 + 1]:
-				var end := x0 - 1 if start == 1 else width - 2
-				if end - start >= 3:
-					leaves.append(Rect2i(start, first, end - start + 1, last - first + 1))
-			continue
-		_fill(Vector2i(x0, first), Vector2i(x1, last))
-		var x := x0
-		while x <= x1:
-			var length := mini(segment, x1 - x + 1)
+		var a := x0 + rng.randi_range(0, ragged)
+		var b := x1 - rng.randi_range(0, ragged)
+		_fill(Vector2i(a, first), Vector2i(b, last))
+		var x := a
+		while x <= b:
+			var length := mini(segment, b - x + 1)
 			leaves.append(Rect2i(x, first, length, last - first + 1))
+			if first_platform.size == Vector2i.ZERO:
+				first_platform = Rect2i(x, first, length, last - first + 1)
 			x += length
 	# Pilastri in mezzo alla banchina a isola, uno ogni "pillar_step" rombi.
 	var island_row: Array = rows[2]
@@ -276,24 +367,30 @@ func _generate_station(rng: RandomNumberGenerator, data: Dictionary, leaves: Arr
 	for x in range(x0 + 2, x1 - 1, int(data["pillar_step"])):
 		_floor[middle * width + x] = 0
 		_set_tile(Vector2i(x, middle), Tile.WALL, false)
-	# Vagoni abbandonati sui binari, solo lungo le banchine (così non
-	# chiudono le gallerie): blocchi lunghi con un rombo libero tra l'uno e l'altro.
+	# Vagoni abbandonati: lungo le banchine (a volte deragliati, di traverso
+	# sul bordo della banchina) e nelle gallerie (si passa sulla passerella).
+	# Il tetto è un livello sopra la banchina: ci si sale con un salto.
 	var cars: Array = data["train_cars"]
 	var car_length: Array = data["car_length"]
-	for row: Array in [rows[1], rows[3]]:
-		if rng.randf() >= float(data["train_chance"]):
-			continue
-		var count := rng.randi_range(cars[0], cars[1])
-		var x := rng.randi_range(x0 + 1, maxi(x0 + 1, x1 - 1 - count * (int(car_length[1]) + 1)))
-		for k in count:
-			var length := rng.randi_range(car_length[0], car_length[1])
-			for i in mini(length, x1 - x):
-				for v in range(int(row[1]), int(row[2]) + 1):
-					_floor[v * width + x + i] = 0
-					_set_tile(Vector2i(x + i, v), Tile.TRAIN, false)
-			x += length + 1
-	# Locali di servizio sopra e sotto la stazione, con le porte sulle banchine.
-	var areas := [Rect2i(1, 1, width - 2, top - 2), Rect2i(1, station_rows.y + 2, width - 2, height - station_rows.y - 3)]
+	for t in 2:
+		var row: Array = rows[1 + 2 * t]
+		if rng.randf() < float(data["train_chance"]):
+			var count := rng.randi_range(cars[0], cars[1])
+			var x := rng.randi_range(x0 + 1, maxi(x0 + 1, x1 - 1 - count * (int(car_length[1]) + 1)))
+			for k in count:
+				var length := rng.randi_range(car_length[0], car_length[1])
+				var derail := (-1 if t == 0 else 1) if rng.randf() < float(data["derail_chance"]) else 0
+				_place_car(x, mini(length, x1 - x), int(row[1]) + derail, int(row[2]) + derail, shift)
+				x += length + 1
+		var tunnel_cars: Array = data["tunnel_cars"]
+		for span in spans:
+			for k in rng.randi_range(tunnel_cars[0], tunnel_cars[1]):
+				var length := rng.randi_range(car_length[0], car_length[1])
+				if span.y - span.x - 2 < length:
+					break
+				_place_car(rng.randi_range(span.x + 1, span.y - length), length, int(row[1]), int(row[2]), shift)
+	# Locali di servizio sopra e sotto le banchine, con le porte sulle banchine.
+	var areas := [Rect2i(x0, 1, x1 - x0 + 1, top - 2), Rect2i(x0, station_rows.y + 2, x1 - x0 + 1, height - station_rows.y - 3)]
 	for k in areas.size():
 		var area: Rect2i = areas[k]
 		if area.size.y < int(data["room_size"][0]):
@@ -307,15 +404,53 @@ func _generate_station(rng: RandomNumberGenerator, data: Dictionary, leaves: Arr
 		for _door in int(data["service_doors"]):
 			_open_door(wall, rng)
 	# Ciò che non si raggiunge dalla banchina d'arrivo diventa muro.
-	var start := Rect2i(x0, top, mini(segment, x1 - x0 + 1), side)
-	var reached := _distances_from(_center(start))
+	_keep_reachable(_center(first_platform))
+	return first_platform
+
+
+## Spostamento (in righe) dei binari in ogni colonna: zero lungo le
+## banchine, nelle gallerie cambia di un rombo ogni "tunnel_bend" rombi,
+## fino a "tunnel_shift", restando lontano dal bordo della pianta.
+func _tunnel_shifts(x0: int, x1: int, rng: RandomNumberGenerator, data: Dictionary, rows: Array[Array]) -> PackedInt32Array:
+	var shift := PackedInt32Array()
+	shift.resize(width)
+	shift.fill(0)
+	var bend: Array = data["tunnel_bend"]
+	var limit := int(data["tunnel_shift"])
+	var low := maxi(-limit, 4 - int(rows[1][1]))
+	var high := mini(limit, height - 5 - int(rows[3][2]))
+	for direction: int in [-1, 1]:
+		var x := x0 - 1 if direction < 0 else x1 + 1
+		var current := 0
+		var next_bend := rng.randi_range(bend[0], bend[1])
+		while x >= 0 and x < width:
+			next_bend -= 1
+			if next_bend <= 0:
+				current = clampi(current + (1 if rng.randf() < 0.5 else -1), low, high)
+				next_bend = rng.randi_range(bend[0], bend[1])
+			shift[x] = current
+			x += direction
+	return shift
+
+
+## Vagone sui binari: dalla colonna x per length rombi, sulle righe da
+## first a last (spostate come i binari della colonna).
+func _place_car(x: int, length: int, first: int, last: int, shift: PackedInt32Array) -> void:
+	for i in length:
+		for v in range(first, last + 1):
+			_set_tile(Vector2i(x + i, v + shift[x + i]), Tile.TRAIN)
+
+
+## Ciò che non si raggiunge a piedi da start diventa muro.
+func _keep_reachable(start: Vector2i) -> void:
+	var reached := _distances_from(start)
 	for v in height:
 		for x in width:
 			var cell := Vector2i(x, v)
 			if is_floor(cell) and not reached.has(cell):
 				_floor[v * width + x] = 0
-				_tiles[v * width + x] = Tile.WALL
-	return start
+				if is_metro():
+					_tiles[v * width + x] = Tile.WALL
 
 
 ## Arrivo, scala (o arena del boss all'ultimo piano), stanze e casse.
@@ -438,7 +573,9 @@ func _add_pillars(leaf: Rect2i, rng: RandomNumberGenerator, data: Dictionary) ->
 		return
 	for x in range(leaf.position.x + 2, leaf.end.x - 2, 3):
 		for y in range(leaf.position.y + 2, leaf.end.y - 2, 3):
-			_floor[y * width + x] = 0
+			# Qualcuno è crollato del tutto: le file non sono più regolari.
+			if rng.randf() >= float(data.get("pillar_skip", 0.0)):
+				_floor[y * width + x] = 0
 
 
 static func _center(rect: Rect2i) -> Vector2i:

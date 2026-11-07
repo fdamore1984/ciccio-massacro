@@ -33,19 +33,16 @@
 		"start": 0.2,
 		"night_threshold": 0.5,
 		"colors": [
-			[0.0, [1.0, 1.0, 1.0]], [0.4, [1.0, 1.0, 1.0]], [0.5, [0.85, 0.62, 0.55]], [0.58, [0.025, 0.027, 0.045]],
-			[0.88, [0.025, 0.027, 0.045]], [0.95, [0.8, 0.68, 0.7]], [1.0, [1.0, 1.0, 1.0]]
+			[0.0, [1.0, 1.0, 1.0]], [0.4, [1.0, 1.0, 1.0]], [0.5, [0.85, 0.62, 0.55]], [0.58, [0.04, 0.043, 0.065]],
+			[0.88, [0.04, 0.043, 0.065]], [0.95, [0.8, 0.68, 0.7]], [1.0, [1.0, 1.0, 1.0]]
 		]
 	},
 	"flashlight": {
 		"dark_from": 0.35,
 		"dark_full": 0.8,
 		"color": [0.95, 0.97, 1.0],
-		"beams": [
-			{"range": 960, "angle": 80, "energy": 1.0},
-			{"range": 1250, "angle": 140, "energy": 0.25}
-		],
-		"halo": {"range": 150, "energy": 0.7}
+		"beam": {"range": 1050, "angle": 115, "energy": 1.0},
+		"back_offset": 26
 	},
 	"map": {
 		"reveal_radius": 700,
@@ -53,8 +50,8 @@
 		"reveal_step": 32
 	},
 	"camera": {
-		"explore_zoom": 0.8,
-		"combat_zoom": 1.0,
+		"explore_zoom": 1.0,
+		"combat_zoom": 1.2,
 		"combat_range": 700,
 		"combat_linger": 2.0,
 		"zoom_in_time": 0.5,
@@ -77,12 +74,18 @@
 	"hordes": {
 		"first_delay": [60, 120],
 		"interval": [90, 180],
-		"count": [50, 200],
-		"count_mobile": [30, 80],
+		"count": [25, 70],
+		"count_mobile": [15, 40],
+		"max_alive": 35,
+		"max_alive_mobile": 25,
 		"distance": [900, 1150],
 		"spread": 220,
 		"spread_count": 50,
-		"spawn_per_frame": 25
+		"spawn_per_frame": 10,
+		"invulnerable_time": 1.5,
+		"pressure_range": 900,
+		"repel_radius": 160,
+		"repel_speed": 520
 	},
 	"enemy_attacks": {
 		"max_simultaneous": 2,
@@ -131,7 +134,11 @@
 		"pillar_room": 7,
 		"pillar_chance": 0.6,
 		"arena_radius": 7,
-		"wall_level": 2,
+		"wall_level": 3,
+		"breach_chance": 0.3,
+		"collapse_chance": 0.4,
+		"debris_chance": 0.05,
+		"pillar_skip": 0.25,
 		"enemies_per_room": [2, 4],
 		"chests": [1, 2],
 		"rubble_chance": 0.05,
@@ -140,7 +147,7 @@
 		"face_colors": [[0.36, 0.42, 0.38], [0.26, 0.3, 0.27]],
 		"glowstick_chance": 0.06,
 		"glowstick_colors": [[0.4, 1.0, 0.45], [1.0, 0.3, 0.25], [1.0, 0.85, 0.3]],
-		"darkness": [0.03, 0.03, 0.04],
+		"darkness": [0.045, 0.045, 0.058],
 		"boss": "guardian",
 		"boss_arena_margin": 1.5,
 		"boss_reward_gold": [60, 15],
@@ -148,20 +155,28 @@
 		"boss_reward_h_bombs": 1
 	},
 	"metro": {
-		"size": [46, 4],
+		"size": [54, 4],
 		"levels": [2, 4],
-		"wall_level": 3,
+		"wall_level": 4,
 		"track_level": -1,
-		"train_level": 2,
+		"train_level": 1,
 		"side_platform": 3,
 		"track_width": 2,
 		"island_platform": [4, 6],
-		"platform_end": [5, 9],
+		"platform_end": [11, 15],
 		"platform_segment": 9,
 		"pillar_step": 4,
 		"train_chance": 0.75,
 		"train_cars": [1, 3],
 		"car_length": [5, 7],
+		"derail_chance": 0.3,
+		"tunnel_cars": [0, 2],
+		"tunnel_bend": [3, 7],
+		"tunnel_shift": 3,
+		"cross_passage": [8, 13],
+		"niche_chance": 0.1,
+		"tunnel_end": [1, 4],
+		"platform_ragged": 2,
 		"service_doors": 3,
 		"room_size": [3, 9],
 		"stop_chance": 0.35,
@@ -192,7 +207,7 @@
 		"blood_color": [0.4, 0.03, 0.03],
 		"blood_chance": 0.12,
 		"glowstick_chance": 0.03,
-		"darkness": [0.02, 0.02, 0.03],
+		"darkness": [0.035, 0.035, 0.05],
 		"boss": "abomination",
 		"boss_arena_margin": 1.5,
 		"boss_reward_gold": [70, 18],
@@ -200,35 +215,43 @@
 		"boss_reward_h_bombs": 1
 	},
 	"city": {
-		"segment": 96,
-		"block": [9, 18],
-		"roads": [[1, 0.2], [2, 0.5], [3, 0.3]],
-		"closed_road_chance": 0.18,
-		"lot_min": 3,
-		"lot_max": 7,
-		"alley_chance": 0.35,
+		"district": 46,
+		"district_jitter": 6,
+		"avenue_jog": 3,
+		"avenue_gap": 0.3,
+		"avenues": [[4, 0.5], [5, 0.5]],
+		"streets": [[2, 0.6], [3, 0.4]],
+		"alley_chance": 0.2,
+		"dead_end_chance": 0.3,
+		"block": [11, 20],
+		"square_chance": 0.07,
+		"lot_min": 4,
+		"lot_max": 9,
+		"lot_alley_chance": 0.3,
+		"notch_chance": 0.35,
+		"storey_levels": 2,
 		"collapse_chance": 0.55,
 		"broken_top_chance": 0.18,
 		"missing_cell_chance": 0.07,
 		"lots": {
-			"house": {"weight": 4, "height": [1, 2], "inset": 1, "styles": ["house", "plaster"], "max_size": 7},
+			"house": {"weight": 4, "height": [1, 2], "inset": 1, "styles": ["house", "plaster"], "max_size": 9},
 			"shop": {"weight": 3, "height": [1, 2], "styles": ["shop"]},
-			"office": {"weight": 2.5, "height": [2, 5], "styles": ["office", "plaster"], "min_size": 4},
-			"apartment": {"weight": 2, "height": [3, 5], "styles": ["apartment", "plaster"], "min_size": 4},
-			"tower": {"weight": 1, "height": [5, 8], "styles": ["tower", "office"], "min_size": 5},
+			"office": {"weight": 2.5, "height": [2, 4], "styles": ["office", "plaster"], "min_size": 5},
+			"apartment": {"weight": 2, "height": [3, 5], "styles": ["apartment", "plaster"], "min_size": 5},
+			"tower": {"weight": 1, "height": [5, 7], "styles": ["tower", "office"], "min_size": 6},
 			"park": {"weight": 1.3},
 			"parking": {"weight": 1},
 			"metro": {"weight": 0.5, "min_size": 4},
 			"rubble": {"weight": 1, "heaps": 0.45}
 		},
 		"styles": {
-			"house": {"top": [0.42, 0.22, 0.18], "faces": [[0.64, 0.42, 0.33], [0.5, 0.32, 0.26]], "windows": {"columns": 2, "row": 22, "size": 9, "missing": 0.15}},
-			"plaster": {"top": [0.45, 0.43, 0.4], "faces": [[0.74, 0.68, 0.56], [0.6, 0.55, 0.45]], "windows": {"columns": 2, "row": 20, "size": 10, "missing": 0.12}},
-			"shop": {"top": [0.38, 0.38, 0.38], "faces": [[0.58, 0.56, 0.52], [0.46, 0.44, 0.41]], "windows": {"columns": 3, "row": 18, "size": 8, "missing": 0.2}, "shopfront": true,
+			"house": {"top": [0.42, 0.22, 0.18], "faces": [[0.64, 0.42, 0.33], [0.5, 0.32, 0.26]], "windows": {"columns": 2, "row": 64, "size": 24, "missing": 0.15}},
+			"plaster": {"top": [0.45, 0.43, 0.4], "faces": [[0.74, 0.68, 0.56], [0.6, 0.55, 0.45]], "windows": {"columns": 2, "row": 64, "size": 26, "missing": 0.12}},
+			"shop": {"top": [0.38, 0.38, 0.38], "faces": [[0.58, 0.56, 0.52], [0.46, 0.44, 0.41]], "windows": {"columns": 3, "row": 64, "size": 22, "missing": 0.2}, "shopfront": true,
 				"awnings": [[0.7, 0.2, 0.15], [0.2, 0.4, 0.6], [0.75, 0.6, 0.15], [0.25, 0.5, 0.3]]},
-			"office": {"top": [0.3, 0.32, 0.35], "faces": [[0.45, 0.5, 0.55], [0.35, 0.39, 0.44]], "windows": {"columns": 4, "row": 16, "size": 11, "missing": 0.05, "glass": [0.24, 0.32, 0.38]}},
-			"apartment": {"top": [0.4, 0.36, 0.32], "faces": [[0.66, 0.58, 0.47], [0.53, 0.46, 0.37]], "windows": {"columns": 3, "row": 18, "size": 10, "missing": 0.1, "balconies": true}},
-			"tower": {"top": [0.35, 0.36, 0.38], "faces": [[0.47, 0.48, 0.5], [0.34, 0.35, 0.38]], "windows": {"columns": 3, "row": 18, "size": 10, "missing": 0.12}},
+			"office": {"top": [0.3, 0.32, 0.35], "faces": [[0.45, 0.5, 0.55], [0.35, 0.39, 0.44]], "windows": {"columns": 4, "row": 64, "size": 34, "missing": 0.05, "glass": [0.24, 0.32, 0.38]}},
+			"apartment": {"top": [0.4, 0.36, 0.32], "faces": [[0.66, 0.58, 0.47], [0.53, 0.46, 0.37]], "windows": {"columns": 3, "row": 64, "size": 26, "missing": 0.1, "balconies": true}},
+			"tower": {"top": [0.35, 0.36, 0.38], "faces": [[0.47, 0.48, 0.5], [0.34, 0.35, 0.38]], "windows": {"columns": 3, "row": 64, "size": 28, "missing": 0.12}},
 			"rubble": {"top": [0.48, 0.46, 0.42], "faces": [[0.42, 0.4, 0.37], [0.33, 0.31, 0.29]]}
 		},
 		"ground": {
@@ -245,39 +268,39 @@
 			"rubble": {"rock": 0.3, "bush": 0.12, "chest": 0.01},
 			"metro": {"metro": 1.0}
 		},
-		"cave_min_levels": 3
+		"cave_min_levels": 5
 	},
 	"obstacles": {
 		"tree": {
-			"radius": [24, 34], "collision": 0.3, "solid": true,
+			"radius": [36, 50], "collision": 0.3, "solid": true,
 			"colors": [[0.24, 0.18, 0.14], [0.3, 0.24, 0.18], [0.2, 0.17, 0.15]]
 		},
 		"lamp": {
-			"radius": [14, 18], "collision": 0.5, "solid": true,
+			"radius": [20, 26], "collision": 0.5, "solid": true,
 			"colors": [[0.32, 0.33, 0.35]]
 		},
 		"shelter": {
-			"radius": [30, 30], "collision": 0.75, "solid": true,
+			"radius": [42, 42], "collision": 0.75, "solid": true,
 			"colors": [[0.36, 0.38, 0.4], [0.55, 0.65, 0.7]]
 		},
 		"metro": {
-			"radius": [44, 44], "collision": 0.8, "solid": true,
+			"radius": [58, 58], "collision": 0.8, "solid": true,
 			"colors": [[0.05, 0.05, 0.06], [0.3, 0.32, 0.3]], "sign": [0.75, 0.15, 0.12], "cleared": [0.4, 0.38, 0.36]
 		},
 		"bench": {
-			"radius": [24, 24], "collision": 0.75, "solid": true,
+			"radius": [30, 30], "collision": 0.75, "solid": true,
 			"colors": [[0.42, 0.27, 0.17], [0.32, 0.33, 0.35]]
 		},
 		"corpse": {
-			"radius": [20, 20], "collision": 0.6, "solid": false, "slow": 0.8,
+			"radius": [24, 24], "collision": 0.6, "solid": false, "slow": 0.8,
 			"colors": [[0.36, 0.33, 0.3], [0.3, 0.32, 0.36], [0.4, 0.34, 0.28]], "blood": [0.38, 0.03, 0.03]
 		},
 		"rock": {
-			"radius": [14, 30], "collision": 0.9, "solid": true,
+			"radius": [18, 38], "collision": 0.9, "solid": true,
 			"colors": [[0.55, 0.54, 0.5], [0.47, 0.46, 0.43], [0.6, 0.57, 0.5]], "rebar": [0.45, 0.3, 0.22]
 		},
 		"bush": {
-			"radius": [16, 26], "collision": 0.8, "solid": false, "slow": 0.75,
+			"radius": [22, 34], "collision": 0.8, "solid": false, "slow": 0.75,
 			"colors": [[0.36, 0.32, 0.27], [0.3, 0.3, 0.3]], "rust": [0.6, 0.32, 0.18]
 		},
 		"chest": {
