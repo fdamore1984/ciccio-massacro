@@ -69,9 +69,9 @@ spiega il tutorial del gioco.
 ```
 Cheech Carnage is a 2D post-apocalyptic action RPG with an isometric view: carve your way with a chainsaw and a bazooka through raiders, zombie hordes and mutants in an endless ruined city, its abandoned buildings and the metro.
 
-Fast, deadly Souls-like combat: combos, parries, dodges, jumps, slams, H-bombs and the Frenzy special attack, with a playable tutorial that teaches you everything step by step. Comic-style look, like ufotizio.com: thick ink outlines, huge furious cartoon eyes and a matching interface. Prototype with placeholder graphics and sounds.
+Fast, deadly Souls-like combat: combos, parries and golden counters, dodges, jumps, slams, H-bombs and the Frenzy special attack, with hits that knock enemies back and a playable tutorial that teaches you everything step by step. Elite enemies, zombie hordes in waves, missions from the traders, more danger and loot at night. Comic-style look, like ufotizio.com: thick ink outlines, huge furious cartoon eyes and a matching interface. Prototype with placeholder graphics and sounds.
 
-Controller or keyboard and mouse. In the browser on phones and tablets: Touch Mode, with simple on-screen controls (Slam button, supplies you tap to use), a closer camera and automatic jumping, parrying and flashlight. English and Italian. Windows, Linux and Steam Deck.
+Controller (with vibration) or keyboard and mouse; three difficulty levels and options for damage numbers, camera shake, blood and interface size. In the browser on phones and tablets: Touch Mode, with simple on-screen controls (Slam button, supplies you tap to use), a closer camera and automatic jumping, parrying and flashlight. English and Italian. Windows, Linux and Steam Deck.
 
 Play it right in your browser, with your saves on every device: https://ufotizio.com/en/cheech-carnage
 

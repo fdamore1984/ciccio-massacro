@@ -30,6 +30,10 @@ const EYE_HEIGHT := -0.24
 const COLOR_IRIS := Color(0.27, 0.07, 0.05)
 ## Guardando quasi a nord (y sotto questa soglia) Ciccio è di spalle: niente faccia.
 const FACE_HIDDEN_BELOW := -0.85
+## Occhi chiusi (sbattendo le palpebre) e socchiusi (smorfia di dolore):
+## quanto resta dell'altezza dell'occhio.
+const BLINK_SQUASH := 0.18
+const SQUINT := 0.34
 ## Bocca: il quarto inferiore della palla; spalancata mostra l'interno.
 const MOUTH_TOP := 0.3
 const COLOR_MOUTH := Color(0.36, 0.06, 0.07)
@@ -90,17 +94,32 @@ static func eye_bottom(look: Dictionary) -> float:
 	return (look["eyes"] as Vector2).y + float(look["size"]) + FACE_INK
 
 
-## Un occhio: cerchio tagliato in alto dalla palpebra, che scende verso il centro.
+## Un occhio: cerchio tagliato in alto dalla palpebra, che scende verso il
+## centro. Della palpebra restano solo i due punti in cui taglia il cerchio:
+## prima i punti del cerchio sopra di lei venivano schiacciati sulla sua
+## linea, tanti punti allineati che il contorno (offset_polygon) trasformava
+## in coppie quasi uguali, e a certe direzioni dello sguardo il contorno non
+## si scomponeva più in triangoli ("Invalid polygon data, triangulation failed").
 static func _eye_shape(eye: Vector2, radius: float, side: float, squash: float) -> PackedVector2Array:
 	var outer := eye + Vector2(side * radius * 1.15, -radius * 0.88)
 	var inner := eye + Vector2(-side * radius * 1.15, -radius * 0.02)
+	# Quanto un punto sta sotto la palpebra (negativo: sopra, tagliato).
+	var below := func(point: Vector2) -> float:
+		return point.y - lerpf(outer.y, inner.y, (point.x - outer.x) / (inner.x - outer.x))
+	var circle := _circle(eye, radius, 40)
 	var points := PackedVector2Array()
-	for k in 40:
-		var point := eye + Vector2.from_angle(TAU * k / 40.0) * radius
-		var t := (point.x - outer.x) / (inner.x - outer.x)
-		point.y = maxf(point.y, lerpf(outer.y, inner.y, t))
-		point.y = eye.y + (point.y - eye.y) * squash
-		points.append(point)
+	for k in circle.size():
+		var point := circle[k]
+		var next := circle[(k + 1) % circle.size()]
+		var depth: float = below.call(point)
+		var next_depth: float = below.call(next)
+		if depth >= 0.0:
+			points.append(point)
+		# Il lato del cerchio attraversa la palpebra: lì c'è uno dei due tagli.
+		if (depth >= 0.0) != (next_depth >= 0.0):
+			points.append(point.lerp(next, depth / (depth - next_depth)))
+	for k in points.size():
+		points[k].y = eye.y + (points[k].y - eye.y) * squash
 	return points
 
 
@@ -111,23 +130,25 @@ static func _circle(center: Vector2, radius: float, segments := 28) -> PackedVec
 	return points
 
 
-## Riempie i poligoni risultanti da un'operazione di Geometry2D (salta i buchi).
+## Riempie i poligoni risultanti da un'operazione di Geometry2D (salta i
+## buchi e, vedi Shapes.fill_polygon, i pezzi degeneri che restano dalle
+## intersezioni: spicchi sottilissimi, punti doppi).
 static func _fill(canvas: CanvasItem, polygons: Array, color: Color) -> void:
 	for polygon: PackedVector2Array in polygons:
 		if polygon.size() >= 3 and not Geometry2D.is_polygon_clockwise(polygon):
-			canvas.draw_colored_polygon(polygon, color)
+			Shapes.fill_polygon(canvas, polygon, color)
 
 
 ## Occhioni fusi in un'unica forma bianca col contorno spesso, pupille
 ## piccole schiacciate contro la palpebra che guardano dove va Ciccio;
-## blink li chiude.
-static func draw_eyes(canvas: CanvasItem, look: Dictionary, body: Color, blink := false) -> void:
-	draw_parts(canvas, eye_parts(look, blink), body.a, COLOR_IRIS)
+## blink li chiude, squint li socchiude (smorfia di dolore, vedi SQUINT).
+static func draw_eyes(canvas: CanvasItem, look: Dictionary, body: Color, blink := false, squint := false) -> void:
+	draw_parts(canvas, eye_parts(look, blink, squint), body.a, COLOR_IRIS)
 
 
 ## Parti degli occhi (vedi draw_parts): contorno, bianco, iride, pupilla e
 ## riflesso. Il colore "iris" si sceglie disegnando (i nemici lo cambiano).
-static func eye_parts(look: Dictionary, blink := false) -> Array:
+static func eye_parts(look: Dictionary, blink := false, squint := false) -> Array:
 	var parts: Array = []
 	var direction: Vector2 = look["look"]
 	var shapes: Array[PackedVector2Array] = []
@@ -137,7 +158,7 @@ static func eye_parts(look: Dictionary, blink := false) -> Array:
 		var eye: Vector2 = look["eyes"] + Vector2(side * float(look["spacing"]), 0)
 		# L'occhio lontano, di profilo, è un po' più piccolo.
 		var radius := float(look["size"]) * (1.0 - 0.12 * maxf(0.0, -side * direction.x))
-		shapes.append(_eye_shape(eye, radius, side, 0.18 if blink else 1.0))
+		shapes.append(_eye_shape(eye, radius, side, BLINK_SQUASH if blink else (SQUINT if squint else 1.0)))
 		centers.append(eye)
 		radii.append(radius)
 	var merged := Geometry2D.merge_polygons(shapes[0], shapes[1])
@@ -147,7 +168,7 @@ static func eye_parts(look: Dictionary, blink := false) -> Array:
 			outline.append_array(Geometry2D.offset_polygon(polygon, FACE_INK, Geometry2D.JOIN_ROUND))
 	parts.append({"polygons": outline, "color": Shapes.INK})
 	parts.append({"polygons": merged, "color": Color.WHITE})
-	if blink:
+	if blink or squint:
 		return parts
 	for i in 2:
 		var side := -1.0 if i == 0 else 1.0
@@ -178,6 +199,9 @@ static func draw_parts(canvas: CanvasItem, parts: Array, alpha: float, iris: Col
 
 ## Direzioni della faccia già pronta dei nemici (vedi enemy_face).
 const FACE_DIRECTIONS := 16
+## Bocche (ed espressioni) già pronte dei nemici: denti serrati, urlo e
+## smorfia di dolore (urlo con gli occhi socchiusi, appena colpiti).
+const ENEMY_MOUTHS := ["teeth", "scream", "pain"]
 ## Grandezze degli occhi dei nemici, rispetto a quelli di Ciccio: tutti
 ## uguali (l'aspetto dei nemici è standard, vedi Enemy._apply_look).
 const ENEMY_EYE_SCALES := [1.0]
@@ -190,7 +214,8 @@ static var _enemy_faces := {}
 ## parti si preparano una volta sola per direzione (FACE_DIRECTIONS),
 ## grandezza degli occhi e bocca, come mesh. Coordinate di Ciccio (raggio
 ## RADIUS): chi chiama scala il disegno sul proprio raggio.
-## mouth: "teeth" (denti serrati) o "scream" (spalancata).
+## mouth: "teeth" (denti serrati), "scream" (spalancata) o "pain" (smorfia
+## di dolore: spalancata con gli occhi socchiusi).
 static func enemy_face(canvas: CanvasItem, facing: Vector2, eye_scale: float, mouth: String, iris: Color) -> void:
 	var direction := wrapi(roundi(facing.angle() / TAU * FACE_DIRECTIONS), 0, FACE_DIRECTIONS)
 	var key := "%d:%s:%s" % [direction, eye_scale, mouth]
@@ -205,7 +230,7 @@ static func enemy_face(canvas: CanvasItem, facing: Vector2, eye_scale: float, mo
 static func prepare_enemy_faces(count: int) -> bool:
 	for direction in FACE_DIRECTIONS:
 		for eye_scale: float in ENEMY_EYE_SCALES:
-			for mouth: String in ["teeth", "scream"]:
+			for mouth: String in ENEMY_MOUTHS:
 				var key := "%d:%s:%s" % [direction, eye_scale, mouth]
 				if _enemy_faces.has(key):
 					continue
@@ -222,8 +247,8 @@ static func _build_enemy_face(facing: Vector2, eye_scale: float, mouth: String, 
 		return []
 	look["size"] = float(look["size"]) * eye_scale
 	look["spacing"] = float(look["spacing"]) * lerpf(1.0, eye_scale, 0.5)
-	var parts := mouth_parts(look, 1.0 if mouth == "scream" else 0.0)
-	parts.append_array(eye_parts(look))
+	var parts := mouth_parts(look, 1.0 if mouth in ["scream", "pain"] else 0.0)
+	parts.append_array(eye_parts(look, false, mouth == "pain"))
 	var baked: Array = []
 	for k in parts.size():
 		var part: Dictionary = parts[k]
