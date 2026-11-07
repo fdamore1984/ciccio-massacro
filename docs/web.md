@@ -64,6 +64,16 @@ anche la pagina itch.io (`store/itch/`) mostrata sotto il gioco.
   (vedi sotto); la pausa resta comunque su Start del controller e sul pulsante
   Menu del touch.
 
+## Batteria di ricambio automatica (tutta la versione web)
+
+Nel browser, con qualsiasi controllo (touch, tastiera e mouse o controller),
+quando la batteria arriva a zero Ciccio usa da solo una batteria di
+ricambio, se ne ha: `Player._auto_battery_potion`, chiamato a ogni passo di
+fisica, usa la stessa azione del tasto (`Player._start_drink`, con
+l'animazione normale), che parte appena si è fermi a terra senza fare altro.
+Se nel frattempo la batteria si ricarica da sola, la scorta non si usa.
+Nelle versioni per PC non succede.
+
 ## Modalità Touch (solo nel browser)
 
 All'avvio della versione web `Platform._detect_touch_only` guarda se c'è un
@@ -85,8 +95,8 @@ la Modalità Touch non esiste: niente controlli a schermo né automazioni.
   Nessun altro tasto.
 - **Automazioni** (`scripts/touch_assist.gd`, chiamato da
   `Player._physics_process`; preme e rilascia le azioni dell'Input Map):
-  salto davanti ai dislivelli superabili con i salti rimasti; tanica e batteria di scorta usate da sole
-  quando carburante o batteria finiscono (a vita zero, in `Player.receive_hit`, si
+  salto davanti ai dislivelli superabili con i salti rimasti; tanica usata da sola
+  quando il carburante finisce (a vita zero, in `Player.receive_hit`, si
   consuma subito un kit medico); scudo alzato appena è carico; torcia accesa e
   spenta secondo il buio (`DayNight.darkness`).
 - **Combattimento**: Attacco tenuto premuto fa da solo combo normale →
